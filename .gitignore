@@ -1,0 +1,9 @@
+node_modules/
+*.log
+
+# Gecici QA ekran goruntuleri
+_*.png
+_*.html
+
+# Yerel yayin paketi (npm run yayin ile uretilir)
+yayin/

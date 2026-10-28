@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c1f33">
+  <meta name="description" content="İSG Takip Merkezi — işyeri bazlı personel, dosya kontrolü, çalışma planı, risk değerlendirmesi, saha DÖF ve acil durum takibi. Tarayıcı içi demo.">
+  <meta name="color-scheme" content="light">
+  <meta name="application-name" content="İSG Takip Merkezi">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="İSG Takip">
+  <title>Genel bakış • İSG Takip</title>
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="assets/css/style.css?v=2">
+</head>
+<body>
+  <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-panel" viewBox="0 0 24 24"><path d="M4 4h7v7H4V4Zm9 0h7v4h-7V4ZM4 13h7v7H4v-7Zm9-3h7v10h-7V10Z"/></symbol>
+    <symbol id="i-building" viewBox="0 0 24 24"><path d="M4 21V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v4h5a1 1 0 0 1 1 1v12h1v1h-6v-3h-3v3H3v-1h1Zm3-3h2v-2H7v2Zm0-4h2v-2H7v2Zm0-4h2V8H7v2Zm0-4h2V4H7v2Zm4 12h2v-2h-2v2Zm0-4h2v-2h-2v2Zm0-4h2V8h-2v2Zm0-4h2V4h-2v2Zm5 12h2v-2h-2v2Zm0-4h2v-2h-2v2Z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20c0-3.3 3.1-6 7-6s7 2.7 7 6v1H2Zm14.5-5c2.6.4 4.5 2.4 4.5 5v1h-5v-1c0-1.9-.6-3.6-1.6-4.9.7-.1 1.4-.1 2.1-.1Z"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 5a1 1 0 0 1 1-1h6l2 2h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5Zm5.2 9.4 1.4 1.4 3.4-3.4 2.6 2.6 1 1H6v-1.2l2.2-2.4Z"/></symbol>
+    <symbol id="i-plan" viewBox="0 0 24 24"><path d="M4 5h2V3h2v2h8V3h2v2h2v16H4V5Zm2 6v8h12v-8H6Zm2 2h3v2H8v-2Zm5 0h3v2h-3v-2Z"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M9 2h6v2h3a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3V2Zm-2 8v2h10v-2H7Zm0 4v2h7v-2H7Z"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z"/></symbol>
+    <symbol id="i-risk" viewBox="0 0 24 24"><path d="M12 2 4 5v6.5c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5V5l-8-3Zm-1 5h2v7h-2V7Zm0 9h2v2h-2v-2Z"/></symbol>
+    <symbol id="i-emergency" viewBox="0 0 24 24"><path d="M12 2c2 3 1 5 3 7 1.4 1.4 3 2.6 3 5.5A6 6 0 0 1 6 14c0-2 .8-3.4 2-4.5C9.5 8 10 6 12 2Zm0 8c-1.5 1.5-2 2.3-2 3.6a2 2 0 0 0 4 0c0-1-.5-1.7-2-3.6Z"/></symbol>
+    <symbol id="i-team" viewBox="0 0 24 24"><path d="M8 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM1 20c0-3 3-5.5 7-5.5s7 2.5 7 5.5v1H1Zm15-5c3 .4 5 2.4 5 5v1h-4v-1c0-2-.6-3.7-1.7-5 .5-.1 1.1-.1 1.7 0Z"/></symbol>
+    <symbol id="i-law" viewBox="0 0 24 24"><path d="M4 3h9a3 3 0 0 1 3 3v15H7a3 3 0 0 1-3-3V3Zm2 2v13a1 1 0 0 0 1 1h7V6a1 1 0 0 0-1-1H6Zm11 2h3v13a1 1 0 0 1-1 1h-2V7Z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6Zm0 5h18v2H3v-2Zm0 5h18v2H3v-2Z"/></symbol>
+    <symbol id="i-sidebar" viewBox="0 0 24 24"><path d="M3 4h18v16H3V4Zm2 2v12h4V6H5Zm6 0v12h8V6h-8Z"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4 6.4 5Z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M11 3h2v9l3.5-3.5 1.4 1.4L12 16 6.1 9.9 7.5 8.5 11 12V3ZM4 18h16v3H4v-3Z"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M11 16h2V7l3.5 3.5 1.4-1.4L12 3 6.1 9.1 7.5 10.5 11 7v9ZM4 18h16v3H4v-3Z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><path d="M10 3a7 7 0 1 0 4.2 12.6l4.6 4.6 1.4-1.4-4.6-4.6A7 7 0 0 0 10 3Zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2Zm1 15h-2v-2h2v2Zm0-4h-2V8h2v5Z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5h-2v6l4.7 2.8 1-1.7-3.7-2.2V7Z"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M7 2v2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3V2h-2v2H9V2H7Zm13 8v10H4V10h16Z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m9.5 17.6-5-5 1.4-1.4 3.6 3.6 8.6-8.6 1.4 1.4-10 10Z"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7H8V5h14v14h-2V9.4L8.4 19 7 17Z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M9 3v1H4v2h16V4h-5V3H9ZM6 8v13h12V8H6Zm4 3h2v7h-2v-7Zm4 0h2v7h-2v-7Z"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M3 17.2V21h3.8L17 10.8 13.2 7 3 17.2ZM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.9 1.9L18.8 9l1.9-1.9Z"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7Zm0 2c3.3 0 6.3 2.7 7.5 5-1.2 2.3-4.2 5-7.5 5s-6.3-2.7-7.5-5C5.7 9.7 8.7 7 12 7Zm0 1.5A3.5 3.5 0 1 0 12 15a3.5 3.5 0 0 0 0-7Z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 0 7.7 10h-2.1A6 6 0 1 1 12 6c1.7 0 3.2.7 4.2 1.8L13 11h8V3l-3.2 3.2A7.9 7.9 0 0 0 12 4Z"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 3h14l-3 5 3 5H7v8H5V3Z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 4 5v6.5c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5V5l-8-3Zm-1.2 13.6-3.2-3.2 1.4-1.4 1.8 1.8 4.2-4.2 1.4 1.4-5.6 5.6Z"/></symbol>
+    <symbol id="i-bos" viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6V2Zm8 1.5V8h4.5L14 3.5ZM8 12h8v2H8v-2Zm0 4h6v2H8v-2Z"/></symbol>
+  </svg>
+
+  <div class="kabuk" id="kabuk">
+    <aside class="kenar" id="kenar" aria-label="Ana menü">
+      <div class="marka">
+        <span class="marka-isaret" aria-hidden="true">
+          <svg viewBox="0 0 24 24" class="marka-ikon"><path d="M12 2 4 5v6.5c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5V5l-8-3Zm-1.2 13.6-3.2-3.2 1.4-1.4 1.8 1.8 4.2-4.2 1.4 1.4-5.6 5.6Z"/></svg>
+        </span>
+        <span class="marka-metin">
+          <strong><span class="marka-isg">isg</span> takip</strong>
+          <small>ÇALIŞMA ALANI</small>
+        </span>
+      </div>
+
+      <nav class="menu" id="menu">
+        <p class="menu-grup">YÖNETİM</p>
+        <button type="button" class="menu-oge" data-sayfa="panel">
+          <svg class="ikon" aria-hidden="true"><use href="#i-panel"></use></svg><span>Genel bakış</span>
+        </button>
+        <button type="button" class="menu-oge" data-sayfa="isyerleri">
+          <svg class="ikon" aria-hidden="true"><use href="#i-building"></use></svg><span>İşyerleri</span>
+        </button>
+        <button type="button" class="menu-oge" data-sayfa="personel">
+          <svg class="ikon" aria-hidden="true"><use href="#i-users"></use></svg><span>Personel listesi</span>
+        </button>
+        <button type="button" class="menu-oge" data-sayfa="dosyalar">
+          <svg class="ikon" aria-hidden="true"><use href="#i-folder"></use></svg><span>Dosya kontrolleri</span><b class="menu-rozet" id="rozetDosya" hidden></b>
+        </button>
+        <button type="button" class="menu-oge" data-sayfa="plan">
+          <svg class="ikon" aria-hidden="true"><use href="#i-plan"></use></svg><span>Çalışma planı</span>
+        </button>
+        <button type="button" class="menu-oge" data-sayfa="saha">
+          <svg class="ikon" aria-hidden="true"><use href="#i-clipboard"></use></svg><span>Saha ve DÖF</span><b class="menu-rozet" id="rozetSaha" hidden></b>
+        </button>
+        <button type="button" class="menu-oge" data-sayfa="rapor">
+          <svg class="ikon" aria-hidden="true"><use href="#i-chart"></use></svg><span>Yönetim raporu</span>
+        </button>
+
+        <p class="menu-grup">İSG MODÜLLERİ</p>
+        <button type="button" class="menu-oge" data-sayfa="risk">
+          <svg class="ikon" aria-hidden="true"><use href="#i-risk"></use></svg><span>Risk değerlendirmesi</span>
+        </button>
+        <button type="button" class="menu-oge" data-sayfa="acil">
+          <svg class="ikon" aria-hidden="true"><use href="#i-emergency"></use></svg><span>Acil durum planı</span>
+        </button>
+        <button type="button" class="menu-oge" data-sayfa="ekip">
+          <svg class="ikon" aria-hidden="true"><use href="#i-team"></use></svg><span>Ekip ve davetler</span>
+        </button>
+        <button type="button" class="menu-oge" data-sayfa="mevzuat">
+          <svg class="ikon" aria-hidden="true"><use href="#i-law"></use></svg><span>Mevzuat ve kapsam</span>
+        </button>
+      </nav>
+
+      <div class="kenar-alt">
+        <button type="button" class="menu-oge menu-katla" id="menuKatla" data-islem="menu-katla">
+          <svg class="ikon" aria-hidden="true"><use href="#i-sidebar"></use></svg><span>Menüyü gizle</span>
+        </button>
+        <div class="kullanici">
+          <span class="avatar" id="kullaniciAvatar">MK</span>
+          <span class="kullanici-metin">
+            <strong id="kullaniciAd">Mehmet Kurt</strong>
+            <small id="kullaniciGorev">Yönetici oturumu</small>
+          </span>
+        </div>
+      </div>
+    </aside>
+
+    <div class="perde" id="perde" hidden></div>
+
+    <div class="ana">
+      <header class="ustbar">
+        <button type="button" class="dugme ustbar-dugme" id="menuAc" data-islem="menu-ac" aria-expanded="false" aria-controls="kenar">
+          <svg class="ikon" aria-hidden="true"><use href="#i-menu"></use></svg><span>Menü</span>
+        </button>
+        <nav class="kirinti" aria-label="Sayfa konumu">
+          <span>Çalışma alanı</span>
+          <svg class="kirinti-ayrac ikon" aria-hidden="true"><use href="#i-arrow"></use></svg>
+          <strong id="kirintiSayfa">Genel bakış</strong>
+        </nav>
+        <div class="ustbar-sag">
+          <button type="button" class="dugme ince" data-islem="yedekle" title="JSON yedeği indir">
+            <svg class="ikon" aria-hidden="true"><use href="#i-download"></use></svg><span class="gizle-kucuk">Yedekle</span>
+          </button>
+          <button type="button" class="dugme ince" data-islem="geri-yukle" title="JSON yedeğini geri yükle">
+            <svg class="ikon" aria-hidden="true"><use href="#i-upload"></use></svg><span class="gizle-kucuk">Geri yükle</span>
+          </button>
+          <input type="file" id="yedekDosya" accept="application/json,.json" hidden>
+        </div>
+      </header>
+
+      <main class="gorunum" id="gorunum" tabindex="-1"></main>
+
+      <footer class="altbilgi">
+        <span>İSG Takip Merkezi · tarayıcı içi demo · veriler yalnızca bu cihazda saklanır</span>
+        <span class="altbilgi-eylem">
+          <button type="button" class="baglanti-dugme" data-islem="demo-sifirla">Demo verilerini sıfırla</button>
+          <span class="kayit-durumu" id="kayitDurumu"><span></span>Yerel kayıt açık</span>
+        </span>
+      </footer>
+    </div>
+  </div>
+
+  <!-- KURUM -->
+  <dialog class="diyalog kucuk" id="kurumDiyalog" aria-labelledby="kurumBaslik">
+    <form method="dialog" id="kurumForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">ÇALIŞILAN KURUM</p>
+      <h2 id="kurumBaslik">Kurum adını düzenle</h2>
+      <label class="alan">
+        <span>Kurum adı *</span>
+        <input type="text" name="kurum" required maxlength="120">
+      </label>
+      <p class="form-uyari" id="kurumUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- İŞYERİ -->
+  <dialog class="diyalog" id="isyeriDiyalog" aria-labelledby="isyeriBaslik">
+    <form method="dialog" id="isyeriForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">İŞYERİ KAYDI</p>
+      <h2 id="isyeriBaslik">Yeni işyeri</h2>
+      <input type="hidden" name="id">
+      <div class="form-izgara">
+        <label class="alan genis">
+          <span>İşyeri adı *</span>
+          <input type="text" name="ad" required maxlength="120" placeholder="Örn. Aypaş OSGB">
+        </label>
+        <label class="alan">
+          <span>Tehlike sınıfı *</span>
+          <select name="tehlikeSinifi" required>
+            <option value="az">Az tehlikeli</option>
+            <option value="tehlikeli" selected>Tehlikeli</option>
+            <option value="cokTehlikeli">Çok tehlikeli</option>
+          </select>
+        </label>
+        <label class="alan">
+          <span>Çalışan sayısı</span>
+          <input type="number" name="calisanSayisi" min="0" max="100000" step="1" value="0">
+        </label>
+        <label class="alan">
+          <span>SGK sicil no</span>
+          <input type="text" name="sgkSicil" maxlength="40" placeholder="2-1234-01-01-1234567-01">
+        </label>
+        <label class="alan">
+          <span>Yetkili</span>
+          <input type="text" name="yetkili" maxlength="80" placeholder="Ad Soyad">
+        </label>
+        <label class="alan">
+          <span>Sektör</span>
+          <input type="text" name="sektor" maxlength="60" placeholder="Örn. Ulaşım">
+        </label>
+        <label class="alan">
+          <span>Adres / konum</span>
+          <input type="text" name="adres" maxlength="90" placeholder="İlçe / İl">
+        </label>
+        <label class="alan onay-alani genis">
+          <input type="checkbox" name="ana" value="1">
+          <span>Ana kurum olarak işaretle</span>
+        </label>
+      </div>
+      <p class="form-uyari" id="isyeriUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- PERSONEL -->
+  <dialog class="diyalog" id="personelDiyalog" aria-labelledby="personelBaslik">
+    <form method="dialog" id="personelForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">PERSONEL KAYDI</p>
+      <h2 id="personelBaslik">Yeni personel</h2>
+      <input type="hidden" name="id">
+      <div class="form-izgara">
+        <label class="alan genis">
+          <span>Adı soyadı *</span>
+          <input type="text" name="adSoyad" required maxlength="80" placeholder="Ad Soyad">
+        </label>
+        <label class="alan">
+          <span>İşyeri *</span>
+          <select name="isyeriId" id="personelIsyeri" required></select>
+        </label>
+        <label class="alan">
+          <span>Sicil no</span>
+          <input type="text" name="sicil" maxlength="20" inputmode="numeric">
+        </label>
+        <label class="alan">
+          <span>TC kimlik no</span>
+          <input type="text" name="tc" maxlength="11" inputmode="numeric" placeholder="11 hane">
+        </label>
+        <label class="alan">
+          <span>Mesleği</span>
+          <input type="text" name="meslek" maxlength="80" placeholder="Örn. Pres operatörü">
+        </label>
+        <label class="alan">
+          <span>Departman</span>
+          <input type="text" name="departman" maxlength="60" list="departmanlar">
+        </label>
+        <label class="alan">
+          <span>Grup kodu açıklama</span>
+          <input type="text" name="grupKodu" maxlength="40">
+        </label>
+        <label class="alan">
+          <span>Şube</span>
+          <input type="text" name="sube" maxlength="60">
+        </label>
+        <label class="alan">
+          <span>İşe başlama</span>
+          <input type="date" name="iseBaslama">
+        </label>
+        <label class="alan">
+          <span>Cep telefonu</span>
+          <input type="tel" name="telefon" maxlength="20" placeholder="05xx xxx xx xx">
+        </label>
+        <label class="alan">
+          <span>Cinsiyet</span>
+          <select name="cinsiyet">
+            <option value="">Belirtilmedi</option>
+            <option value="Kadın">Kadın</option>
+            <option value="Erkek">Erkek</option>
+          </select>
+        </label>
+        <label class="alan">
+          <span>Durum</span>
+          <select name="durum">
+            <option value="aktif" selected>Aktif</option>
+            <option value="pasif">Pasif</option>
+          </select>
+        </label>
+      </div>
+      <p class="form-uyari" id="personelUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- EĞİTİM -->
+  <dialog class="diyalog" id="egitimDiyalog" aria-labelledby="egitimBaslik">
+    <form method="dialog" id="egitimForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">EĞİTİM KAYDI</p>
+      <h2 id="egitimBaslik">Yeni eğitim</h2>
+      <input type="hidden" name="id">
+      <div class="form-izgara">
+        <label class="alan genis">
+          <span>Personel *</span>
+          <select name="personelId" id="egitimPersonel" required></select>
+        </label>
+        <label class="alan">
+          <span>Eğitim türü *</span>
+          <select name="tur" id="egitimTur" required></select>
+        </label>
+        <label class="alan">
+          <span>Eğitim tarihi *</span>
+          <input type="date" name="tarih" required>
+        </label>
+        <label class="alan">
+          <span>Süre (saat)</span>
+          <input type="number" name="sureSaat" min="0" max="200" step="1" value="8">
+        </label>
+        <label class="alan">
+          <span>Eğitmen</span>
+          <input type="text" name="egitmen" maxlength="60" placeholder="Ad Soyad">
+        </label>
+        <label class="alan">
+          <span>Geçerlilik bitişi</span>
+          <input type="text" name="gecerlilik" readonly aria-readonly="true">
+        </label>
+      </div>
+      <p class="ipucu" id="egitimIpucu"></p>
+      <p class="form-uyari" id="egitimUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- DOSYA MADDESİ -->
+  <dialog class="diyalog" id="dosyaDiyalog" aria-labelledby="dosyaBaslik">
+    <form method="dialog" id="dosyaForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">DOSYA KONTROL MADDESİ</p>
+      <h2 id="dosyaBaslik">Yeni kontrol maddesi</h2>
+      <input type="hidden" name="id">
+      <div class="form-izgara">
+        <label class="alan genis">
+          <span>Kontrol maddesi *</span>
+          <input type="text" name="madde" required maxlength="180" placeholder="Örn. İSG kurulu aylık toplantı tutanakları">
+        </label>
+        <label class="alan">
+          <span>İşyeri *</span>
+          <select name="isyeriId" id="dosyaIsyeri" required></select>
+        </label>
+        <label class="alan">
+          <span>Bölüm</span>
+          <input type="text" name="bolum" maxlength="80" list="bolumler" placeholder="Örn. ACİL DURUM">
+        </label>
+        <label class="alan">
+          <span>Durum *</span>
+          <select name="durum" required>
+            <option value="incelenmedi">İncelenmedi</option>
+            <option value="var">Var</option>
+            <option value="eksik">Eksik</option>
+            <option value="yok">Yok</option>
+          </select>
+        </label>
+        <label class="alan">
+          <span>Sorumlu</span>
+          <input type="text" name="sorumlu" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>Yenileme tarihi</span>
+          <input type="date" name="yenileme">
+        </label>
+        <label class="alan">
+          <span>Son kontrol tarihi</span>
+          <input type="date" name="kontrolTarihi">
+        </label>
+        <label class="alan genis">
+          <span>Açıklama</span>
+          <textarea name="aciklama" rows="2" maxlength="240" placeholder="Belge konumu, eksik sayfa, sorumlu notu…"></textarea>
+        </label>
+      </div>
+      <p class="form-uyari" id="dosyaUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- PLAN FAALİYETİ -->
+  <dialog class="diyalog" id="planDiyalog" aria-labelledby="planBaslik">
+    <form method="dialog" id="planForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">YILLIK ÇALIŞMA PLANI</p>
+      <h2 id="planBaslik">Plan faaliyeti</h2>
+      <input type="hidden" name="id">
+      <div class="form-izgara">
+        <label class="alan genis">
+          <span>Faaliyet *</span>
+          <input type="text" name="faaliyet" required maxlength="150" placeholder="Örn. Acil durum tatbikatı planla ve kaydet">
+        </label>
+        <label class="alan">
+          <span>İşyeri *</span>
+          <select name="isyeriId" id="planIsyeri" required></select>
+        </label>
+        <label class="alan">
+          <span>Sorumlu</span>
+          <input type="text" name="sorumlu" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>Takip tarihi</span>
+          <input type="date" name="takipTarihi">
+        </label>
+        <label class="alan">
+          <span>Durum</span>
+          <select name="durum">
+            <option value="takvimde">Takvimde</option>
+            <option value="tamamlandi">Tamamlandı</option>
+            <option value="planlanmadi">Planlanmadı</option>
+          </select>
+        </label>
+        <label class="alan genis">
+          <span>Açıklama</span>
+          <textarea name="aciklama" rows="2" maxlength="240"></textarea>
+        </label>
+      </div>
+      <p class="form-uyari" id="planUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- SAHA TESPİTİ / DÖF -->
+  <dialog class="diyalog" id="tespitDiyalog" aria-labelledby="tespitBaslik">
+    <form method="dialog" id="tespitForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">SAHA TESPİTİ VE DÖF</p>
+      <h2 id="tespitBaslik">Yeni tespit</h2>
+      <input type="hidden" name="id">
+      <div class="form-izgara">
+        <label class="alan genis">
+          <span>Tespit *</span>
+          <input type="text" name="tespit" required maxlength="150" placeholder="Örn. Acil çıkış önünde palet birikmesi">
+        </label>
+        <label class="alan">
+          <span>İşyeri *</span>
+          <select name="isyeriId" id="tespitIsyeri" required></select>
+        </label>
+        <label class="alan">
+          <span>Konum</span>
+          <input type="text" name="konum" maxlength="80" placeholder="Örn. Depo A">
+        </label>
+        <label class="alan">
+          <span>Sorumlu</span>
+          <input type="text" name="sorumlu" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>Öncelik</span>
+          <select name="oncelik">
+            <option value="orta">Orta</option>
+            <option value="yuksek">Yüksek</option>
+            <option value="kritik">Kritik</option>
+            <option value="dusuk">Düşük</option>
+          </select>
+        </label>
+        <label class="alan">
+          <span>Tür</span>
+          <select name="tur">
+            <option value="Uygunsuzluk">Uygunsuzluk</option>
+            <option value="Eksiklik">Eksiklik</option>
+            <option value="Davranış">Davranış</option>
+            <option value="Ramak kala">Ramak kala</option>
+          </select>
+        </label>
+        <label class="alan">
+          <span>Termin</span>
+          <input type="date" name="termin">
+        </label>
+        <label class="alan">
+          <span>Durum</span>
+          <select name="durum">
+            <option value="acik">Açık</option>
+            <option value="dogrulama">Doğrulama bekliyor</option>
+            <option value="kapali">Kapatıldı</option>
+          </select>
+        </label>
+        <label class="alan genis">
+          <span>Yapılan işlem / not</span>
+          <textarea name="not" rows="2" maxlength="240"></textarea>
+        </label>
+      </div>
+      <p class="form-uyari" id="tespitUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- RİSK EKİBİ -->
+  <dialog class="diyalog" id="riskEkipDiyalog" aria-labelledby="riskEkipBaslik">
+    <form method="dialog" id="riskEkipForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">RİSK DEĞERLENDİRMESİ</p>
+      <h2 id="riskEkipBaslik">Değerlendirme ve ekip</h2>
+      <input type="hidden" name="isyeriId">
+      <div class="form-izgara">
+        <label class="alan">
+          <span>Son değerlendirme</span>
+          <input type="date" name="sonDegerlendirme">
+        </label>
+        <label class="alan">
+          <span>En geç yenileme</span>
+          <input type="date" name="enGecYenileme">
+        </label>
+        <label class="alan">
+          <span>İşveren / vekili</span>
+          <input type="text" name="isveren" list="kisiler" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>İş güvenliği uzmanı</span>
+          <input type="text" name="uzman" list="kisiler" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>İşyeri hekimi</span>
+          <input type="text" name="hekim" list="kisiler" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>Çalışan temsilcisi</span>
+          <input type="text" name="temsilci" list="kisiler" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>Destek elemanı</span>
+          <input type="text" name="destek" list="kisiler" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>Birimleri bilen çalışan</span>
+          <input type="text" name="birim" list="kisiler" maxlength="80">
+        </label>
+      </div>
+      <p class="form-uyari" id="riskEkipUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ACİL DURUM PLANI -->
+  <dialog class="diyalog" id="acilPlanDiyalog" aria-labelledby="acilPlanBaslik">
+    <form method="dialog" id="acilPlanForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">ACİL DURUM PLANI</p>
+      <h2 id="acilPlanBaslik">Plan ve ekip kaydı</h2>
+      <input type="hidden" name="isyeriId">
+      <div class="form-izgara">
+        <label class="alan">
+          <span>Hazırlanma tarihi</span>
+          <input type="date" name="hazirlanma">
+        </label>
+        <label class="alan">
+          <span>Son yenileme</span>
+          <input type="date" name="sonYenileme">
+        </label>
+        <label class="alan">
+          <span>Son tatbikat</span>
+          <input type="date" name="tatbikat">
+        </label>
+        <label class="alan">
+          <span>Acil durum koordinatörü</span>
+          <input type="text" name="ekip_koordinator" list="kisiler" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>Yangın söndürme ekibi</span>
+          <input type="text" name="ekip_yangin" list="kisiler" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>İlk yardım ekibi</span>
+          <input type="text" name="ekip_ilkyardim" list="kisiler" maxlength="80">
+        </label>
+        <label class="alan">
+          <span>Tahliye / arama kurtarma</span>
+          <input type="text" name="ekip_tahliye" list="kisiler" maxlength="80">
+        </label>
+      </div>
+      <p class="form-uyari" id="acilUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ONAY -->
+  <dialog class="diyalog kucuk" id="onayDiyalog" aria-labelledby="onayBaslik">
+    <form method="dialog">
+      <p class="ustyazi">ONAY</p>
+      <h2 id="onayBaslik">Kayıt silinsin mi?</h2>
+      <p class="muted" id="onayMetin">Bu işlem geri alınamaz.</p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="button" class="dugme tehlike-dugme" id="onayEvet">Sil</button>
+      </div>
+    </form>
+  </dialog>
+
+  <datalist id="departmanlar"></datalist>
+  <datalist id="bolumler"></datalist>
+  <datalist id="kisiler"></datalist>
+  <input type="file" id="personelDosya" accept=".csv,text/csv" hidden>
+  <div class="bildirimler" id="bildirimler" aria-live="polite" aria-atomic="true"></div>
+
+  <noscript><p class="noscript">Bu uygulama JavaScript gerektirir. Lütfen tarayıcınızda JavaScript'i etkinleştirin.</p></noscript>
+
+  <script src="assets/js/ornek-veri.js"></script>
+  <script src="assets/js/depo.js"></script>
+  <script src="assets/js/bicim.js"></script>
+  <script src="assets/js/sayfalar.js"></script>
+  <script src="assets/js/sayfalar-kayit.js"></script>
+  <script src="assets/js/sayfalar-rapor.js"></script>
+  <script src="assets/js/uygulama.js"></script>
+</body>
+</html>
+
+
+
+
+

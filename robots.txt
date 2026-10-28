@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# Statik demo; indekslemede arama sonuçlarında çıkmaması için kök dizin taraması serbest,
+# hassas veri tutulmaz. Arşiv/araç dizinleri taranmaz.
+Disallow: /tools/
