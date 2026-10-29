@@ -100,6 +100,12 @@ function bekle(ms) {
   kontrol('Hatalı şifre uyarısı', doc.getElementById('girisUyari').hidden === false && /Şifre hatalı/.test(metin('#girisUyari')), metin('#girisUyari'));
   kontrol('Hatalı girişte oturum açılmaz', !ISG.yetki.oturum());
 
+  await girisYap('admin@isg.local', '1234');
+  kontrol('Kayıtsız e-postada kayıtlı hesaplar hatırlatılır',
+    /kayıtlı kullanıcı bulunamadı/i.test(metin('#girisUyari')) && /mehmet\.kurt@ornek\.com/.test(metin('#girisUyari')),
+    metin('#girisUyari'));
+  kontrol('Kayıtsız e-postada oturum açılmaz', !ISG.yetki.oturum());
+
   await girisYap('mehmet.kurt@ornek.com', '1234');
   kontrol('Yönetici oturumu açıldı', !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yonetici');
   kontrol('Giriş katmanı kapandı', doc.getElementById('girisKatman').hidden === true);

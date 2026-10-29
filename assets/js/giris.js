@@ -25,9 +25,21 @@
 
   /* ---------- Doğrulama ---------- */
 
+  /* Kayıtlı e-postaları hatırlatan hata metni: yanlış adres yazıldığında
+     kullanıcı hangi hesapların tanımlı olduğunu giriş ekranında görür. */
+  function kayitliEpostaIpucu() {
+    var liste = (D.al().kullanicilar || []).filter(function (kullanici) {
+      return kullanici.eposta && kullanici.aktif !== false;
+    }).map(function (kullanici) { return kullanici.eposta; });
+    if (!liste.length) {
+      return 'Bu e-posta ile kayıtlı kullanıcı bulunamadı. Tanımlı hesap yok; yönetici hesabıyla veri yedeğini geri yükleyin.';
+    }
+    return 'Bu e-posta ile kayıtlı kullanıcı bulunamadı. Kayıtlı hesaplar: ' + liste.join(', ') + '.';
+  }
+
   function kullaniciDogrula(eposta, sifre) {
     var kullanici = D.kullaniciEpostaBul(eposta);
-    if (!kullanici) { throw new Error('Bu e-posta ile kayıtlı kullanıcı bulunamadı.'); }
+    if (!kullanici) { throw new Error(kayitliEpostaIpucu()); }
     if (kullanici.aktif === false) { throw new Error('Bu kullanıcı pasif durumda, yöneticinizle görüşün.'); }
     if (String(kullanici.sifre || '') !== String(sifre || '')) { throw new Error('Şifre hatalı, yeniden deneyin.'); }
     return kullanici;

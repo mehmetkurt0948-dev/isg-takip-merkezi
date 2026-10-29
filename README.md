@@ -51,6 +51,12 @@ Demo hesapları (şifre: `1234`):
 | `buse.senol@ornek.com` | Buse Şenol | Yetkili | `iy1`, `iy2` |
 | `selin.aydin@ornek.com` | Selin Aydın | Görüntüleyici | `iy1` |
 
+> Giriş ekranında bu üç hesap **düğme** olarak listelenir; tıklayınca e-posta ve
+> şifre kendiliğinden dolar. Elle yazarken yanlış bir adres girilirse uyarı
+> metni kayıtlı hesapların e-postalarını hatırlatır. Tanımlı hesap yoksa
+> (tarayıcıda eski/boş veri varsa) Ayarlar → **Demo veriyi sıfırla** ile üç
+> hesap yeniden oluşturulur.
+
 Yetki katmanı `assets/js/yetki.js` içinde üç parçadan oluşur: **rol tanımları**
 (`ISG.yetki.ROLLER`, Türkçe rol adları `ROL_ESLEME` ile normalize edilir),
 **işyeri kapsamı** (`kapsam`, `kapsamda`, `kapsamliVeri`) ve **onay kuyruğu**
