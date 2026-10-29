@@ -195,7 +195,7 @@
 
       '<details class="kurum-katlanabilir">' +
         '<summary>Çalışılan kurum: ' + kacis(hesap.ayarlar.kurum) + ' · Kurum değiştir</summary>' +
-        '<p class="bolum-aciklama">Bu kurum altındaki işyerleri ve yetkili kullanıcı kapsamı demo verisiyle temsil edilir. Kurum adı değiştirildiğinde tüm ekranlardaki başlık güncellenir.</p>' +
+        '<p class="bolum-aciklama">Bu kurum altındaki işyerleri ve yetkili kullanıcı kapsamı örnek verilerle temsil edilir. Kurum adı değiştirildiğinde tüm ekranlardaki başlık güncellenir.</p>' +
         '<div class="satir-arac" style="margin-top:10px">' +
           '<button type="button" class="dugme ince" data-islem="kurum-duzenle">Kurum adını düzenle</button>' +
           '<button type="button" class="dugme ince tehlike-dugme" data-islem="kurum-sil">Kurumu sil</button>' +

@@ -15,25 +15,27 @@ kayıt tabloları.
 
 | Ekran | Ne yapar? |
 |---|---|
-| **Giriş** | Oturum katmanı: demo hesapları tek tıkla doldurma, e-posta/şifre doğrulama, hatalı şifre uyarısı, oturumu tarayıcıda hatırlama, çıkışta onay |
+| **Giriş** | Oturum katmanı: e-posta/şifre doğrulama, hatalı şifre uyarısı, davet kodu ile hesap açma, **6 haneli e-posta koduyla şifre sıfırlama**, oturumu tarayıcıda hatırlama, çıkışta onay |
 | **Genel bakış** | Tüm işyerlerinden türetilen görev motoru: geciken / bugün / yaklaşan / tarihsiz işler, öncelik sıralı liste, işyeri bazında durum tablosu |
 | **İşyerleri** | Kurum şeridi (ana kurum, ad değiştir, kurum sil), işyeri kartları (tehlike sınıfı, çalışan ve kontrol maddesi sayısı), işyeri CRUD |
 | **Personel listesi** | İşyeri bazında bloklar, sicil/TC/meslek/departman/şube/kıdem/telefon/cinsiyet kolonları, arama, detay açma, eğitim kayıtları, gerçek **XLSX şablonu** ve XLSX/CSV içe-dışa aktarma, "listeyi temizle" |
-| **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma, **belge eki yükle / indir / kaldır** (belge başına ≤ 1 MB, `localStorage`) |
+| **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma, **belge eki yükle / görüntüle / indir / kaldır** (belge başına ≤ 1 MB, `localStorage`) |
 | **Çalışma planı** | İlk yardımcı ihtiyaç/mevcut karşılaştırması, yıllık plan kartları, plan kalemi CRUD, tamamlandı işaretleme, plan KPI'ları |
 | **Saha ve DÖF** | Açık/geciken/doğrulama/kapatılan tespitler, öncelik-tür filtreleri, kapatma akışı, ramak kala ve olay bildirimleri |
 | **Yönetim raporu** | Tarih aralığı, açık/geciken iş, doğrulama bekleyen, dönemde tamamlanan, işyeri bazında karşılaştırma tablosu, Excel (CSV) çıktısı |
-| **Risk değerlendirmesi** | İşyeri başına son değerlendirme / en geç yenileme / olağan üst sınır, 6 rollü ekip listesi, rol bazlı **ekip üyesi ekle / değiştir / kaldır**, eksik rol uyarısı, 5×5 risk kayıt tablosu |
-| **Acil durum planı** | Çalışan sayısı, plan tarihi, yenileme sınırı (tehlike sınıfına göre), 5 rollü destek ekibi (destek elemanı dâhil), rol bazlı **ekip üyesi ekle / değiştir / kaldır**, plan/ekip kaydı |
+| **İstatistikler** | Personel, eğitim geçerliliği, saha tespiti, risk seviyesi ve belge durumu dağılımlarının çubuk grafikleri; dört özet KPI; kapsam filtresi |
+| **Risk değerlendirmesi** | İşyeri başına son değerlendirme / en geç yenileme / olağan üst sınır, 6 rollü ekip listesi, rol bazlı **ekip üyesi ekle / değiştir / kaldır**, eksik rol uyarısı, **risk belgesi yükle / görüntüle / indir**, 5×5 risk kayıt tablosu |
+| **Acil durum planı** | Çalışan sayısı, plan tarihi, yenileme sınırı (tehlike sınıfına göre), 5 rollü destek ekibi (destek elemanı dâhil), rol bazlı **ekip üyesi ekle / değiştir / kaldır**, **plan belgesi yükle / görüntüle / indir**, plan/ekip kaydı |
 | **Ekip ve davetler** | E-posta + rol + yetkili işyeri seçimiyle davet oluşturma, davet listesi ve iptal |
 | **Mevzuat ve kapsam** | 20 başlıklı katalog (kanun/yönetmelik/tebliğ/rehber/standart), kategori ve konu araması, teyit durumu, seçili işyeri kapsam özeti, Mevzuat Bilgi Sistemi bağlantısı |
 | **Onay kuyruğu** | Yetkili kullanıcıların yazma işlemlerinden doğan talepler: işlem özeti, işyeri, talep sahibi, onayla / reddet, bekleyen sayısı rozeti, denetim izi |
 
-Ek yetenekler: `localStorage` kalıcılığı, JSON yedek al / geri yükle, demo
-sıfırlama, işyeri kapsam filtresi (tüm ekranlarda), menüyü gizleme, mobil
-menü, yazdırma dostu görünüm, klavye erişilebilir `<dialog>` formları,
-personel için gerçek **XLSX** (şablon + dışa/içe aktarma) desteği, diğer
-listeler için CSV dışa aktarma, rol bazlı yetki ve onay akışı.
+Ek yetenekler: `localStorage` kalıcılığı, JSON yedek al / geri yükle, işyeri
+kapsam filtresi (tüm ekranlarda), menüyü gizleme, mobil menü, yazdırma dostu
+görünüm, klavye erişilebilir `<dialog>` formları, personel için gerçek
+**XLSX** (şablon + dışa/içe aktarma) desteği, diğer listeler için CSV dışa
+aktarma, belge önizleme (blob adresiyle yeni sekme), e-posta kodlu şifre
+sıfırlama, rol bazlı yetki ve onay akışı.
 
 ### 1.1. Roller ve yetkiler
 
@@ -43,19 +45,44 @@ listeler için CSV dışa aktarma, rol bazlı yetki ve onay akışı.
 | **Yetkili** | Yalnızca atandığı işyerleri | Talebe dönüşür, yönetici onayı gerekir | Görmez |
 | **Görüntüleyici** | Yalnızca atandığı işyerleri | Yok (`salt-okunur` gövde sınıfı) | Görmez |
 
-Demo hesapları (şifre: `1234`):
+Başlangıç hesapları (şifre: `1234`):
 
 | E-posta | Ad | Rol | İşyerleri |
 |---|---|---|---|
-| `mehmet.kurt@ornek.com` | Mehmet Kurt | Yönetici | Tümü (6) |
+| `mehmetkurt0948@gmail.com` | Mehmet Kurt | Yönetici | Tümü (6) |
 | `buse.senol@ornek.com` | Buse Şenol | Yetkili | `iy1`, `iy2` |
 | `selin.aydin@ornek.com` | Selin Aydın | Görüntüleyici | `iy1` |
 
-> Giriş ekranında bu üç hesap **düğme** olarak listelenir; tıklayınca e-posta ve
-> şifre kendiliğinden dolar. Elle yazarken yanlış bir adres girilirse uyarı
-> metni kayıtlı hesapların e-postalarını hatırlatır. Tanımlı hesap yoksa
-> (tarayıcıda eski/boş veri varsa) Ayarlar → **Demo veriyi sıfırla** ile üç
-> hesap yeniden oluşturulur.
+> Giriş ekranında hazır hesap düğmesi yoktur; kullanıcı e-posta ve şifresini
+> kendisi yazar. Yanlış adres girilirse uyarı metni kayıtlı hesapların
+> e-postalarını hatırlatır. Şifresini unutan kullanıcı **Şifremi unuttum**
+> sekmesinden 6 haneli e-posta koduyla yeni şifre belirler.
+
+### 1.2. Şifre sıfırlama (e-posta kodu)
+
+Statik sitede sunucu yoktur; kodun gerçekten e-postaya gitmesi için tarayıcıdan
+çağrılabilen bir e-posta servisi gerekir. `assets/js/giris.js` dosyasının
+başındaki `POSTA` nesnesine [EmailJS](https://www.emailjs.com/) hesabınızdan
+aldığınız üç değeri yazın:
+
+```js
+var POSTA = {
+  servisId: 'service_xxx',     // EmailJS service ID
+  sablonId: 'template_xxx',    // EmailJS template ID
+  genelAnahtar: 'xxxxxxxxxxx', // EmailJS public key
+  adres: 'https://api.emailjs.com/api/v1.0/email/send'
+};
+```
+
+EmailJS şablonunda `{{to_email}}`, `{{kod}}`, `{{gecerlilik_dakika}}` ve
+`{{kurum}}` değişkenlerini kullanın. Akış: kullanıcı e-postasını yazar → 6
+haneli kod üretilir (10 dakika geçerli, 5 hatalı deneme sınırı) → kod
+`localStorage` içindeki `isgtakip.sifirlama` anahtarında tutulur → kod
+doğrulanınca `ISG.depo.sifreGuncelle` ile şifre yazılır.
+
+Değerler boşken gönderim denenmez; uygulama kodu ekranda gösterir ve
+"e-posta servisi tanımlı değil" uyarısı verir. Bu durumda kod yalnızca
+kurulum amaçlıdır, güvenli kabul edilmemelidir.
 
 Yetki katmanı `assets/js/yetki.js` içinde üç parçadan oluşur: **rol tanımları**
 (`ISG.yetki.ROLLER`, Türkçe rol adları `ROL_ESLEME` ile normalize edilir),
@@ -109,7 +136,6 @@ isg-takip-merkezi/
 ├─ index.html                 # iskelet, SVG ikon sprite, 11 <dialog> formu
 ├─ 404.html                   # Pages için "sayfa bulunamadı" ekranı
 ├─ manifest.webmanifest       # PWA kimliği, tema rengi, simgeler
-├─ robots.txt                 # arama motoru kuralları
 ├─ .nojekyll                  # GitHub Pages Jekyll işlemesini kapatır
 ├─ assets/
 │  ├─ css/style.css           # açık tema, bileşenler, duyarlı + yazdırma
@@ -126,11 +152,11 @@ isg-takip-merkezi/
 │     ├─ excel.js             # bağımlılıksız XLSX yazıcı/okuyucu (ZIP + OpenXML)
 │     ├─ sayfalar.js          # Genel bakış, İşyerleri, Personel
 │     ├─ sayfalar-kayit.js    # Dosya kontrolleri, Çalışma planı, Saha/DÖF
-│     ├─ sayfalar-rapor.js    # Rapor, Risk, Acil durum, Ekip, Mevzuat, Onaylar
-│     ├─ giris.js             # giriş katmanı, demo hesaplar, davet kabulü
+│     ├─ sayfalar-rapor.js    # Rapor, İstatistik, Risk, Acil durum, Ekip, Mevzuat, Onaylar
+│     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (226 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (261 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (25 kontrol)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
@@ -152,7 +178,7 @@ doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
   personel:  [{ id, isyeriId, sicil, adSoyad, tc, meslek, departman, grupKodu, sube, iseBaslama, telefon, cinsiyet, durum }],
   egitimler: [{ id, personelId, isyeriId, tur, tarih, sureSaat, egitmen, gecerlilik }],
   dosyalar:  [{ id, isyeriId, no, bolum, madde, durum, sorumlu, yenileme, kontrolTarihi, aciklama }],
-  belgeler:  [{ id, dosyaId, isyeriId, ad, boyut, tur, tarih, icerik }],
+  belgeler:  [{ id, kaynak, kaynakId, dosyaId?, isyeriId, ad, boyut, tur, tarih, icerik }],
   planlar:   [{ id, isyeriId, sira, ay, gun, faaliyet, sorumlu, takipTarihi, durum, aciklama }],
   tespitler: [{ id, isyeriId, tespit, konum, sorumlu, oncelik, tur, termin, durum, dogrulama, not }],
   riskler:   [{ id, isyeriId, tehlike, alan, olasilik, siddet, onlem, sorumlu, termin, durum }],
@@ -169,18 +195,22 @@ doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
 Oturum bilgisi ayrı bir anahtarda (`isgtakip.oturum`) yalnızca
 `{ kullaniciId, giris }` olarak tutulur; şifre orada saklanmaz. Eski
 `isgtakip.v2` verisi ilk açılışta okunup `v3` yapısına taşınır, kullanıcı
-listesi boşsa demo hesapları eklenir.
+listesi boşsa başlangıç hesapları eklenir.
 
 Tüm kayıtlar işyeri kimliğiyle (`isyeriId`) ilişkilidir; işyeri silindiğinde
 bağlı kayıtlar ve belge ekleri de silinir. Yedek dosyası bu yapının tamamını
 taşır.
 
 Belge ekleri base64 data URL olarak `belgeler[].icerik` alanında saklanır;
-`ad`, `boyut`, `tur`, `tarih` üst verileri listede gösterilir. Bir belge
-eklendiğinde dosya **hemen** kaydedilir; yeni maddede önce seçilen belgeler ise
-madde kaydedilene kadar bellekte tutulur ve kayıtla birlikte yazılır. Belge
-silme ve boyut denetimi `ISG.depo.belgeSil` / `ISG.BELGE_SINIRI` üzerinden
-yürür; kota dolarsa kayıt geri alınır ve kullanıcı uyarılır.
+`kaynak` alanı `dosya`, `risk` veya `acil` olur, `kaynakId` ilgili kaydın
+kimliğini (dosya maddesi ya da işyeri) taşır. Eski kayıtlar yalnızca `dosyaId`
+alanıyla gelir ve `dosya` kaynağı sayılır. `ad`, `boyut`, `tur`, `tarih` üst
+verileri listede gösterilir. Bir belge eklendiğinde dosya **hemen** kaydedilir;
+yeni maddede önce seçilen belgeler ise madde kaydedilene kadar bellekte tutulur
+ve kayıtla birlikte yazılır. Görüntüleme, data URL'nin blob adresine çevrilip
+yeni sekmede açılmasıyla yapılır; sekme açılamazsa dosya indirilir. Belge silme
+ve boyut denetimi `ISG.depo.ekSil` / `ISG.BELGE_SINIRI` üzerinden yürür; kota
+dolarsa kayıt geri alınır ve kullanıcı uyarılır.
 
 ## 6. Hızlı başlangıç
 
@@ -196,16 +226,17 @@ Test:
 
 ```powershell
 npm install
-npm test                     # 226 kontrol + belge testi, başarısızda çıkış kodu 1
+npm test                     # 261 kontrol + belge testi, başarısızda çıkış kodu 1
 npm run test:belge           # yalnızca belge eki testi (25 kontrol)
 ```
 
 Test; yükleme, tohum veri, **giriş/oturum**, **rol ve işyeri kapsamı**,
 **onay kuyruğu ve denetim izi**, iş kuralları, kapsam filtresi, personel CRUD,
 eğitim geçerliliği, dosya filtreleri ve sayfalama, DÖF oluşturma, plan
-tamamlama, saha, risk/acil kayıtları, rapor, davet, mevzuat, yapısal
+tamamlama, saha, risk/acil kayıtları ve belge ekleri, istatistikler, rapor,
+davet, mevzuat, şifre sıfırlama kodu, yapısal
 kontroller (tekrarlanan id, SVG referansı, göreli yollar), JSON yedekleme,
-demo sıfırlama ve yayın paketini (manifest, simgeler, 404, `.nojekyll`,
+veri sıfırlama ve yayın paketini (manifest, simgeler, 404, `.nojekyll`,
 CDN'sizlik) kapsar. `belge-test.js` ayrıca belge yükleme/indirme/silme,
 liste satırındaki belge sayısı, bekleyen belgenin kayıtla birlikte yazılması,
 1 MB sınırı ve `dosyaSil` ile belge temizliğini doğrular; yetki katmanı
@@ -231,7 +262,6 @@ yayin/
 ├─ index.html
 ├─ 404.html
 ├─ manifest.webmanifest
-├─ robots.txt
 ├─ .nojekyll
 ├─ README.md
 └─ assets/   (css, js, img)
@@ -245,7 +275,7 @@ statik sunucuya (GitHub Pages, Netlify, kurum içi IIS/nginx) yükleyebilirsiniz
 
 Uygulama tamamen statiktir: sunucu tarafı, derleme adımı, veritabanı veya API
 anahtarı yoktur. Üç dosya grubu yeterlidir — `index.html`, `assets/` ve
-`manifest.webmanifest` (404/robots/.nojekyll isteğe bağlı ama önerilir).
+`manifest.webmanifest` (404 ve `.nojekyll` isteğe bağlı ama önerilir).
 
 ### 7.1. Yol A — Git ile (önerilen)
 
@@ -283,7 +313,7 @@ git push -u origin main
 `yayin/` depoya girmez. Yalnızca ürün dosyalarını göndermek isterseniz:
 
 ```powershell
-git add index.html 404.html manifest.webmanifest robots.txt .nojekyll README.md assets
+git add index.html 404.html manifest.webmanifest .nojekyll README.md assets
 ```
 
 ### 7.2. Yol B — Git kurmadan tarayıcıdan
@@ -292,7 +322,7 @@ git add index.html 404.html manifest.webmanifest robots.txt .nojekyll README.md 
 2. GitHub'da **New repository** → `isg-takip-merkezi` → Public → Create.
 3. Depo sayfasında **Add file → Upload files**.
 4. `yayin/` klasörünün **içindeki** her şeyi (`index.html`, `404.html`,
-   `assets/`, `manifest.webmanifest`, `robots.txt`, `.nojekyll`, `README.md`)
+   `assets/`, `manifest.webmanifest`, `.nojekyll`, `README.md`)
    sürükleyip bırakın → **Commit changes**.
 5. `.nojekyll` gibi nokta ile başlayan dosya Windows Gezgini'nde görünmez;
    görünür yapmak için **View → Show → Hidden items** işaretleyin
@@ -333,9 +363,9 @@ Notlar:
 
 ## 8. Bilinen sınırlar
 
-- Demo verisi **gerçek kurum verisi değildir**; sayılar ve tarihler örnek amaçlı
-  üretilir. Sağlık verisi, TC kimlik no ve kişisel dosya içeriği bu ortamda
-  saklanmamalıdır.
+- Örnek veriler **gerçek kurum verisi değildir**; sayılar ve tarihler örnek
+  amaçlı üretilir. Sağlık verisi, TC kimlik no ve kişisel dosya içeriği bu
+  ortamda saklanmamalıdır.
 - Veriler yalnızca tarayıcının `localStorage` alanında tutulur; gizli sekmede
   veya depolama temizlendiğinde kaybolur. Çok kullanıcılı, çok cihazlı bir
   kurulum için gerçek bir arka uç (Supabase/Firebase) gerekir.
@@ -344,11 +374,16 @@ Notlar:
   pratik sınırdır. Daha büyük arşivler için dosya sunucusu / bulut depolama
   gerekir; kota dolarsa yükleme reddedilir ve veri bozulmaz.
 - Ekip ve davetler ekranı davet **kaydı** oluşturur; otomatik e-posta
-  gönderimi yoktur. Davet kabulü kod ile demo düzeyinde çalışır: giriş ve
+  gönderimi yoktur. Davet kabulü kod ile istemci tarafında çalışır: giriş ve
   roller tarayıcı içinde doğrulanır, şifreler `localStorage` içinde düz metin
   tutulur. Gerçek kimlik doğrulama (OTP, SSO, parola özeti, sunucu tarafı
   oturum) için bir arka uç gerekir; bu yüzden yetki katmanı **arayüz ve iş
   kuralı** düzeyinde koruma sağlar, güvenlik sınırı değildir.
+- Şifre sıfırlama kodu istemci tarafında üretilir ve `localStorage` içinde
+  tutulur; kodun e-postaya gitmesi için EmailJS gibi bir tarayıcı servisi
+  gerekir. Servis tanımlı değilse kod ekranda gösterilir ve bu durum açıkça
+  uyarılır. Sunucu tarafı doğrulama olmadığı için bu akış güvenlik sınırı
+  değildir.
 - Personel listesi gerçek `.xlsx` (Office Open XML) olarak indirilip yüklenir;
   diğer ekranların "Excel indir" düğmeleri hâlâ `.csv` (UTF-8 BOM, noktalı
   virgül) üretir. Şablon tarih hücrelerini `YYYY-AA-GG` metnine çevirir; birleşik
@@ -372,6 +407,27 @@ Notlar:
 8. İstatistik panosu, çevrimdışı PWA güncelleme bildirimi ve yönetim paneli.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.2.0 — istatistikler, belge önizleme, şifre sıfırlama
+
+- **İstatistikler** ekranı (`#istatistik`) eklendi: dört özet KPI ve beş çubuk
+  grafik (işyeri bazında personel, eğitim geçerliliği, saha tespitleri, risk
+  seviyeleri, belge kontrol durumu). Ortak kapsam filtresi burada da geçerli.
+- **Risk değerlendirmesi ve acil durum planı** diyaloglarına belge yükleme
+  eklendi. Dosya maddelerinin yanı sıra risk/acil ekleri de
+  **görüntülenebilir** (blob adresiyle yeni sekme), indirilebilir ve silinebilir.
+  `belgeler` kayıtları `kaynak` + `kaynakId` ile ayrıştırıldı; eski kayıtlar
+  `dosyaId` alanıyla uyumlu kalır (`ISG.depo.ekler`, `ekKaydet`, `ekSil`).
+- **Şifremi unuttum** akışı: 6 haneli kod, 10 dakika geçerlilik, 5 hatalı
+  deneme sınırı ve `ISG.depo.sifreGuncelle` ile şifre yenileme. Kod EmailJS
+  üzerinden e-postaya gönderilir; servis tanımlı değilse kod ekranda gösterilir
+  ve uyarı verilir.
+- Giriş ekranındaki **demo hesap düğmeleri**, alt bilgideki demo notu ve
+  **demo verilerini sıfırla** düğmesi kaldırıldı; hesap listesi yerine
+  "Şifremi unuttum" sekmesi geldi. `robots.txt` kaldırıldı ve yayın listesinden
+  çıkarıldı.
+- Yönetici hesabı `mehmet.kurt@ornek.com` → **`mehmetkurt0948@gmail.com`**.
+- JS/CSS varlık sürümü `?v=3` → `?v=4`; test kapsamı **226 → 261 kontrol**.
 
 ### 2.1.0 — giriş, roller, onay kuyruğu
 

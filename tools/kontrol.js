@@ -86,7 +86,21 @@ function bekle(ms) {
   kontrol('Giriş katmanı görünür', doc.getElementById('girisKatman') && doc.getElementById('girisKatman').hidden === false);
   kontrol('Gövde oturum yok sınıfında', doc.body.classList.contains('oturum-yok'));
   kontrol('Uygulama kabuğu gizli', doc.getElementById('kabuk') && doc.getElementById('kabuk').getAttribute('aria-hidden') === 'true');
-  kontrol('Demo hesapları listelenir', doc.querySelectorAll('[data-demo-eposta]').length >= 3, String(doc.querySelectorAll('[data-demo-eposta]').length));
+  kontrol('Hazır hesap düğmesi yok', doc.querySelectorAll('[data-demo-eposta]').length === 0,
+    String(doc.querySelectorAll('[data-demo-eposta]').length));
+  kontrol('Şifremi unuttum sekmesi var', !!doc.querySelector('[data-giris-sekme="sifirla"]'));
+  doc.querySelector('[data-giris-sekme="sifirla"]').click();
+  await bekle(60);
+  kontrol('Şifremi unuttum formu açılır', doc.getElementById('sifirlaForm').hidden === false && doc.getElementById('girisForm').hidden === true);
+  kontrol('Sıfırlama ilk adımı görünür', doc.getElementById('sifirlaAdim1').hidden === false && doc.getElementById('sifirlaAdim2').hidden === true);
+  doc.getElementById('sifirlaEposta').value = 'mehmetkurt0948@gmail.com';
+  doc.getElementById('sifirlaForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(160);
+  kontrol('Kod adımı açıldı', doc.getElementById('sifirlaAdim2').hidden === false && doc.getElementById('sifirlaAdim1').hidden === true);
+  kontrol('Servis yokken kod ekranda gösterilir', doc.getElementById('sifirlaKodKutu').hidden === false && /^\d{6}$/.test(metin('#sifirlaKod')), metin('#sifirlaKod'));
+  ISG.giris.sifirlamaSil();
+  doc.querySelector('[data-giris-sekme="giris"]').click();
+  await bekle(40);
 
   const girisYap = async (eposta, sifre) => {
     const form = doc.getElementById('girisForm');
@@ -96,17 +110,17 @@ function bekle(ms) {
     await bekle(220);
   };
 
-  await girisYap('mehmet.kurt@ornek.com', 'yanlis');
+  await girisYap('mehmetkurt0948@gmail.com', 'yanlis');
   kontrol('Hatalı şifre uyarısı', doc.getElementById('girisUyari').hidden === false && /Şifre hatalı/.test(metin('#girisUyari')), metin('#girisUyari'));
   kontrol('Hatalı girişte oturum açılmaz', !ISG.yetki.oturum());
 
   await girisYap('admin@isg.local', '1234');
   kontrol('Kayıtsız e-postada kayıtlı hesaplar hatırlatılır',
-    /kayıtlı kullanıcı bulunamadı/i.test(metin('#girisUyari')) && /mehmet\.kurt@ornek\.com/.test(metin('#girisUyari')),
+    /kayıtlı kullanıcı bulunamadı/i.test(metin('#girisUyari')) && /mehmetkurt0948@gmail\.com/.test(metin('#girisUyari')),
     metin('#girisUyari'));
   kontrol('Kayıtsız e-postada oturum açılmaz', !ISG.yetki.oturum());
 
-  await girisYap('mehmet.kurt@ornek.com', '1234');
+  await girisYap('mehmetkurt0948@gmail.com', '1234');
   kontrol('Yönetici oturumu açıldı', !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yonetici');
   kontrol('Giriş katmanı kapandı', doc.getElementById('girisKatman').hidden === true);
   kontrol('Gövde oturum sınıfı temizlendi', !doc.body.classList.contains('oturum-yok'));
@@ -347,6 +361,41 @@ function bekle(ms) {
   kontrol('Acil plan yenileme kaydedildi', acilKayit.sonYenileme === '2026-02-01');
   kontrol('Acil ekip üyesi eklendi', acilKayit.ekip.some((u) => u.ad === 'Barış Taşdemir'));
 
+  console.log('\n12a) Risk ve acil durum ekleri');
+  const ekIcerik = 'data:text/plain;base64,' + Buffer.from('İSG belgesi').toString('base64');
+  ISG.depo.ekKaydet({ kaynak: 'risk', kaynakId: 'iy1', isyeriId: 'iy1', ad: 'risk-degerlendirme.txt', boyut: 11, tur: 'text/plain', tarih: '2026-01-10', icerik: ekIcerik });
+  ISG.depo.ekKaydet({ kaynak: 'acil', kaynakId: 'iy1', isyeriId: 'iy1', ad: 'acil-plan.txt', boyut: 9, tur: 'text/plain', tarih: '2026-02-01', icerik: ekIcerik });
+  kontrol('Risk eki kaydedildi', ISG.depo.ekSayisi('risk', 'iy1') === 1, String(ISG.depo.ekSayisi('risk', 'iy1')));
+  kontrol('Acil plan eki kaydedildi', ISG.depo.ekSayisi('acil', 'iy1') === 1);
+  kontrol('Dosya maddesi belgeleri ayrı tutulur', ISG.depo.belgeler('iy1').length === 0);
+  await sayfaAc('#risk');
+  kontrol('Risk kartında ek listelenir', /risk-degerlendirme\.txt/.test(metin('#gorunum')));
+  kontrol('Ek görüntüleme düğmesi var', doc.querySelectorAll('[data-islem="ek-goruntule"]').length === 1,
+    String(doc.querySelectorAll('[data-islem="ek-goruntule"]').length));
+  doc.querySelector('[data-islem="risk-ekip"]').click();
+  await bekle(80);
+  kontrol('Risk diyalogunda ek listesi dolu', /risk-degerlendirme\.txt/.test(metin('#riskEkipBelgeListe')));
+  kontrol('Risk diyalogunda yükleme girdisi var', !!doc.getElementById('riskEkipBelgeGirdi'));
+  const riskGirdi = doc.getElementById('riskEkipBelgeGirdi');
+  const riskDosya = new window.File(['risk eki'], 'ui-risk.txt', { type: 'text/plain' });
+  Object.defineProperty(riskGirdi, 'files', { value: [riskDosya], configurable: true });
+  riskGirdi.dispatchEvent(new window.Event('change'));
+  await bekle(200);
+  kontrol('Risk diyalogundan belge yüklendi', ISG.depo.ekSayisi('risk', 'iy1') === 2, String(ISG.depo.ekSayisi('risk', 'iy1')));
+  kontrol('Yüklenen belge listede', /ui-risk\.txt/.test(metin('#riskEkipBelgeListe')));
+  doc.querySelector('#riskEkipBelgeListe [data-islem="belge-sil"]').click();
+  await bekle(80);
+  doc.getElementById('onayEvet').click();
+  await bekle(160);
+  kontrol('Risk eki kaldırıldı', ISG.depo.ekSayisi('risk', 'iy1') === 1, String(ISG.depo.ekSayisi('risk', 'iy1')));
+  doc.getElementById('riskEkipDiyalog').removeAttribute('open');
+  await sayfaAc('#acil');
+  kontrol('Acil kartında ek listelenir', /acil-plan\.txt/.test(metin('#gorunum')));
+  doc.querySelector('[data-islem="acil-plan"]').click();
+  await bekle(80);
+  kontrol('Acil diyalogunda ek listesi dolu', /acil-plan\.txt/.test(metin('#acilPlanBelgeListe')));
+  doc.getElementById('acilPlanDiyalog').removeAttribute('open');
+
   console.log('\n12b) Ekip üyesi ekleme');
   await sayfaAc('#risk');
   kontrol('Risk kartlarında ekip üyesi düğmeleri var',
@@ -433,11 +482,36 @@ function bekle(ms) {
   kontrol('Dosya girişi XLSX kabul ediyor', /\.xlsx/.test(doc.getElementById('personelDosya').getAttribute('accept') || ''));
   kontrol('Personel sayfası Excel/CSV içe aktarma sunuyor', /Excel\/CSV içe aktar/.test(metin('#gorunum')));
 
+  console.log('\n12d) Şifre sıfırlama kodu');
+  const sifirlama = await ISG.giris.kodGonder('mehmetkurt0948@gmail.com');
+  kontrol('6 haneli kod üretildi', /^\d{6}$/.test(sifirlama.kayit.kod), sifirlama.kayit.kod);
+  kontrol('Kod 10 dakika geçerli', sifirlama.kayit.sonGecerlilik - sifirlama.kayit.olusturma === 600000);
+  kontrol('E-posta servisi tanımsızken kod gönderilmedi olarak işaretlenir', sifirlama.sonuc.gonderildi === false);
+  let hataliKodReddedildi = false;
+  try { ISG.giris.kodDogrula('mehmetkurt0948@gmail.com', '000000'); } catch (e) { hataliKodReddedildi = /Kod hatalı/.test(e.message); }
+  kontrol('Hatalı kod reddedildi', hataliKodReddedildi);
+  ISG.giris.sifreSifirla('mehmetkurt0948@gmail.com', sifirlama.kayit.kod, 'yeniSifre9', 'yeniSifre9');
+  kontrol('Şifre güncellendi', ISG.depo.kullaniciEpostaBul('mehmetkurt0948@gmail.com').sifre === 'yeniSifre9');
+  kontrol('Kod kaydı temizlendi', ISG.giris.sifirlamaOku() === null);
+  ISG.yetki.korunmasiz('sifreGuncelle')('mehmetkurt0948@gmail.com', '1234');
+  kontrol('Şifre sınama için geri alındı', ISG.depo.kullaniciEpostaBul('mehmetkurt0948@gmail.com').sifre === '1234');
+
   console.log('\n13) Yönetim raporu');
   await sayfaAc('#rapor');
   kontrol('Rapor dört KPI', doc.querySelectorAll('.kpi').length === 4);
   kontrol('Rapor tablosu altı satır', doc.querySelectorAll('.tablo-kucuk tbody tr').length === 6, String(doc.querySelectorAll('.tablo-kucuk tbody tr').length));
   kontrol('Tarih aralığı alanları var', !!doc.getElementById('raporBas') && !!doc.getElementById('raporBit'));
+
+  console.log('\n13b) İstatistikler');
+  await sayfaAc('#istatistik');
+  kontrol('İstatistik sayfası açıldı', metin('.sayfa-baslik h1') === 'İstatistikler', metin('.sayfa-baslik h1'));
+  kontrol('Dört istatistik KPI kartı var', doc.querySelectorAll('#gorunum .kpi').length === 4,
+    String(doc.querySelectorAll('#gorunum .kpi').length));
+  kontrol('Dağılım çubukları çizildi', doc.querySelectorAll('.ist-cubuk').length >= 20,
+    String(doc.querySelectorAll('.ist-cubuk').length));
+  kontrol('İşyeri dağılımı listelenir', doc.querySelectorAll('.ist-cubuk').length > 0 && /Eğitim geçerliliği/.test(metin('#gorunum')));
+  kontrol('Dolu çubuk genişliği hesaplandı', Array.from(doc.querySelectorAll('.ist-cubuk-dolgu'))
+    .some((cubuk) => /width:\s*\d+%/.test(cubuk.getAttribute('style') || '')), String(doc.querySelectorAll('.ist-cubuk-dolgu').length));
 
   console.log('\n14) Ekip ve davetler');
   await sayfaAc('#ekip');
@@ -462,7 +536,8 @@ function bekle(ms) {
 
   console.log('\n16) Menü, rozetler ve yapı');
   await sayfaAc('#panel');
-  kontrol('Menüde 12 sayfa var', doc.querySelectorAll('.menu-oge[data-sayfa]').length === 12, String(doc.querySelectorAll('.menu-oge[data-sayfa]').length));
+  kontrol('Menüde 13 sayfa var', doc.querySelectorAll('.menu-oge[data-sayfa]').length === 13, String(doc.querySelectorAll('.menu-oge[data-sayfa]').length));
+  kontrol('İstatistik menüde', doc.querySelectorAll('.menu-oge[data-sayfa="istatistik"]').length === 1);
   kontrol('Onay kuyruğu menüde', doc.querySelectorAll('.menu-oge[data-sayfa="onaylar"]').length === 1);
   kontrol('Dosya rozeti görünür', doc.getElementById('rozetDosya').hidden === false);
   kontrol('Saha rozeti sayı gösterir', /^\d+$/.test(doc.getElementById('rozetSaha').textContent));
@@ -489,15 +564,15 @@ function bekle(ms) {
   try { ISG.depo.iceAktar('{"personel": 5}'); } catch (e) { bozukReddedildi = true; }
   kontrol('Bozuk yedek reddedildi', bozukReddedildi);
 
-  doc.querySelector('[data-islem="demo-sifirla"]').click();
-  await bekle(80);
-  doc.getElementById('onayEvet').click();
+  ISG.depo.sifirla();
+  ISG.ui.kapsam = '';
+  ISG.uygulama.ciz();
   await bekle(150);
-  kontrol('Demo sıfırlandı (37 personel)', ISG.depo.al().personel.length === 37, String(ISG.depo.al().personel.length));
+  kontrol('Veri sıfırlandı (37 personel)', ISG.depo.al().personel.length === 37, String(ISG.depo.al().personel.length));
   kontrol('Sıfırlama sonrası panel açık', metin('.sayfa-baslik h1') === 'Genel bakış');
 
   console.log('\n18) Tüm ekranlarda metin ve ikon temizliği');
-  const tumSayfalar = ['panel', 'isyerleri', 'personel', 'dosyalar', 'plan', 'saha', 'rapor', 'risk', 'acil', 'ekip', 'onaylar', 'mevzuat'];
+  const tumSayfalar = ['panel', 'isyerleri', 'personel', 'dosyalar', 'plan', 'saha', 'rapor', 'istatistik', 'risk', 'acil', 'ekip', 'onaylar', 'mevzuat'];
   for (const sayfa of tumSayfalar) {
     await sayfaAc('#' + sayfa);
     const icerik = metin('#gorunum');
@@ -514,7 +589,7 @@ function bekle(ms) {
   const varMi = (goreli) => fs.existsSync(path.join(pubKok, goreli));
   kontrol('.nojekyll var', varMi('.nojekyll'));
   kontrol('404.html var', varMi('404.html'));
-  kontrol('robots.txt var', varMi('robots.txt'));
+  kontrol('robots.txt yayında değil', !varMi('robots.txt'));
   kontrol('favicon.svg var', varMi('assets/img/favicon.svg'));
   kontrol('apple-touch-icon.png var', varMi('assets/img/apple-touch-icon.png'));
 
@@ -620,7 +695,7 @@ function bekle(ms) {
   })());
 
   await cikisYap();
-  await girisAcVeYap('mehmet.kurt@ornek.com', '1234');
+  await girisAcVeYap('mehmetkurt0948@gmail.com', '1234');
   kontrol('Yönetici yazma yetkisi', ISG.yetki.izin('ekle', 'iy6') === true);
   kontrol('Yönetici tüm işyerlerini görür', ISG.yetki.gorunum().isyerleri.length === 6, String(ISG.yetki.gorunum().isyerleri.length));
   kontrol('Bekleyen talep rozeti görünür', doc.getElementById('rozetOnay').hidden === false, doc.getElementById('rozetOnay').textContent);

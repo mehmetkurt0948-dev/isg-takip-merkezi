@@ -1131,54 +1131,51 @@ body.oturum-yok .kabuk { display: none; }
   font-size: 11.5px;
   line-height: 1.55;
 }
+.giris-ipucu.uyari { color: var(--amber); }
 
-.giris-demo {
-  border-top: 1px solid var(--line);
-  padding-top: 14px;
+.sifirla-kod {
   display: grid;
-  gap: 9px;
-}
-.giris-demo-baslik {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .8px;
-  text-transform: uppercase;
-  color: var(--ink-mute);
-}
-.giris-demo-liste { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-
-.giris-demo-oge {
-  text-align: left;
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  padding: 9px 11px;
-  border: 1px solid var(--line-strong);
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px dashed var(--amber-line);
   border-radius: var(--radius-sm);
-  background: #fff;
-  cursor: pointer;
-  font: inherit;
-  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+  background: var(--amber-bg);
 }
-.giris-demo-oge strong {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--ink);
+.sifirla-kod span { color: var(--amber); font-size: 11px; font-weight: 600; }
+.sifirla-kod code { font-size: 19px; font-weight: 700; letter-spacing: 4px; color: var(--ink); }
+.sifirla-geri { align-self: center; justify-content: center; font-size: 12px; color: var(--brand); }
+
+/* İstatistikler */
+.ist-kartlar { margin-top: 16px; }
+.ist-cubuklar { display: grid; gap: 9px; }
+.ist-cubuk {
+  display: grid;
+  grid-template-columns: minmax(90px, 30%) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.ist-cubuk-ad {
+  color: var(--ink-soft);
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.giris-demo-oge small {
-  font-size: 11px;
-  color: var(--ink-mute);
+.ist-cubuk-ray {
+  display: block;
+  height: 9px;
+  border-radius: 999px;
+  background: #eef1f6;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.giris-demo-oge:hover { border-color: var(--brand-line); background: var(--brand-soft); }
-.giris-demo-oge:active { transform: translateY(1px); }
-.giris-demo-oge:focus-visible { outline: 2px solid rgba(20, 121, 108, .55); outline-offset: 2px; }
+.ist-cubuk-dolgu { display: block; height: 100%; border-radius: 999px; background: var(--brand); }
+.ist-cubuk-deger { font-size: 12px; font-weight: 700; color: var(--ink); min-width: 22px; text-align: right; }
+.ist-cubuk.tehlike .ist-cubuk-dolgu { background: var(--red); }
+.ist-cubuk.uyari .ist-cubuk-dolgu { background: #d59417; }
+.ist-cubuk.bilgi .ist-cubuk-dolgu { background: var(--brand-2); }
+.ist-cubuk.iyi .ist-cubuk-dolgu { background: var(--green); }
+.ist-cubuk.notr .ist-cubuk-dolgu { background: var(--ink-mute); }
+.ek-kutu { display: grid; gap: 2px; }
 
 .kullanici-cikis {
   margin-left: auto;
@@ -1215,7 +1212,8 @@ body.oturum-yok .kabuk { display: none; }
 
 @media (max-width: 560px) {
   .giris-kart { padding: 24px 18px 20px; border-radius: 18px; }
-  .giris-demo-liste { grid-template-columns: 1fr; }
+  .ist-cubuk { grid-template-columns: minmax(74px, 40%) minmax(0, 1fr) auto; gap: 8px; }
+  .ist-cubuk-ad { font-size: 11px; }
   .onay-satir { grid-template-columns: minmax(0, 1fr); }
   .onay-satir .sag { justify-content: flex-start; }
 }

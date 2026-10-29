@@ -62,7 +62,7 @@ function sunucuBaslat() {
     await new Promise((r) => setTimeout(r, 250));
   };
   kontrol('Giriş katmanı açılışta görünür', d.getElementById('girisKatman').hidden === false);
-  await girisYap('mehmet.kurt@ornek.com', '1234');
+  await girisYap('mehmetkurt0948@gmail.com', '1234');
   kontrol('Yönetici oturumu açıldı', !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yonetici');
 
   const isyeriId = D.al().isyerleri[0].id;

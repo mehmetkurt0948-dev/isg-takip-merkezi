@@ -1,5 +1,5 @@
-/* İSG Takip Merkezi — demo tohum verisi ve kontrol maddesi kataloğu
-   Tüm tarihler bugüne göre üretilir; demo her açıldığında güncel görünür. */
+/* İSG Takip Merkezi — örnek tohum verisi ve kontrol maddesi kataloğu
+   Tüm tarihler bugüne göre üretilir; örnek veri her açıldığında güncel görünür. */
 (function (global) {
   'use strict';
 
@@ -289,13 +289,14 @@
 
   /* ---------- Tohum veri ---------- */
 
-  /* ---------- Demo kullanıcıları ----------
-     Davet akışını denemeden giriş yapılabilmesi için hazır hesaplar.
-     Şifreler demo amaçlıdır; gerçek kurulumda kullanıcılar davetle gelir. */
+  /* ---------- Başlangıç kullanıcıları ----------
+     Kurulumun ilk açılışında tanımlı hesaplar. Yeni kullanıcılar yönetici
+     tarafından oluşturulan davet kodlarıyla katılır; şifreler "Şifremi
+     unuttum" akışıyla e-posta kodu doğrulanarak yenilenebilir. */
   ISG.ORNEK_KULLANICILAR = function () {
     return [
       {
-        id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmet.kurt@ornek.com', sifre: '1234',
+        id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmetkurt0948@gmail.com', sifre: '1234',
         rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [], aktif: true, sonGiris: ''
       },
       {
@@ -336,7 +337,7 @@
     ];
 
     /* ---------- Her işyeri için rastgele ek personel ----------
-       Tohum sabit olduğundan demo her açılışta aynı kişileri üretir;
+       Tohum sabit olduğundan örnek veri her açılışta aynı kişileri üretir;
        böylece ekranlar dolu görünür, testler de sayıları kesin doğrular. */
     var EK_KADIN = ['Ayşe', 'Elif', 'Zeynep', 'Merve', 'Selin', 'Buse', 'Fatma', 'Deniz', 'İrem', 'Ceren', 'Sude', 'Nazlı'];
     var EK_ERKEK = ['Ahmet', 'Mehmet', 'Mustafa', 'Ali', 'Hasan', 'Emre', 'Burak', 'Serkan', 'Kaan', 'Onur', 'Volkan', 'Cem'];

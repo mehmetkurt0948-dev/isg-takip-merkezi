@@ -670,18 +670,57 @@
     depo.kaydet();
   };
 
-  /* ---------- Belge (dosya eki) işlemleri ---------- */
+  /* ---------- Ekler (dosya kontrolü, risk ve acil durum belgeleri) ---------- */
 
   ISG.BELGE_SINIRI = 1024 * 1024;
 
+  /* Eski kayıtlarda yalnızca dosyaId vardı; yeni kayıtlar kaynak + kaynakId
+     taşır. Böylece belgeler dosya maddelerine, risk değerlendirmesine ve
+     acil durum planına ayrı ayrı bağlanabilir. */
+  function ekKaynagi(belge) {
+    return (belge && belge.kaynak) || 'dosya';
+  }
+
+  function ekKimligi(belge) {
+    if (!belge) { return ''; }
+    return belge.kaynakId || belge.dosyaId || '';
+  }
+
+  ISG.depo.ekler = function (kaynak, kaynakId) {
+    if (!kaynak || !kaynakId) { return []; }
+    return (depo.al().belgeler || []).filter(function (belge) {
+      return ekKaynagi(belge) === kaynak && ekKimligi(belge) === kaynakId;
+    });
+  };
+
+  ISG.depo.ekSayisi = function (kaynak, kaynakId) {
+    return ISG.depo.ekler(kaynak, kaynakId).length;
+  };
+
+  ISG.depo.ekBul = function (id) {
+    if (!id) { return null; }
+    return (depo.al().belgeler || []).filter(function (belge) { return belge.id === id; })[0] || null;
+  };
+
+  ISG.depo.ekKaydet = function (kayit) {
+    kayit.kaynak = kayit.kaynak || 'dosya';
+    kayit.kaynakId = kayit.kaynakId || kayit.dosyaId || '';
+    if (!kayit.kaynakId) { throw new Error('Belge bir kayda bağlanmalı.'); }
+    if (kayit.kaynak === 'dosya') { kayit.dosyaId = kayit.kaynakId; }
+    return ISG.depo.belgeKaydet(kayit);
+  };
+
+  ISG.depo.ekSil = function (id) {
+    ISG.depo.belgeSil(id);
+  };
+
+  /* Geriye dönük uyumluluk: dosya maddesi belgeleri */
   ISG.depo.belgeler = function (dosyaId) {
-    if (!dosyaId) { return []; }
-    return (depo.al().belgeler || []).filter(function (belge) { return belge.dosyaId === dosyaId; });
+    return ISG.depo.ekler('dosya', dosyaId);
   };
 
   ISG.depo.belgeBul = function (id) {
-    if (!id) { return null; }
-    return (depo.al().belgeler || []).filter(function (belge) { return belge.id === id; })[0] || null;
+    return ISG.depo.ekBul(id);
   };
 
   ISG.depo.belgeKaydet = function (kayit) {
@@ -892,6 +931,15 @@
     var sonuc = kaydetListede(veri.kullanicilar, kayit, 'u');
     depo.kaydet();
     return sonuc;
+  };
+
+  ISG.depo.sifreGuncelle = function (eposta, yeniSifre) {
+    var kullanici = ISG.depo.kullaniciEpostaBul(eposta);
+    if (!kullanici) { return null; }
+    kullanici.sifre = String(yeniSifre || '');
+    kullanici.sifreDegisim = new Date().toISOString();
+    depo.kaydet();
+    return kullanici;
   };
 
   ISG.depo.kullaniciSil = function (id) {

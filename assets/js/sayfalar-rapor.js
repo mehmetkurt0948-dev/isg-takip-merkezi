@@ -104,6 +104,24 @@
 
   /* ---------- Risk değerlendirmesi ---------- */
 
+  function ekListesi(kaynak, kaynakId) {
+    var liste = ISG.depo.ekler(kaynak, kaynakId);
+    if (!liste.length) {
+      return '<p class="bolum-aciklama" style="margin-top:6px">Ekli belge yok. “Belge yükle” ile PDF, görsel veya ofis dosyası ekleyebilirsiniz.</p>';
+    }
+    return '<div class="belge-liste" style="margin-top:6px">' + liste.map(function (belge) {
+      return '<div class="belge-satir">' +
+        '<span class="belge-simge">' + B.ikon('i-bos') + '</span>' +
+        '<span class="belge-bilgi"><strong title="' + kacis(belge.ad) + '">' + kacis(belge.ad) + '</strong>' +
+          '<small>' + B.boyut(belge.boyut) + ' · ' + B.tarih(belge.tarih) + '</small></span>' +
+        '<span class="belge-eylem">' +
+          '<button type="button" class="dugme simge" data-islem="ek-goruntule" data-id="' + kacis(belge.id) + '" title="Belgeyi görüntüle" aria-label="Belgeyi görüntüle">' + B.ikon('i-eye') + '</button>' +
+          '<button type="button" class="dugme simge" data-islem="belge-indir" data-id="' + kacis(belge.id) + '" title="Belgeyi indir" aria-label="Belgeyi indir">' + B.ikon('i-download') + '</button>' +
+        '</span>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
   function ekipAraclari(kaynak, isyeriId, rol, ad) {
     return '<span class="rol-arac">' +
       '<button type="button" class="dugme ince" data-islem="ekip-uye" data-kaynak="' + kacis(kaynak) +
@@ -147,6 +165,10 @@
         '<p style="margin-top:8px"><button type="button" class="dugme ince" data-islem="ekip-uye" ' +
           'data-kaynak="risk" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') +
           'Ekip üyesi ekle</button></p>' +
+      '</div>' +
+      '<div class="ek-kutu">' +
+        '<p class="bolum-baslik">Ekli belgeler</p>' +
+        ekListesi('risk', isyeri.id) +
       '</div>' +
       '<button type="button" class="akis" data-islem="risk-ekip" data-id="' + kacis(isyeri.id) + '">Değerlendirme ve ekibi düzenle →</button>' +
     '</article>';
@@ -224,6 +246,10 @@
         '</div>' +
         '<p class="bolum-aciklama" style="margin-top:8px">' + kacis(sinif.ad) + ' sınıfında plan en geç ' + sinif.acilYenilemeYil +
           ' yılda bir yenilenir. İşyeri, çalışan sayısı veya ekip değişikliği planı daha önce gözden geçirmeyi gerektirebilir.</p>' +
+      '</div>' +
+      '<div class="ek-kutu">' +
+        '<p class="bolum-baslik">Ekli belgeler</p>' +
+        ekListesi('acil', isyeri.id) +
       '</div>' +
       '<button type="button" class="akis" data-islem="acil-plan" data-id="' + kacis(isyeri.id) + '">Yapılan plan yenilemesini kaydet →</button>' +
       '<div>' +
@@ -395,6 +421,142 @@
   function talepGun(talep) {
     return String(talep.kararTarihi || talep.olusturma || '').slice(0, 10);
   }
+
+  /* ---------- İstatistikler ---------- */
+
+  function istKutu(baslik, deger, alt, ikon, sinif) {
+    return '<div class="kpi ' + (sinif || '') + '">' +
+      '<span class="kpi-ust">' + B.ikon(ikon) + kacis(baslik) + '</span>' +
+      '<span class="kpi-deger">' + kacis(deger) + '</span>' +
+      '<span class="kpi-alt"><span>' + kacis(alt) + '</span></span>' +
+    '</div>';
+  }
+
+  function istCubuklar(satirlar, bosMetin) {
+    var dolu = (satirlar || []).filter(function (satir) { return Number(satir.deger) > 0; });
+    if (!dolu.length) { return '<p class="bolum-aciklama">' + kacis(bosMetin || 'Gösterilecek veri yok.') + '</p>'; }
+    var enBuyuk = dolu.reduce(function (en, satir) { return Math.max(en, Number(satir.deger) || 0); }, 0);
+    return '<div class="ist-cubuklar">' + satirlar.map(function (satir) {
+      var oran = enBuyuk ? Math.round(((Number(satir.deger) || 0) / enBuyuk) * 100) : 0;
+      return '<div class="ist-cubuk ' + (satir.sinif || 'notr') + '">' +
+        '<span class="ist-cubuk-ad" title="' + kacis(satir.ad) + '">' + kacis(satir.ad) + '</span>' +
+        '<span class="ist-cubuk-ray"><span class="ist-cubuk-dolgu" style="width:' + oran + '%"></span></span>' +
+        '<b class="ist-cubuk-deger">' + B.sayi(satir.deger) + '</b>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function istDagilim(kaynaklar, sayac) {
+    return kaynaklar.map(function (kaynak) {
+      return { ad: kaynak.ad, deger: sayac[kaynak.id] || 0, sinif: kaynak.sinif };
+    });
+  }
+
+  function istKart(baslik, aciklama, icerik) {
+    return '<section class="kart">' +
+      '<div class="kart-baslik"><div><h2>' + kacis(baslik) + '</h2><p>' + kacis(aciklama) + '</p></div></div>' +
+      '<div class="kart-ic">' + icerik + '</div>' +
+    '</section>';
+  }
+
+  SAYFALAR.istatistik = function () {
+    var hesap = veri();
+    var kapsam = UI.kapsam;
+    var isyerleri = (hesap.isyerleri || []).filter(function (isyeri) { return !kapsam || isyeri.id === kapsam; });
+    var personel = ISG.kapsamda(hesap, kapsam, 'personel');
+    var egitimler = hesap.egitimler || [];
+    var dosyalar = ISG.kapsamda(hesap, kapsam, 'dosyalar');
+    var tespitler = ISG.kapsamda(hesap, kapsam, 'tespitler');
+    var riskler = ISG.kapsamda(hesap, kapsam, 'riskler');
+    var planlar = ISG.kapsamda(hesap, kapsam, 'planlar');
+
+    var aktifPersonel = personel.filter(function (kisi) { return kisi.durum !== 'pasif'; });
+    var acikTespit = tespitler.filter(function (tespit) { return ISG.tespitDurumu(tespit).id !== 'kapali'; });
+    var gecikenTespit = tespitler.filter(function (tespit) { return ISG.tespitDurumu(tespit).id === 'geciken'; });
+    var eksikBelge = dosyalar.filter(function (dosya) { return dosya.durum === 'eksik' || dosya.durum === 'yok'; });
+    var acikRisk = riskler.filter(function (risk) { return risk.durum !== 'kapali'; });
+    var tamamlananPlan = planlar.filter(function (plan) { return plan.durum === 'tamamlandi'; });
+
+    var personelSatir = isyerleri.map(function (isyeri) {
+      var sayi = personel.filter(function (kisi) { return kisi.isyeriId === isyeri.id; }).length;
+      return { ad: isyeri.ad, deger: sayi, sinif: 'bilgi' };
+    }).sort(function (a, b) { return b.deger - a.deger; });
+
+    var dofSayac = {};
+    tespitler.forEach(function (tespit) {
+      var anahtar = ISG.tespitDurumu(tespit).id;
+      dofSayac[anahtar] = (dofSayac[anahtar] || 0) + 1;
+    });
+    var dofSatir = istDagilim([
+      { id: 'acik', ad: 'Açık', sinif: 'bilgi' },
+      { id: 'geciken', ad: 'Geciken', sinif: 'tehlike' },
+      { id: 'dogrulama', ad: 'Doğrulama bekliyor', sinif: 'uyari' },
+      { id: 'kapali', ad: 'Kapatıldı', sinif: 'iyi' }
+    ], dofSayac);
+
+    var riskSayac = {};
+    riskler.forEach(function (risk) {
+      var seviye = ISG.riskSeviye(ISG.riskSkor(risk));
+      riskSayac[seviye.id] = (riskSayac[seviye.id] || 0) + 1;
+    });
+    var riskSatir = [20, 12, 6, 2].map(function (ornekSkor) {
+      var seviye = ISG.riskSeviye(ornekSkor);
+      return { ad: seviye.ad, deger: riskSayac[seviye.id] || 0, sinif: seviye.sinif };
+    });
+
+    var belgeSayac = {};
+    dosyalar.forEach(function (dosya) {
+      var anahtar = ISG.DOSYA_DURUMLARI[dosya.durum] ? dosya.durum : 'incelenmedi';
+      belgeSayac[anahtar] = (belgeSayac[anahtar] || 0) + 1;
+    });
+    var belgeSatir = istDagilim([
+      { id: 'var', ad: 'Var', sinif: 'iyi' },
+      { id: 'eksik', ad: 'Eksik', sinif: 'tehlike' },
+      { id: 'yok', ad: 'Yok', sinif: 'notr' },
+      { id: 'incelenmedi', ad: 'İncelenmedi', sinif: 'uyari' }
+    ], belgeSayac);
+
+    var egitimSayac = {};
+    aktifPersonel.forEach(function (kisi) {
+      var durum = ISG.kisiDurumu(kisi, egitimler);
+      egitimSayac[durum.id] = (egitimSayac[durum.id] || 0) + 1;
+    });
+    var egitimSatir = istDagilim([
+      { id: 'gecerli', ad: 'Geçerli', sinif: 'iyi' },
+      { id: 'yaklasiyor', ad: '60 gün içinde doluyor', sinif: 'uyari' },
+      { id: 'suresiDoldu', ad: 'Süresi doldu', sinif: 'tehlike' },
+      { id: 'yok', ad: 'Eğitim kaydı yok', sinif: 'notr' }
+    ], egitimSayac);
+
+    var dosyaTamlik = dosyalar.length ? Math.round(((dosyalar.length - eksikBelge.length) / dosyalar.length) * 100) : 0;
+    var kartlar = '';
+
+    kartlar =
+      '<div class="kart-izgara-3 ist-kartlar">' +
+        istKart('İşyeri bazında personel', 'Kapsamdaki işyerlerinin çalışan dağılımı.', istCubuklar(personelSatir, 'Personel kaydı yok.')) +
+        istKart('Eğitim geçerliliği', 'Aktif personelin temel İSG eğitimi durumu.', istCubuklar(egitimSatir, 'Aktif personel yok.')) +
+      '</div>' +
+      '<div class="kart-izgara-3 ist-kartlar">' +
+        istKart('Saha tespitleri', 'DÖF kayıtlarının durum dağılımı.', istCubuklar(dofSatir, 'Saha tespiti yok.')) +
+        istKart('Risk seviyeleri', '5 × 5 skorlarına göre risk kayıtları.', istCubuklar(riskSatir, 'Risk kaydı yok.')) +
+      '</div>' +
+      '<section class="kart">' +
+        '<div class="kart-baslik"><div><h2>Belge kontrol durumu</h2>' +
+          '<p>' + B.sayi(dosyalar.length) + ' kontrol maddesinin durum dağılımı.</p></div>' +
+          '<div class="kart-arac"><span class="muted kucuk">Tamlık %' + dosyaTamlik + '</span></div></div>' +
+        '<div class="kart-ic">' + istCubuklar(belgeSatir, 'Kontrol maddesi yok.') + '</div>' +
+      '</section>';
+
+    return P.sayfaBaslik('İSTATİSTİK', 'İstatistikler',
+      'Personel, belge, saha ve risk verilerinin özet dağılımı.', '') +
+      P.kapsamSecici(hesap) +
+      '<div class="kpi-izgara">' +
+        istKutu('Aktif personel', B.sayi(aktifPersonel.length), isyerleri.length + ' işyeri kapsamında', 'i-users', 'bilgi') +
+        istKutu('Açık saha tespiti', B.sayi(acikTespit.length), gecikenTespit.length + ' geciken', 'i-clipboard', acikTespit.length ? 'uyari' : 'soluk') +
+        istKutu('Eksik / yok belge', B.sayi(eksikBelge.length), 'Belge tamlığı %' + dosyaTamlik, 'i-folder', eksikBelge.length ? 'tehlike' : 'soluk') +
+        istKutu('Açık risk kaydı', B.sayi(acikRisk.length), tamamlananPlan.length + ' tamamlanan plan', 'i-risk', acikRisk.length ? 'uyari' : 'soluk') +
+      '</div>' + kartlar;
+  };
 
   SAYFALAR.onaylar = function () {
     var hesap = veri();

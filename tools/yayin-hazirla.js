@@ -14,7 +14,6 @@ const dosyalar = [
   'index.html',
   '404.html',
   'manifest.webmanifest',
-  'robots.txt',
   '.nojekyll',
   'README.md'
 ];

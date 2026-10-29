@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0c1f33">
-  <meta name="description" content="İSG Takip Merkezi — işyeri bazlı personel, dosya kontrolü, çalışma planı, risk değerlendirmesi, saha DÖF ve acil durum takibi. Tarayıcı içi demo.">
+  <meta name="description" content="İSG Takip Merkezi — işyeri bazlı personel, dosya kontrolü, çalışma planı, risk değerlendirmesi, saha DÖF ve acil durum takibi.">
   <meta name="color-scheme" content="light">
   <meta name="application-name" content="İSG Takip Merkezi">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,7 +14,7 @@
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="assets/css/style.css?v=3">
+  <link rel="stylesheet" href="assets/css/style.css?v=4">
 </head>
 <body class="oturum-yok">
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -88,6 +88,9 @@
         <button type="button" class="menu-oge" data-sayfa="rapor">
           <svg class="ikon" aria-hidden="true"><use href="#i-chart"></use></svg><span>Yönetim raporu</span>
         </button>
+        <button type="button" class="menu-oge" data-sayfa="istatistik">
+          <svg class="ikon" aria-hidden="true"><use href="#i-chart"></use></svg><span>İstatistikler</span>
+        </button>
 
         <p class="menu-grup">İSG MODÜLLERİ</p>
         <button type="button" class="menu-oge" data-sayfa="risk">
@@ -150,9 +153,8 @@
       <main class="gorunum" id="gorunum" tabindex="-1"></main>
 
       <footer class="altbilgi">
-        <span>İSG Takip Merkezi · tarayıcı içi demo · veriler yalnızca bu cihazda saklanır</span>
+        <span>İSG Takip Merkezi · veriler yalnızca bu cihazda saklanır</span>
         <span class="altbilgi-eylem">
-          <button type="button" class="baglanti-dugme" data-islem="demo-sifirla">Demo verilerini sıfırla</button>
           <span class="kayit-durumu" id="kayitDurumu"><span></span>Yerel kayıt açık</span>
         </span>
       </footer>
@@ -580,6 +582,19 @@
           <input type="text" name="birim" list="kisiler" maxlength="80">
         </label>
       </div>
+      <section class="belge-kutu" aria-labelledby="riskEkipBelgeBaslik">
+        <div class="belge-ust">
+          <div>
+            <strong id="riskEkipBelgeBaslik">Risk değerlendirmesi belgeleri</strong>
+            <span class="hucre-alt" id="riskEkipBelgeOzet">Henüz belge eklenmedi</span>
+          </div>
+          <button type="button" class="dugme ince" data-islem="ek-sec" data-hedef="riskEkipBelgeGirdi">
+            <svg class="ikon" aria-hidden="true"><use href="#i-upload"></use></svg>Belge yükle
+          </button>
+        </div>
+        <div class="belge-liste" id="riskEkipBelgeListe"></div>
+        <input type="file" id="riskEkipBelgeGirdi" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.webp" hidden>
+      </section>
       <p class="form-uyari" id="riskEkipUyari" role="alert" hidden></p>
       <div class="diyalog-eylem">
         <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
@@ -627,6 +642,19 @@
           <input type="text" name="ekip_tahliye" list="kisiler" maxlength="80">
         </label>
       </div>
+      <section class="belge-kutu" aria-labelledby="acilPlanBelgeBaslik">
+        <div class="belge-ust">
+          <div>
+            <strong id="acilPlanBelgeBaslik">Acil durum planı belgeleri</strong>
+            <span class="hucre-alt" id="acilPlanBelgeOzet">Henüz belge eklenmedi</span>
+          </div>
+          <button type="button" class="dugme ince" data-islem="ek-sec" data-hedef="acilPlanBelgeGirdi">
+            <svg class="ikon" aria-hidden="true"><use href="#i-upload"></use></svg>Belge yükle
+          </button>
+        </div>
+        <div class="belge-liste" id="acilPlanBelgeListe"></div>
+        <input type="file" id="acilPlanBelgeGirdi" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.webp" hidden>
+      </section>
       <p class="form-uyari" id="acilUyari" role="alert" hidden></p>
       <div class="diyalog-eylem">
         <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
@@ -690,16 +718,16 @@
 
   <noscript><p class="noscript">Bu uygulama JavaScript gerektirir. Lütfen tarayıcınızda JavaScript'i etkinleştirin.</p></noscript>
 
-  <script src="assets/js/ornek-veri.js?v=3"></script>
-  <script src="assets/js/depo.js?v=3"></script>
-  <script src="assets/js/bicim.js?v=3"></script>
-  <script src="assets/js/yetki.js?v=3"></script>
-  <script src="assets/js/excel.js?v=3"></script>
-  <script src="assets/js/sayfalar.js?v=3"></script>
-  <script src="assets/js/sayfalar-kayit.js?v=3"></script>
-  <script src="assets/js/sayfalar-rapor.js?v=3"></script>
-  <script src="assets/js/giris.js?v=3"></script>
-  <script src="assets/js/uygulama.js?v=3"></script>
+  <script src="assets/js/ornek-veri.js?v=4"></script>
+  <script src="assets/js/depo.js?v=4"></script>
+  <script src="assets/js/bicim.js?v=4"></script>
+  <script src="assets/js/yetki.js?v=4"></script>
+  <script src="assets/js/excel.js?v=4"></script>
+  <script src="assets/js/sayfalar.js?v=4"></script>
+  <script src="assets/js/sayfalar-kayit.js?v=4"></script>
+  <script src="assets/js/sayfalar-rapor.js?v=4"></script>
+  <script src="assets/js/giris.js?v=4"></script>
+  <script src="assets/js/uygulama.js?v=4"></script>
 </body>
 </html>
 
