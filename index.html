@@ -14,9 +14,9 @@
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="assets/css/style.css?v=2">
+  <link rel="stylesheet" href="assets/css/style.css?v=3">
 </head>
-<body>
+<body class="oturum-yok">
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
     <symbol id="i-panel" viewBox="0 0 24 24"><path d="M4 4h7v7H4V4Zm9 0h7v4h-7V4ZM4 13h7v7H4v-7Zm9-3h7v10h-7V10Z"/></symbol>
     <symbol id="i-building" viewBox="0 0 24 24"><path d="M4 21V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v4h5a1 1 0 0 1 1 1v12h1v1h-6v-3h-3v3H3v-1h1Zm3-3h2v-2H7v2Zm0-4h2v-2H7v2Zm0-4h2V8H7v2Zm0-4h2V4H7v2Zm4 12h2v-2h-2v2Zm0-4h2v-2h-2v2Zm0-4h2V8h-2v2Zm0-4h2V4h-2v2Zm5 12h2v-2h-2v2Zm0-4h2v-2h-2v2Z"/></symbol>
@@ -41,6 +41,7 @@
     <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M7 2v2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3V2h-2v2H9V2H7Zm13 8v10H4V10h16Z"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m9.5 17.6-5-5 1.4-1.4 3.6 3.6 8.6-8.6 1.4 1.4-10 10Z"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7H8V5h14v14h-2V9.4L8.4 19 7 17Z"/></symbol>
+  <symbol id="i-cikis" viewBox="0 0 24 24"><path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm5.6 4.6L14.2 9l2 2H8v2h8.2l-2 2 1.4 1.4L20 12l-4.4-4.4Z"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M9 3v1H4v2h16V4h-5V3H9ZM6 8v13h12V8H6Zm4 3h2v7h-2v-7Zm4 0h2v7h-2v-7Z"/></symbol>
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="M3 17.2V21h3.8L17 10.8 13.2 7 3 17.2ZM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.9 1.9L18.8 9l1.9-1.9Z"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7Zm0 2c3.3 0 6.3 2.7 7.5 5-1.2 2.3-4.2 5-7.5 5s-6.3-2.7-7.5-5C5.7 9.7 8.7 7 12 7Zm0 1.5A3.5 3.5 0 1 0 12 15a3.5 3.5 0 0 0 0-7Z"/></symbol>
@@ -49,6 +50,8 @@
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 4 5v6.5c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5V5l-8-3Zm-1.2 13.6-3.2-3.2 1.4-1.4 1.8 1.8 4.2-4.2 1.4 1.4-5.6 5.6Z"/></symbol>
     <symbol id="i-bos" viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6V2Zm8 1.5V8h4.5L14 3.5ZM8 12h8v2H8v-2Zm0 4h6v2H8v-2Z"/></symbol>
   </svg>
+
+  <div class="giris-katman" id="girisKatman" hidden></div>
 
   <div class="kabuk" id="kabuk">
     <aside class="kenar" id="kenar" aria-label="Ana menü">
@@ -96,6 +99,9 @@
         <button type="button" class="menu-oge" data-sayfa="ekip">
           <svg class="ikon" aria-hidden="true"><use href="#i-team"></use></svg><span>Ekip ve davetler</span>
         </button>
+        <button type="button" class="menu-oge" data-sayfa="onaylar" id="menuOnaylar" hidden>
+          <svg class="ikon" aria-hidden="true"><use href="#i-check"></use></svg><span>Onay kuyruğu</span><b class="menu-rozet" id="rozetOnay" hidden></b>
+        </button>
         <button type="button" class="menu-oge" data-sayfa="mevzuat">
           <svg class="ikon" aria-hidden="true"><use href="#i-law"></use></svg><span>Mevzuat ve kapsam</span>
         </button>
@@ -111,6 +117,9 @@
             <strong id="kullaniciAd">Mehmet Kurt</strong>
             <small id="kullaniciGorev">Yönetici oturumu</small>
           </span>
+          <button type="button" class="kullanici-cikis" id="oturumKapat" data-islem="oturum-kapat" title="Oturumu kapat" aria-label="Oturumu kapat">
+            <svg class="ikon" aria-hidden="true"><use href="#i-cikis"></use></svg>
+          </button>
         </div>
       </div>
     </aside>
@@ -391,6 +400,19 @@
           <textarea name="aciklama" rows="2" maxlength="240" placeholder="Belge konumu, eksik sayfa, sorumlu notu…"></textarea>
         </label>
       </div>
+      <section class="belge-kutu" aria-labelledby="dosyaBelgeBaslik">
+        <div class="belge-ust">
+          <div>
+            <strong id="dosyaBelgeBaslik">Belgeler</strong>
+            <span class="hucre-alt" id="dosyaBelgeOzet">Henüz belge eklenmedi</span>
+          </div>
+          <button type="button" class="dugme ince" data-islem="belge-sec">
+            <svg class="ikon" aria-hidden="true"><use href="#i-upload"></use></svg>Belge yükle
+          </button>
+        </div>
+        <div class="belge-liste" id="dosyaBelgeListe"></div>
+        <input type="file" id="dosyaBelgeGirdi" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.webp" hidden>
+      </section>
       <p class="form-uyari" id="dosyaUyari" role="alert" hidden></p>
       <div class="diyalog-eylem">
         <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
@@ -613,6 +635,40 @@
     </form>
   </dialog>
 
+  <!-- EKİP ÜYESİ -->
+  <dialog class="diyalog" id="ekipUyeDiyalog" aria-labelledby="ekipUyeBaslik">
+    <form method="dialog" id="ekipUyeForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi" id="ekipUyeUst">EKİP</p>
+      <h2 id="ekipUyeBaslik">Ekip üyesi ekle</h2>
+      <input type="hidden" name="kaynak">
+      <input type="hidden" name="isyeriId">
+      <div class="form-izgara">
+        <label class="alan">
+          <span>Görev / rol</span>
+          <select name="rol" id="ekipUyeRol"></select>
+        </label>
+        <label class="alan">
+          <span>Personel listesinden seç</span>
+          <select name="personelId" id="ekipUyePersonel">
+            <option value="">Listeden seçin (isteğe bağlı)</option>
+          </select>
+        </label>
+        <label class="alan" style="grid-column:1/-1">
+          <span>Adı soyadı</span>
+          <input type="text" name="ad" id="ekipUyeAd" list="kisiler" maxlength="80" autocomplete="off">
+        </label>
+      </div>
+      <p class="form-uyari" id="ekipUyeUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Ekip üyesini ekle</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- ONAY -->
   <dialog class="diyalog kucuk" id="onayDiyalog" aria-labelledby="onayBaslik">
     <form method="dialog">
@@ -629,7 +685,7 @@
   <datalist id="departmanlar"></datalist>
   <datalist id="bolumler"></datalist>
   <datalist id="kisiler"></datalist>
-  <input type="file" id="personelDosya" accept=".csv,text/csv" hidden>
+  <input type="file" id="personelDosya" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
   <div class="bildirimler" id="bildirimler" aria-live="polite" aria-atomic="true"></div>
 
   <noscript><p class="noscript">Bu uygulama JavaScript gerektirir. Lütfen tarayıcınızda JavaScript'i etkinleştirin.</p></noscript>
@@ -637,9 +693,12 @@
   <script src="assets/js/ornek-veri.js"></script>
   <script src="assets/js/depo.js"></script>
   <script src="assets/js/bicim.js"></script>
+  <script src="assets/js/yetki.js"></script>
+  <script src="assets/js/excel.js"></script>
   <script src="assets/js/sayfalar.js"></script>
   <script src="assets/js/sayfalar-kayit.js"></script>
   <script src="assets/js/sayfalar-rapor.js"></script>
+  <script src="assets/js/giris.js"></script>
   <script src="assets/js/uygulama.js"></script>
 </body>
 </html>

@@ -1,7 +1,8 @@
-# İSG Takip Merkezi — çalışma alanı (v2)
+# İSG Takip Merkezi — çalışma alanı (v3)
 
-> İşyeri bazlı İSG takibi: personel, dosya kontrolleri, çalışma planı, saha/DÖF,
-> risk değerlendirmesi, acil durum planı, ekip davetleri ve mevzuat kapsamı.
+> İşyeri bazlı İSG takibi: giriş/roller, personel, dosya kontrolleri, çalışma
+> planı, saha/DÖF, risk değerlendirmesi, acil durum planı, ekip davetleri,
+> onay kuyruğu ve mevzuat kapsamı.
 > **Statik** uygulama: build yok, CDN yok, veritabanı yok — tarayıcıda çalışır.
 
 Bu sürüm, ChatGPT Sites'te yayınlanan ve 401 ile erişime kapanan "İSG Takip
@@ -14,22 +15,53 @@ kayıt tabloları.
 
 | Ekran | Ne yapar? |
 |---|---|
+| **Giriş** | Oturum katmanı: demo hesapları tek tıkla doldurma, e-posta/şifre doğrulama, hatalı şifre uyarısı, oturumu tarayıcıda hatırlama, çıkışta onay |
 | **Genel bakış** | Tüm işyerlerinden türetilen görev motoru: geciken / bugün / yaklaşan / tarihsiz işler, öncelik sıralı liste, işyeri bazında durum tablosu |
 | **İşyerleri** | Kurum şeridi (ana kurum, ad değiştir, kurum sil), işyeri kartları (tehlike sınıfı, çalışan ve kontrol maddesi sayısı), işyeri CRUD |
-| **Personel listesi** | İşyeri bazında bloklar, sicil/TC/meslek/departman/şube/kıdem/telefon/cinsiyet kolonları, arama, detay açma, eğitim kayıtları, CSV şablonu ve içe aktarma, "listeyi temizle" |
-| **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma |
+| **Personel listesi** | İşyeri bazında bloklar, sicil/TC/meslek/departman/şube/kıdem/telefon/cinsiyet kolonları, arama, detay açma, eğitim kayıtları, gerçek **XLSX şablonu** ve XLSX/CSV içe-dışa aktarma, "listeyi temizle" |
+| **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma, **belge eki yükle / indir / kaldır** (belge başına ≤ 1 MB, `localStorage`) |
 | **Çalışma planı** | İlk yardımcı ihtiyaç/mevcut karşılaştırması, yıllık plan kartları, plan kalemi CRUD, tamamlandı işaretleme, plan KPI'ları |
 | **Saha ve DÖF** | Açık/geciken/doğrulama/kapatılan tespitler, öncelik-tür filtreleri, kapatma akışı, ramak kala ve olay bildirimleri |
 | **Yönetim raporu** | Tarih aralığı, açık/geciken iş, doğrulama bekleyen, dönemde tamamlanan, işyeri bazında karşılaştırma tablosu, Excel (CSV) çıktısı |
-| **Risk değerlendirmesi** | İşyeri başına son değerlendirme / en geç yenileme / olağan üst sınır, 6 rollü ekip listesi ve eksik rol uyarısı, 5×5 risk kayıt tablosu |
-| **Acil durum planı** | Çalışan sayısı, plan tarihi, yenileme sınırı (tehlike sınıfına göre), 4 rollü destek ekibi, plan/ekip kaydı |
+| **Risk değerlendirmesi** | İşyeri başına son değerlendirme / en geç yenileme / olağan üst sınır, 6 rollü ekip listesi, rol bazlı **ekip üyesi ekle / değiştir / kaldır**, eksik rol uyarısı, 5×5 risk kayıt tablosu |
+| **Acil durum planı** | Çalışan sayısı, plan tarihi, yenileme sınırı (tehlike sınıfına göre), 5 rollü destek ekibi (destek elemanı dâhil), rol bazlı **ekip üyesi ekle / değiştir / kaldır**, plan/ekip kaydı |
 | **Ekip ve davetler** | E-posta + rol + yetkili işyeri seçimiyle davet oluşturma, davet listesi ve iptal |
 | **Mevzuat ve kapsam** | 20 başlıklı katalog (kanun/yönetmelik/tebliğ/rehber/standart), kategori ve konu araması, teyit durumu, seçili işyeri kapsam özeti, Mevzuat Bilgi Sistemi bağlantısı |
+| **Onay kuyruğu** | Yetkili kullanıcıların yazma işlemlerinden doğan talepler: işlem özeti, işyeri, talep sahibi, onayla / reddet, bekleyen sayısı rozeti, denetim izi |
 
 Ek yetenekler: `localStorage` kalıcılığı, JSON yedek al / geri yükle, demo
 sıfırlama, işyeri kapsam filtresi (tüm ekranlarda), menüyü gizleme, mobil
 menü, yazdırma dostu görünüm, klavye erişilebilir `<dialog>` formları,
-CSV içe aktarma ve dışa aktarma.
+personel için gerçek **XLSX** (şablon + dışa/içe aktarma) desteği, diğer
+listeler için CSV dışa aktarma, rol bazlı yetki ve onay akışı.
+
+### 1.1. Roller ve yetkiler
+
+| Rol | Kapsam | Yazma | Onay kuyruğu |
+|---|---|---|---|
+| **Yönetici** | Tüm işyerleri | Doğrudan yazar | Görür ve yönetir |
+| **Yetkili** | Yalnızca atandığı işyerleri | Talebe dönüşür, yönetici onayı gerekir | Görmez |
+| **Görüntüleyici** | Yalnızca atandığı işyerleri | Yok (`salt-okunur` gövde sınıfı) | Görmez |
+
+Demo hesapları (şifre: `1234`):
+
+| E-posta | Ad | Rol | İşyerleri |
+|---|---|---|---|
+| `mehmet.kurt@ornek.com` | Mehmet Kurt | Yönetici | Tümü (6) |
+| `buse.senol@ornek.com` | Buse Şenol | Yetkili | `iy1`, `iy2` |
+| `selin.aydin@ornek.com` | Selin Aydın | Görüntüleyici | `iy1` |
+
+Yetki katmanı `assets/js/yetki.js` içinde üç parçadan oluşur: **rol tanımları**
+(`ISG.yetki.ROLLER`, Türkçe rol adları `ROL_ESLEME` ile normalize edilir),
+**işyeri kapsamı** (`kapsam`, `kapsamda`, `kapsamliVeri`) ve **onay kuyruğu**
+(`talepler`, `talepOnayla`, `talepReddet`, `denetimListe`). Arayüz
+`ISG.yetki.gorunum()` üzerinden okur; böylece menü, KPI, tablo ve raporlar
+kendiliğinden oturum kapsamına düşer. Yazma işlemleri `depo.js` içinde
+sarmalanır (`ISG.yetki.izin`): yöneticide doğrudan uygulanır, yetkilide
+`talepler` dizisine `bekliyor` durumuyla eklenir, görüntüleyicide hata verir.
+Yönetici işlemleri (`isyeriKaydet`, `isyeriSil`, `kullaniciKaydet`,
+`davetKaydet`, `ayarKaydet`, `sifirla`, `iceAktar`) yalnızca yönetici rolüne
+açıktır; her yazma `denetim` izine düşer.
 
 ## 2. Görev motoru (Genel bakış'ın kalbi)
 
@@ -68,7 +100,7 @@ ve "Öncelikli işler" sayısı bu dağılımdan hesaplanır.
 
 ```text
 isg-takip-merkezi/
-├─ index.html                 # iskelet, SVG ikon sprite, 10 <dialog> formu
+├─ index.html                 # iskelet, SVG ikon sprite, 11 <dialog> formu
 ├─ 404.html                   # Pages için "sayfa bulunamadı" ekranı
 ├─ manifest.webmanifest       # PWA kimliği, tema rengi, simgeler
 ├─ robots.txt                 # arama motoru kuralları
@@ -81,47 +113,68 @@ isg-takip-merkezi/
 │  │  ├─ ikon-512.png         # manifest / maskable
 │  │  └─ apple-touch-icon.png # iOS ana ekran
 │  └─ js/
-│     ├─ ornek-veri.js        # 6 işyeri, personel, katalog üretimi, mevzuat
+│     ├─ ornek-veri.js        # 6 işyeri, 37 personel, katalog üretimi, mevzuat
 │     ├─ depo.js              # alan kuralları, localStorage, CRUD, görev motoru
 │     ├─ bicim.js             # tarih/rozet/CSV/sayfalama yardımcıları
+│     ├─ yetki.js             # oturum, roller, işyeri kapsamı, onay kuyruğu
+│     ├─ excel.js             # bağımlılıksız XLSX yazıcı/okuyucu (ZIP + OpenXML)
 │     ├─ sayfalar.js          # Genel bakış, İşyerleri, Personel
 │     ├─ sayfalar-kayit.js    # Dosya kontrolleri, Çalışma planı, Saha/DÖF
-│     ├─ sayfalar-rapor.js    # Rapor, Risk, Acil durum, Ekip, Mevzuat
-│     └─ uygulama.js          # yönlendirme, formlar, filtreler, CSV, yedekleme
+│     ├─ sayfalar-rapor.js    # Rapor, Risk, Acil durum, Ekip, Mevzuat, Onaylar
+│     ├─ giris.js             # giriş katmanı, demo hesaplar, davet kabulü
+│     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (147 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (226 kontrol)
+│  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (25 kontrol)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
-├─ package.json               # npm test / ikon / yayin
+├─ package.json               # npm test / test:belge / ikon / yayin
 └─ README.md
 ```
 
 Kod bilinçli olarak ES5 tarzı (IIFE + `var`) yazıldı: derleme adımı olmadan,
 doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
 
-## 5. Veri modeli (localStorage: `isgtakip.v2`)
+## 5. Veri modeli (localStorage: `isgtakip.v3`)
 
 ```js
 {
-  surum: 2,
+  surum: 3,
   ayarlar: { kurum, kullanici, gorev, sonMevzuatKontrolu },
+  kullanicilar: [{ id, adSoyad, eposta, sifre, rol, gorev, isyerleri: [], aktif, sonGiris }],
   isyerleri: [{ id, ad, tehlikeSinifi, calisanSayisi, sgkSicil, yetkili, adres, sektor, ana }],
   personel:  [{ id, isyeriId, sicil, adSoyad, tc, meslek, departman, grupKodu, sube, iseBaslama, telefon, cinsiyet, durum }],
   egitimler: [{ id, personelId, isyeriId, tur, tarih, sureSaat, egitmen, gecerlilik }],
   dosyalar:  [{ id, isyeriId, no, bolum, madde, durum, sorumlu, yenileme, kontrolTarihi, aciklama }],
+  belgeler:  [{ id, dosyaId, isyeriId, ad, boyut, tur, tarih, icerik }],
   planlar:   [{ id, isyeriId, sira, ay, gun, faaliyet, sorumlu, takipTarihi, durum, aciklama }],
   tespitler: [{ id, isyeriId, tespit, konum, sorumlu, oncelik, tur, termin, durum, dogrulama, not }],
   riskler:   [{ id, isyeriId, tehlike, alan, olasilik, siddet, onlem, sorumlu, termin, durum }],
   olaylar:   [{ id, isyeriId, tur, tarih, yer, personelId, aciklama, kokNeden, durum }],
-  riskEkipleri: [{ isyeriId, sonDegerlendirme, enGecYenileme, uyeler: { isveren, uzman, hekim, temsilci, destek, birim } }],
-  acilPlanlar:  [{ isyeriId, hazirlanma, sonYenileme, tatbikat, ekip: [{ rol, ad }] }],
+  riskEkipleri: [{ isyeriId, sonDegerlendirme, enGecYenileme, uyeler: { isveren, uzman, hekim, temsilci, destek, birim }, uyeIdleri }],
+  acilPlanlar:  [{ isyeriId, hazirlanma, sonYenileme, tatbikat, ekip: [{ rol, ad, personelId }] }],
   davetler:     [{ id, eposta, rol, isyerleri: [], tarih, durum }],
+  talepler:     [{ id, tur, eylem: { ad, args }, isyeriId, kullaniciId, kullaniciAd, ozet, durum, tarih, karar, kararVeren, kararTarihi }],
+  denetim:      [{ id, tur, islem, kullaniciId, kullaniciAd, isyeriId, ozet, tarih }],
   mevzuat:      [{ id, baslik, kategori, dayanak, durum, ozet }]
 }
 ```
 
+Oturum bilgisi ayrı bir anahtarda (`isgtakip.oturum`) yalnızca
+`{ kullaniciId, giris }` olarak tutulur; şifre orada saklanmaz. Eski
+`isgtakip.v2` verisi ilk açılışta okunup `v3` yapısına taşınır, kullanıcı
+listesi boşsa demo hesapları eklenir.
+
 Tüm kayıtlar işyeri kimliğiyle (`isyeriId`) ilişkilidir; işyeri silindiğinde
-bağlı kayıtlar da silinir. Yedek dosyası bu yapının tamamını taşır.
+bağlı kayıtlar ve belge ekleri de silinir. Yedek dosyası bu yapının tamamını
+taşır.
+
+Belge ekleri base64 data URL olarak `belgeler[].icerik` alanında saklanır;
+`ad`, `boyut`, `tur`, `tarih` üst verileri listede gösterilir. Bir belge
+eklendiğinde dosya **hemen** kaydedilir; yeni maddede önce seçilen belgeler ise
+madde kaydedilene kadar bellekte tutulur ve kayıtla birlikte yazılır. Belge
+silme ve boyut denetimi `ISG.depo.belgeSil` / `ISG.BELGE_SINIRI` üzerinden
+yürür; kota dolarsa kayıt geri alınır ve kullanıcı uyarılır.
 
 ## 6. Hızlı başlangıç
 
@@ -137,15 +190,20 @@ Test:
 
 ```powershell
 npm install
-npm test                     # 147 kontrol, başarısızda çıkış kodu 1
+npm test                     # 226 kontrol + belge testi, başarısızda çıkış kodu 1
+npm run test:belge           # yalnızca belge eki testi (25 kontrol)
 ```
 
-Test; yükleme, tohum veri, iş kuralları, kapsam filtresi, personel CRUD,
+Test; yükleme, tohum veri, **giriş/oturum**, **rol ve işyeri kapsamı**,
+**onay kuyruğu ve denetim izi**, iş kuralları, kapsam filtresi, personel CRUD,
 eğitim geçerliliği, dosya filtreleri ve sayfalama, DÖF oluşturma, plan
 tamamlama, saha, risk/acil kayıtları, rapor, davet, mevzuat, yapısal
 kontroller (tekrarlanan id, SVG referansı, göreli yollar), JSON yedekleme,
 demo sıfırlama ve yayın paketini (manifest, simgeler, 404, `.nojekyll`,
-CDN'sizlik) kapsar.
+CDN'sizlik) kapsar. `belge-test.js` ayrıca belge yükleme/indirme/silme,
+liste satırındaki belge sayısı, bekleyen belgenin kayıtla birlikte yazılması,
+1 MB sınırı ve `dosyaSil` ile belge temizliğini doğrular; yetki katmanı
+bölümünde yönetici oturumu açıldığını ve giriş katmanının göründüğünü denetler.
 
 Simgeleri yeniden üretmek (favicon.svg değiştiğinde):
 
@@ -275,10 +333,20 @@ Notlar:
 - Veriler yalnızca tarayıcının `localStorage` alanında tutulur; gizli sekmede
   veya depolama temizlendiğinde kaybolur. Çok kullanıcılı, çok cihazlı bir
   kurulum için gerçek bir arka uç (Supabase/Firebase) gerekir.
+- Belge ekleri de `localStorage` içinde base64 olarak tutulur: tarayıcı kotası
+  genelde 5 MB olduğu için belge başına sınır **1 MB**, toplamda birkaç belge
+  pratik sınırdır. Daha büyük arşivler için dosya sunucusu / bulut depolama
+  gerekir; kota dolarsa yükleme reddedilir ve veri bozulmaz.
 - Ekip ve davetler ekranı davet **kaydı** oluşturur; otomatik e-posta
-  gönderimi, kimlik doğrulama ve yetki denetimi yoktur.
-- Excel çıktıları `.csv` (UTF-8 BOM, noktalı virgül) biçimindedir; Excel'de
-  doğrudan açılır. Gerçek `.xlsx` üretimi yoktur.
+  gönderimi yoktur. Davet kabulü kod ile demo düzeyinde çalışır: giriş ve
+  roller tarayıcı içinde doğrulanır, şifreler `localStorage` içinde düz metin
+  tutulur. Gerçek kimlik doğrulama (OTP, SSO, parola özeti, sunucu tarafı
+  oturum) için bir arka uç gerekir; bu yüzden yetki katmanı **arayüz ve iş
+  kuralı** düzeyinde koruma sağlar, güvenlik sınırı değildir.
+- Personel listesi gerçek `.xlsx` (Office Open XML) olarak indirilip yüklenir;
+  diğer ekranların "Excel indir" düğmeleri hâlâ `.csv` (UTF-8 BOM, noktalı
+  virgül) üretir. Şablon tarih hücrelerini `YYYY-AA-GG` metnine çevirir; birleşik
+  hücre, grafik ve formül içeren karmaşık dosyalar desteklenmez.
 - Mevzuat başlıkları özet niteliğindedir; güncel birleştirilmiş metinler ve
   değişiklik takibi otomatik değildir.
 - Kontrol kataloğu şablon tabanlıdır; işyerine özel madde eklenebilir ve
@@ -289,13 +357,40 @@ Notlar:
 
 1. Sağlık gözetimi (periyodik muayene, odyometri, SFT, aşı) ve KKD zimmeti.
 2. Saha denetimleri için fotoğraf/kanıt eki ve DÖF onay akışı.
-3. Gerçek `.xlsx` içe/dışa aktarma ve sütun eşleme sihirbazı.
+3. Şablon sütun eşleme sihirbazı; diğer listeler (risk, saha, plan) için XLSX çıktısı.
 4. PDF tutanak ve imza (İSG kurul kararı, tatbikat raporu).
 5. Kurul, tatbikat ve yıllık değerlendirme modülleri; hatırlatma e-postaları.
-6. Supabase/Firebase ile çok kullanıcılı yapı, rol bazlı yetki, denetim izi.
+6. Supabase/Firebase ile çok kullanıcılı yapı ve sunucu tarafı kimlik doğrulama
+   (rol bazlı yetki ve denetim izi demo düzeyinde hazır).
 7. Mevzuat değişiklik takibi ve işyeri kapsam kararının gerekçelendirilmesi.
+8. İstatistik panosu, çevrimdışı PWA güncelleme bildirimi ve yönetim paneli.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.1.0 — giriş, roller, onay kuyruğu
+
+- **Giriş ekranı** eklendi (`assets/js/giris.js`): oturum yoksa uygulama
+  katmanı kapanır, demo hesap düğmeleri formu doldurur, hatalı şifre/kullanıcı
+  satır içi uyarıyla bildirilir, çıkış onay ister.
+- **Yetki katmanı** eklendi (`assets/js/yetki.js`): üç rol (yönetici, yetkili,
+  görüntüleyici), işyeri kapsamı, `salt-okunur` gövde sınıfı ve `ISG.yetki.izin`
+  denetimi. Menüde yalnızca yetkili olunan ekranlar görünür.
+- **Onay kuyruğu** eklendi: yetkilinin yazma çağrıları `talepler` dizisine
+  düşer, yönetici onaylayınca işlem gerçekten uygulanır; reddedilen talep
+  veriyi değiştirmez. Menüde bekleyen talep rozeti gösterilir.
+- **Denetim izi** (`denetim`) giriş/çıkış, yazma, onay ve ret olaylarını
+  kullanıcı + zaman + özetle kaydeder (son 400 kayıt).
+- Veri anahtarı `isgtakip.v2` → **`isgtakip.v3`**; oturum `isgtakip.oturum`.
+  Eski veri otomatik taşınır, `kullanicilar` boşsa üç demo hesap eklenir
+  (şifre `1234`).
+- 12. ekran **Onay kuyruğu** (`#sayfa-onaylar`) ve menü sayacı eklendi.
+- Test kapsamı **183 → 226 kontrol** (giriş/oturum, roller ve kapsam, onay
+  akışı, denetim izi) + belge testi **23 → 25 kontrol** (yetki katmanı).
+- Depo yardımcıları genişletildi: `ISG.depo.anahtar` (depolama anahtarı),
+  `kullaniciBul`, `kullaniciEpostaBul`, `kullaniciKaydet`,
+  `kullaniciGirisIsaretle`, `talepEkle`, `talepBul`, `denetimEkle`.
+
+### 2.0.0 — işyeri bazlı yeniden yazım
 
 - Tek kurum/tek sayfa yapısından **6 işyerli, kapsam filtreli** yapıya geçildi.
 - 5 sayfa → **11 ekran**; Genel bakış artık gerçek bir görev motoruyla besleniyor.
@@ -304,7 +399,7 @@ Notlar:
   şablonu, içe aktarma, detay satırı ve "listeyi temizle" eklendi.
 - Koyu altın tema yerine ürün görsellerine uygun **açık gri + petrol yeşili**
   tema; mobil menü, daraltılabilir kenar ve yazdırma kuralları yenilendi.
-- Test kapsamı 41 → **147 kontrol**'e çıkarıldı.
+- Test kapsamı 41 → **159 kontrol**'e çıkarıldı.
 
 ### 2.0.1 — yayın hazırlığı
 
@@ -317,5 +412,58 @@ Notlar:
 - Testlere **19) Yayın paketi** bölümü eklendi: manifest geçerliliği, simge
   boyutları, 404/robots/.nojekyll varlığı, kök mutlak yol ve dış CDN
   bağımlılığı denetimi.
+
+### 2.0.2 — rastgele demo personeli
+
+- Her işyerine rastgele ad, cinsiyet, meslek, departman ve işe başlama
+  tarihiyle **3–5 ek personel** üretildi (toplam **37 personel**). Rastgelelik
+  tohumu sabit olduğundan demo her açılışta aynı listeyi gösterir.
+- Ek personelin tamamına tehlike sınıfına uygun geçerlilikte **temel İSG
+  eğitimi**, her işyerinin ilk kişisine güncel **ilk yardım sertifikası**
+  tanımlandı; böylece çalışma planındaki ilk yardımcı kartları boş kalmıyor.
+- Personel blokları artık her işyerinde dolu; testler 37 personel satırını,
+  işyeri başına en az bir güncel ilk yardımcıyı ve kartlardaki
+  ihtiyaç/mevcut sayılarının veriyle uyumunu doğruluyor (**159 kontrol**).
+
+### 2.0.3 — gerçek Excel ve ekip üyesi ekleme
+
+- **Gerçek `.xlsx` altyapısı** eklendi (`assets/js/excel.js`): sıfır bağımlılıkla
+  ZIP + OpenXML üretir; birden fazla sayfa, donmuş başlık, sütun genişliği,
+  otomatik filtre ve UTF-8 (Türkçe karakter) desteği vardır. Excel'in
+  sıkıştırdığı dosyalar `DecompressionStream` ile okunur; tarayıcı desteklemezse
+  kullanıcıya CSV yönlendirmesi gösterilir.
+- Personel ekranında **"Excel şablonu indir (XLSX)"** (Personel + Kılavuz
+  sayfaları) ve **"Güncel listeyi XLSX indir"** düğmeleri; `.xlsx` ve `.csv`
+  dosyalarını aynı **"Excel/CSV içe aktar"** girişinden yükleme. `GG.AA.YYYY`,
+  `YYYY-AA-GG` ve Excel seri tarih hücreleri normalize edilir; Kıdem Tarihi de
+  artık içe aktarılır. Başlık satırı ilk 10 satır içinde otomatik bulunur, üstte
+  başlık/logo satırı olan dosyalar da okunur.
+- Risk değerlendirmesi ve acil durum planı kartlarına **rol bazlı ekip üyesi
+  ekleme** eklendi: her rol satırında `Ekle / Değiştir` ve dolu rollerde
+  `Kaldır`; ayrıca kart altında "Ekip üyesi ekle" düğmesi. Yeni diyalog,
+  işyerinin personel listesinden seçim yapıp adı otomatik doldurur, elle yazmaya
+  da izin verir. Acil durum ekiplerine **Destek elemanı** rolü eklendi (5 rol).
+- Risk ekibi üyeleri artık `personelId` ile de izlenebiliyor; acil ekip
+  kayıtları `{ rol, ad, personelId }` biçiminde saklanıyor. Kaldırma işlemleri
+  onay diyaloğundan geçiyor.
+- Testlere **12b) Ekip üyesi ekleme** ve **12c) Excel (.xlsx) altyapısı**
+  bölümleri eklendi: XLSX ZIP imzası, iş kitabı/sayfa varlığı, yaz→oku turu,
+  tarih normalizasyonu, içe aktarma ve ekip ekleme/kaldırma akışları
+  doğrulanıyor (**183 kontrol**).
+
+### 2.0.4 — kontrol maddesine belge eki
+
+- Dosya kontrolü diyaloğuna **Belgeler** bölümü eklendi: "Belge yükle" ile
+  PDF, Word, Excel, CSV, TXT ve görsel eklenebilir; liste dosya adı, boyut ve
+  tarihle gösterilir, tek tıkla **indirilir** veya onay alınarak **kaldırılır**.
+- Belge içeriği base64 data URL olarak `isgtakip.v2` → `belgeler` dizisinde
+  saklanır (belge başına **≤ 1 MB**); kota dolarsa kayıt geri alınır ve
+  "depolama alanı dolu" uyarısı verilir. `dosyaSil` ve işyeri silme belge
+  eklerini de temizler; JSON yedek dosyası belgeleri taşır.
+- Yeni maddede önce belge seçilirse “kayıtla birlikte yüklenecek” notuyla
+  bekletilir, madde kaydedildiğinde kalıcı yazılır. Liste satırında maddenin
+  belge sayısı (`· N belge`) görünür.
+- `tools/belge-test.js` (23 kontrol) eklendi; `npm test` artık iki testi de
+  çalıştırır.
 
 

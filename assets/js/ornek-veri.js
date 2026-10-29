@@ -289,6 +289,26 @@
 
   /* ---------- Tohum veri ---------- */
 
+  /* ---------- Demo kullanıcıları ----------
+     Davet akışını denemeden giriş yapılabilmesi için hazır hesaplar.
+     Şifreler demo amaçlıdır; gerçek kurulumda kullanıcılar davetle gelir. */
+  ISG.ORNEK_KULLANICILAR = function () {
+    return [
+      {
+        id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmet.kurt@ornek.com', sifre: '1234',
+        rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [], aktif: true, sonGiris: ''
+      },
+      {
+        id: 'u2', adSoyad: 'Buse Şenol', eposta: 'buse.senol@ornek.com', sifre: '1234',
+        rol: 'yetkili', gorev: 'B sınıfı İSG uzmanı', isyerleri: ['iy1', 'iy2'], aktif: true, sonGiris: ''
+      },
+      {
+        id: 'u3', adSoyad: 'Selin Aydın', eposta: 'selin.aydin@ornek.com', sifre: '1234',
+        rol: 'goruntuleyici', gorev: 'İdari işler sorumlusu', isyerleri: ['iy1'], aktif: true, sonGiris: ''
+      }
+    ];
+  };
+
   ISG.ORNEK_VERI = function () {
     var isyerleri = [
       { id: 'iy1', ad: 'Aypaş OSGB', tehlikeSinifi: 'tehlikeli', calisanSayisi: 17, sgkSicil: '2-1234-01-01-1234567-01', ana: true, yetkili: 'Mehmet Kurt', adres: 'Aydın / Efeler', sektor: 'İSG hizmetleri' },
@@ -314,6 +334,99 @@
       { id: 'p12', isyeriId: 'iy1', sicil: '12', adSoyad: 'Merve Aydın', meslek: 'İnsan kaynakları uzmanı', departman: 'İnsan Kaynakları', grupKodu: '', sube: 'Merkez', iseBaslama: '2022-01-10', cinsiyet: 'Kadın', telefon: '', tc: '', durum: 'aktif' },
       { id: 'p13', isyeriId: 'iy1', sicil: '13', adSoyad: 'Ali Uzun', meslek: 'Stajyer', departman: 'Üretim', grupKodu: '', sube: 'Üretim 2', iseBaslama: '2026-07-01', cinsiyet: 'Erkek', telefon: '', tc: '', durum: 'aktif' }
     ];
+
+    /* ---------- Her işyeri için rastgele ek personel ----------
+       Tohum sabit olduğundan demo her açılışta aynı kişileri üretir;
+       böylece ekranlar dolu görünür, testler de sayıları kesin doğrular. */
+    var EK_KADIN = ['Ayşe', 'Elif', 'Zeynep', 'Merve', 'Selin', 'Buse', 'Fatma', 'Deniz', 'İrem', 'Ceren', 'Sude', 'Nazlı'];
+    var EK_ERKEK = ['Ahmet', 'Mehmet', 'Mustafa', 'Ali', 'Hasan', 'Emre', 'Burak', 'Serkan', 'Kaan', 'Onur', 'Volkan', 'Cem'];
+    var EK_SOYAD = ['Yıldız', 'Demir', 'Kaya', 'Şahin', 'Çetin', 'Aksoy', 'Polat', 'Erdem', 'Kılıç', 'Türk', 'Aydın', 'Özdemir', 'Güneş', 'Yalçın', 'Tekin', 'Bozkurt'];
+    var EK_MESLEKLER = [
+      { ad: 'Üretim operatörü', departman: 'Üretim', sube: 'Üretim hattı' },
+      { ad: 'Bakım teknisyeni', departman: 'Bakım', sube: 'Bakım atölyesi' },
+      { ad: 'Depo görevlisi', departman: 'Depo ve Lojistik', sube: 'Depo' },
+      { ad: 'Şoför', departman: 'Lojistik', sube: 'Saha' },
+      { ad: 'Temizlik görevlisi', departman: 'Destek Hizmetleri', sube: 'Merkez' },
+      { ad: 'İdari personel', departman: 'İdari İşler', sube: 'Merkez' },
+      { ad: 'Laborant', departman: 'Kalite', sube: 'Laboratuvar' },
+      { ad: 'Güvenlik görevlisi', departman: 'Güvenlik', sube: 'Giriş' },
+      { ad: 'Elektrikçi', departman: 'Bakım', sube: 'Merkez' },
+      { ad: 'Kalite kontrol uzmanı', departman: 'Kalite', sube: 'Üretim hattı' }
+    ];
+    var EK_SAYI = { iy1: 3, iy2: 4, iy3: 5, iy4: 3, iy5: 4, iy6: 5 };
+    var EK_TEMEL_YIL = { az: 3, tehlikeli: 2, cokTehlikeli: 1 };
+
+    function ekRastgele(tohum) {
+      var deger = tohum;
+      return function () {
+        deger = (deger * 1103515245 + 12345) % 2147483648;
+        return deger / 2147483648;
+      };
+    }
+
+    var ekRnd = ekRastgele(20261027);
+    function ekSec(liste) { return liste[Math.floor(ekRnd() * liste.length)]; }
+
+    var ekPersonel = [];
+    var ekEgitimler = [];
+    var ekKisiNo = 0;
+    var ekEgitimNo = 22;
+
+    isyerleri.forEach(function (isyeri) {
+      var adet = EK_SAYI[isyeri.id] || 3;
+      for (var i = 0; i < adet; i += 1) {
+        ekKisiNo += 1;
+        var kadin = ekRnd() >= 0.5;
+        var meslek = ekSec(EK_MESLEKLER);
+        var kisi = {
+          id: 'pr' + ('0' + ekKisiNo).slice(-2),
+          isyeriId: isyeri.id,
+          sicil: String(100 + ekKisiNo),
+          adSoyad: (kadin ? ekSec(EK_KADIN) : ekSec(EK_ERKEK)) + ' ' + ekSec(EK_SOYAD),
+          meslek: meslek.ad,
+          departman: meslek.departman,
+          grupKodu: '',
+          sube: meslek.sube,
+          iseBaslama: gun(-(240 + Math.floor(ekRnd() * 2400))),
+          cinsiyet: kadin ? 'Kadın' : 'Erkek',
+          telefon: '',
+          tc: '',
+          durum: 'aktif'
+        };
+        ekPersonel.push(kisi);
+
+        var temelTarih = gun(-(200 + Math.floor(ekRnd() * 120)));
+        ekEgitimler.push({
+          id: 'e' + ekEgitimNo,
+          personelId: kisi.id,
+          isyeriId: isyeri.id,
+          tur: 'temel',
+          tarih: temelTarih,
+          sureSaat: 12,
+          egitmen: 'B. Şenol',
+          gecerlilik: yilEkle(temelTarih, EK_TEMEL_YIL[isyeri.tehlikeSinifi] || 2)
+        });
+        ekEgitimNo += 1;
+
+        /* Her işyerinde en az bir güncel ilk yardımcı bulunsun. */
+        if (i === 0) {
+          var ilkTarih = gun(-(200 + Math.floor(ekRnd() * 200)));
+          ekEgitimler.push({
+            id: 'e' + ekEgitimNo,
+            personelId: kisi.id,
+            isyeriId: isyeri.id,
+            tur: 'ilkYardim',
+            tarih: ilkTarih,
+            sureSaat: 16,
+            egitmen: 'M. Kurt',
+            gecerlilik: yilEkle(ilkTarih, 3)
+          });
+          ekEgitimNo += 1;
+        }
+      }
+    });
+
+    personel = personel.concat(ekPersonel);
 
     var YIL = { temel: 2, ilkYardim: 3, yangin: 1, yuksekte: 2, kkd: 2, acilDurum: 1, kurul: 2 };
 
@@ -348,7 +461,7 @@
       egitim('e19', 'p11', 'temel', 150, 12, 'B. Şenol'),
       egitim('e20', 'p11', 'kkd', 100, 2, 'B. Şenol'),
       egitim('e21', 'p12', 'temel', 100, 12, 'B. Şenol')
-    ];
+    ].concat(ekEgitimler);
 
     var riskler = [
       { id: 'r01', isyeriId: 'iy1', tehlike: 'Pres makinesinde el sıkışması', alan: 'Üretim hattı 2', olasilik: 4, siddet: 5, onlem: 'Çift el kumandası, ışık perdesi ve LOTO prosedürü uygulanacak.', sorumlu: 'Bakım şefi', termin: gun(10), durum: 'acik' },
@@ -458,7 +571,24 @@
     });
 
     var davetler = [
-      { id: 'dv1', eposta: 'buse.senol@ornek.com', rol: 'Görüntüleyici', isyerleri: ['iy1', 'iy2'], tarih: gun(-3), durum: 'bekliyor' }
+      { id: 'dv1', kod: 'ISG-BUSE1', eposta: 'buse.senol@ornek.com', rol: 'yetkili', isyerleri: ['iy1', 'iy2'], tarih: gun(-3), durum: 'kabul', kabulTarihi: gun(-2), kullaniciId: 'u2' },
+      { id: 'dv2', kod: 'ISG-DEPO7', eposta: 'depo.sorumlusu@ornek.com', rol: 'yetkili', isyerleri: ['iy1'], tarih: gun(-1), durum: 'bekliyor' }
+    ];
+
+    var talepler = [
+      {
+        id: 'tp1', kullaniciId: 'u2', kullaniciAd: 'Buse Şenol', isyeriId: 'iy1', isyeriAd: 'Aypaş OSGB',
+        sayfa: 'personel', etiket: 'Personel kaydı', ozet: 'Yeni personel: Kaan Erdem (Forklift operatörü)',
+        durum: 'bekliyor', olusturma: new Date().toISOString(),
+        eylem: {
+          ad: 'personelKaydet',
+          args: [{
+            id: 'tp1-p', isyeriId: 'iy1', sicil: '90', adSoyad: 'Kaan Erdem', meslek: 'Forklift operatörü',
+            departman: 'Depo ve Lojistik', grupKodu: '', sube: 'Depo A', iseBaslama: gun(-4),
+            cinsiyet: 'Erkek', telefon: '', tc: '', durum: 'aktif'
+          }]
+        }
+      }
     ];
 
     var mevzuat = [
@@ -485,12 +615,13 @@
     ];
 
     return {
-      surum: 2,
+      surum: 3,
       olusturma: new Date().toISOString(),
       ayarlar: {
         kurum: 'Aydın Büyükşehir Belediyesi Personel A.Ş',
         kullanici: 'Mehmet Kurt',
         gorev: 'Yönetici oturumu',
+        yillikCalismaSaati: 2250,
         sonMevzuatKontrolu: gun(-30)
       },
       isyerleri: isyerleri,
@@ -499,10 +630,14 @@
       riskler: riskler,
       olaylar: olaylar,
       dosyalar: dosyalar,
+      belgeler: [],
       planlar: planlar,
       tespitler: tespitler,
       riskEkipleri: riskEkipleri,
       acilPlanlar: acilPlanlar,
+      kullanicilar: ISG.ORNEK_KULLANICILAR(),
+      talepler: talepler,
+      denetim: [],
       davetler: davetler,
       mevzuat: mevzuat
     };

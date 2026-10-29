@@ -3,7 +3,9 @@
   'use strict';
 
   var ISG = global.ISG = global.ISG || {};
-  var ANAHTAR = 'isgtakip.v2';
+  var ANAHTAR = 'isgtakip.v3';
+  var ESKI_ANAHTAR = 'isgtakip.v2';
+  var SURUM = 3;
 
   /* ---------- Alan kuralları ---------- */
 
@@ -57,6 +59,14 @@
     { id: 'temsilci', ad: 'Çalışan temsilcisi (en az 1 kişi)' },
     { id: 'destek', ad: 'Destek elemanı' },
     { id: 'birim', ad: 'Birimleri bilen çalışan' }
+  ];
+
+  ISG.ACIL_ROLLERI = [
+    { id: 'koordinator', ad: 'Acil durum koordinatörü' },
+    { id: 'yangin', ad: 'Yangın söndürme ekibi' },
+    { id: 'ilkyardim', ad: 'İlk yardım ekibi' },
+    { id: 'tahliye', ad: 'Tahliye / arama kurtarma' },
+    { id: 'destek', ad: 'Destek elemanı' }
   ];
 
   ISG.DAVET_ROLLERI = ['Kurum sahibi', 'Yönetici', 'İSG uzmanı', 'Görüntüleyici'];
@@ -393,28 +403,89 @@
 
   var depoDurumu = { veri: null, kalici: true, dinleyiciler: [] };
 
+  var LISTE_ANAHTARLARI = [
+    'egitimler', 'riskler', 'olaylar', 'dosyalar', 'belgeler', 'planlar', 'tespitler',
+    'riskEkipleri', 'acilPlanlar', 'davetler', 'mevzuat',
+    'kullanicilar', 'talepler', 'denetim'
+  ];
+
   function yayinla() {
     depoDurumu.dinleyiciler.forEach(function (fn) {
       try { fn(depoDurumu.veri); } catch (hata) { /* dinleyici hatası uygulamayı durdurmaz */ }
     });
   }
 
-  try {
-    var ham = global.localStorage.getItem(ANAHTAR);
-    if (ham) {
-      var okunan = JSON.parse(ham);
-      if (okunan && okunan.surum === 2) { depoDurumu.veri = okunan; }
-    }
-  } catch (hata) {
-    depoDurumu.kalici = false;
+  function davetKoduUret() {
+    var harfler = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    var govde = '';
+    for (var i = 0; i < 5; i += 1) { govde += harfler.charAt(Math.floor(Math.random() * harfler.length)); }
+    return 'ISG-' + govde;
   }
 
-  if (!depoDurumu.veri) {
-    depoDurumu.veri = ISG.ORNEK_VERI();
+  ISG.davetKoduUret = davetKoduUret;
+
+  /* Eski sürümden gelen ya da içe aktarılan veriyi güncel şemaya tamamlar. */
+  function veriTamamla(veri) {
+    if (!veri) { return veri; }
+    LISTE_ANAHTARLARI.forEach(function (anahtar) {
+      veri[anahtar] = Array.isArray(veri[anahtar]) ? veri[anahtar] : [];
+    });
+    veri.isyerleri = Array.isArray(veri.isyerleri) ? veri.isyerleri : [];
+    veri.personel = Array.isArray(veri.personel) ? veri.personel : [];
+    veri.ayarlar = veri.ayarlar || {};
+
+    (veri.davetler || []).forEach(function (davet) {
+      if (!davet.kod) { davet.kod = davetKoduUret(); }
+      if (davet.durum !== 'kabul') { davet.durum = davet.durum || 'bekliyor'; }
+    });
+
+    var kullaniciVar = (veri.kullanicilar || []).length > 0;
+    if (!kullaniciVar && typeof ISG.ORNEK_KULLANICILAR === 'function') {
+      veri.kullanicilar = ISG.ORNEK_KULLANICILAR();
+    }
+
+    veri.surum = SURUM;
+    return veri;
   }
+
+  function oku(anahtar) {
+    try {
+      var ham = global.localStorage.getItem(anahtar);
+      if (!ham) { return null; }
+      var okunan = JSON.parse(ham);
+      return okunan && typeof okunan === 'object' ? okunan : null;
+    } catch (hata) {
+      depoDurumu.kalici = false;
+      return null;
+    }
+  }
+
+  var okunanVeri = oku(ANAHTAR);
+  var tasindi = false;
+  if (!okunanVeri) {
+    var eskiVeri = oku(ESKI_ANAHTAR);
+    if (eskiVeri) { okunanVeri = eskiVeri; tasindi = true; }
+  }
+  if (okunanVeri) { depoDurumu.veri = veriTamamla(okunanVeri); }
+  if (!depoDurumu.veri) { depoDurumu.veri = veriTamamla(ISG.ORNEK_VERI()); }
 
   var depo = ISG.depo = {
+    anahtar: ANAHTAR,
     al: function () { return depoDurumu.veri; },
+    /* Oturum sahibinin yetkisine göre süzülmüş görünüm (arayüz bunu kullanır). */
+    gorunum: function () {
+      if (ISG.yetki && typeof ISG.yetki.kapsamliVeri === 'function') {
+        return ISG.yetki.kapsamliVeri(depoDurumu.veri);
+      }
+      return depoDurumu.veri;
+    },
+    /* Onay kuyruğundaki bir talebi uygularken anlık geri alma için kullanılır. */
+    geriYukle: function (veri) {
+      depoDurumu.veri = veri;
+      depo.kaydet();
+      return depoDurumu.veri;
+    },
+    surum: function () { return SURUM; },
     kaliciMi: function () { return depoDurumu.kalici; },
     kaydet: function () {
       try {
@@ -427,7 +498,7 @@
       return depoDurumu.kalici;
     },
     sifirla: function () {
-      depoDurumu.veri = ISG.ORNEK_VERI();
+      depoDurumu.veri = veriTamamla(ISG.ORNEK_VERI());
       depo.kaydet();
       return depoDurumu.veri;
     },
@@ -435,23 +506,21 @@
       if (typeof fn === 'function') { depoDurumu.dinleyiciler.push(fn); }
     },
     disariAktar: function () {
-      return JSON.stringify(depo.al(), null, 2);
+      return JSON.stringify(depo.gorunum(), null, 2);
     },
     iceAktar: function (metin) {
       var veri = JSON.parse(metin);
       if (!veri || !Array.isArray(veri.isyerleri) || !Array.isArray(veri.personel)) {
         throw new Error('Dosya biçimi tanınmadı: işyerleri ve personel dizileri gerekli.');
       }
-      ['egitimler', 'riskler', 'olaylar', 'dosyalar', 'planlar', 'tespitler', 'riskEkipleri', 'acilPlanlar', 'davetler', 'mevzuat'].forEach(function (anahtar) {
-        veri[anahtar] = Array.isArray(veri[anahtar]) ? veri[anahtar] : [];
-      });
-      veri.surum = 2;
-      veri.ayarlar = veri.ayarlar || {};
+      veriTamamla(veri);
       depoDurumu.veri = veri;
       depo.kaydet();
       return veri;
     }
   };
+
+  if (tasindi) { depo.kaydet(); }
 
   /* ---------- Kayıt işlemleri ---------- */
 
@@ -490,8 +559,17 @@
   ISG.depo.isyeriSil = function (id) {
     var veri = depo.al();
     veri.isyerleri = silListeden(veri.isyerleri, id);
-    ['personel', 'egitimler', 'riskler', 'olaylar', 'dosyalar', 'planlar', 'tespitler', 'riskEkipleri', 'acilPlanlar'].forEach(function (anahtar) {
+    ['personel', 'egitimler', 'riskler', 'olaylar', 'dosyalar', 'belgeler', 'planlar', 'tespitler', 'riskEkipleri', 'acilPlanlar'].forEach(function (anahtar) {
       veri[anahtar] = (veri[anahtar] || []).filter(function (kayit) { return kayit.isyeriId !== id; });
+    });
+    veri.talepler = (veri.talepler || []).filter(function (talep) { return talep.isyeriId !== id; });
+    veri.kullanicilar = (veri.kullanicilar || []).map(function (kullanici) {
+      kullanici.isyerleri = (kullanici.isyerleri || []).filter(function (isyeriId) { return isyeriId !== id; });
+      return kullanici;
+    });
+    veri.davetler = (veri.davetler || []).map(function (davet) {
+      davet.isyerleri = (davet.isyerleri || []).filter(function (isyeriId) { return isyeriId !== id; });
+      return davet;
     });
     if (veri.isyerleri.length && !veri.isyerleri.some(function (isyeri) { return isyeri.ana; })) {
       veri.isyerleri[0].ana = true;
@@ -588,7 +666,52 @@
   ISG.depo.dosyaSil = function (id) {
     var veri = depo.al();
     veri.dosyalar = silListeden(veri.dosyalar, id);
+    veri.belgeler = (veri.belgeler || []).filter(function (belge) { return belge.dosyaId !== id; });
     depo.kaydet();
+  };
+
+  /* ---------- Belge (dosya eki) işlemleri ---------- */
+
+  ISG.BELGE_SINIRI = 1024 * 1024;
+
+  ISG.depo.belgeler = function (dosyaId) {
+    if (!dosyaId) { return []; }
+    return (depo.al().belgeler || []).filter(function (belge) { return belge.dosyaId === dosyaId; });
+  };
+
+  ISG.depo.belgeBul = function (id) {
+    if (!id) { return null; }
+    return (depo.al().belgeler || []).filter(function (belge) { return belge.id === id; })[0] || null;
+  };
+
+  ISG.depo.belgeKaydet = function (kayit) {
+    var veri = depo.al();
+    var belgeler = veri.belgeler = veri.belgeler || [];
+    kayit.id = kayit.id || ISG.yeniId('bl');
+    kayit.tarih = kayit.tarih || ISG.bicim.bugunIso();
+    kayit.boyut = Number(kayit.boyut) || 0;
+    var yer = -1;
+    belgeler.forEach(function (belge, i) { if (belge.id === kayit.id) { yer = i; } });
+    var onceki = yer >= 0 ? belgeler[yer] : null;
+    if (yer >= 0) { belgeler[yer] = kayit; } else { belgeler.push(kayit); }
+    if (!depo.kaydet()) {
+      if (yer >= 0) { belgeler[yer] = onceki; } else { belgeler.pop(); }
+      throw new Error('Belge kaydedilemedi: tarayıcı depolama alanı dolu. Daha küçük bir dosya deneyin veya eski belgeleri silin.');
+    }
+    return kayit;
+  };
+
+  ISG.depo.belgeSil = function (id) {
+    var veri = depo.al();
+    veri.belgeler = (veri.belgeler || []).filter(function (belge) { return belge.id !== id; });
+    depo.kaydet();
+  };
+
+  ISG.depo.belgeBoyutu = function (dosyaId) {
+    return (depo.al().belgeler || []).reduce(function (toplam, belge) {
+      if (dosyaId && belge.dosyaId !== dosyaId) { return toplam; }
+      return toplam + (Number(belge.boyut) || 0);
+    }, 0);
   };
 
   ISG.depo.dosyaDurumToplu = function (isyeriId, durum) {
@@ -681,7 +804,34 @@
     return kayit;
   };
 
-  ISG.depo.acilEkipEkle = function (isyeriId, rol, ad) {
+  ISG.depo.riskEkipUyeEkle = function (isyeriId, rol, ad, personelId) {
+    var veri = depo.al();
+    var kayit = ISG.ilgiliKayit(veri, 'riskEkipleri', isyeriId);
+    if (!kayit) {
+      kayit = { isyeriId: isyeriId, sonDegerlendirme: '', enGecYenileme: '', uyeler: {}, uyeIdleri: {} };
+      veri.riskEkipleri.push(kayit);
+    }
+    kayit.uyeler = kayit.uyeler || {};
+    kayit.uyeler[rol] = ad || '';
+    if (personelId) {
+      kayit.uyeIdleri = kayit.uyeIdleri || {};
+      kayit.uyeIdleri[rol] = personelId;
+    }
+    depo.kaydet();
+    return kayit;
+  };
+
+  ISG.depo.riskEkipUyeSil = function (isyeriId, rol) {
+    var veri = depo.al();
+    var kayit = ISG.ilgiliKayit(veri, 'riskEkipleri', isyeriId);
+    if (!kayit) { return null; }
+    if (kayit.uyeler) { kayit.uyeler[rol] = ''; }
+    if (kayit.uyeIdleri) { delete kayit.uyeIdleri[rol]; }
+    depo.kaydet();
+    return kayit;
+  };
+
+  ISG.depo.acilEkipEkle = function (isyeriId, rol, ad, personelId) {
     var veri = depo.al();
     var kayit = ISG.ilgiliKayit(veri, 'acilPlanlar', isyeriId);
     if (!kayit) {
@@ -689,7 +839,18 @@
       veri.acilPlanlar.push(kayit);
     }
     kayit.ekip = (kayit.ekip || []).filter(function (uye) { return uye.rol !== rol; });
-    if (ad) { kayit.ekip.push({ rol: rol, ad: ad }); }
+    if (ad) {
+      kayit.ekip.push({ rol: rol, ad: ad, personelId: personelId || '' });
+    }
+    depo.kaydet();
+    return kayit;
+  };
+
+  ISG.depo.acilEkipSil = function (isyeriId, rol) {
+    var veri = depo.al();
+    var kayit = ISG.ilgiliKayit(veri, 'acilPlanlar', isyeriId);
+    if (!kayit) { return null; }
+    kayit.ekip = (kayit.ekip || []).filter(function (uye) { return uye.rol !== rol; });
     depo.kaydet();
     return kayit;
   };
@@ -698,6 +859,7 @@
     var veri = depo.al();
     kayit.tarih = kayit.tarih || new Date().toISOString().slice(0, 10);
     kayit.durum = kayit.durum || 'bekliyor';
+    kayit.kod = kayit.kod || davetKoduUret();
     var sonuc = kaydetListede(veri.davetler, kayit, 'dv');
     depo.kaydet();
     return sonuc;
@@ -706,6 +868,115 @@
   ISG.depo.davetSil = function (id) {
     var veri = depo.al();
     veri.davetler = silListeden(veri.davetler, id);
+    depo.kaydet();
+  };
+  /* ---------- Kullanıcılar ve davet kabulü ---------- */
+
+  ISG.depo.kullaniciBul = function (id) {
+    if (!id) { return null; }
+    return (depo.al().kullanicilar || []).filter(function (kullanici) { return kullanici.id === id; })[0] || null;
+  };
+
+  ISG.depo.kullaniciEpostaBul = function (eposta) {
+    var hedef = String(eposta || '').trim().toLowerCase();
+    if (!hedef) { return null; }
+    return (depo.al().kullanicilar || []).filter(function (kullanici) {
+      return String(kullanici.eposta || '').toLowerCase() === hedef;
+    })[0] || null;
+  };
+
+  ISG.depo.kullaniciKaydet = function (kayit) {
+    var veri = depo.al();
+    kayit.eposta = String(kayit.eposta || '').trim().toLowerCase();
+    kayit.isyerleri = Array.isArray(kayit.isyerleri) ? kayit.isyerleri : [];
+    var sonuc = kaydetListede(veri.kullanicilar, kayit, 'u');
+    depo.kaydet();
+    return sonuc;
+  };
+
+  ISG.depo.kullaniciSil = function (id) {
+    var veri = depo.al();
+    veri.kullanicilar = silListeden(veri.kullanicilar, id);
+    depo.kaydet();
+  };
+
+  ISG.depo.kullaniciGirisIsaretle = function (id) {
+    var kullanici = ISG.depo.kullaniciBul(id);
+    if (!kullanici) { return null; }
+    kullanici.sonGiris = new Date().toISOString();
+    depo.kaydet();
+    return kullanici;
+  };
+
+  ISG.depo.davetKodBul = function (kod) {
+    var hedef = String(kod || '').trim().toUpperCase();
+    if (!hedef) { return null; }
+    return (depo.al().davetler || []).filter(function (davet) {
+      return String(davet.kod || '').toUpperCase() === hedef;
+    })[0] || null;
+  };
+
+  ISG.depo.davetKabul = function (id, kullaniciId) {
+    var veri = depo.al();
+    var davet = (veri.davetler || []).filter(function (kayit) { return kayit.id === id; })[0];
+    if (!davet) { return null; }
+    davet.durum = 'kabul';
+    davet.kabulTarihi = new Date().toISOString().slice(0, 10);
+    davet.kullaniciId = kullaniciId || '';
+    depo.kaydet();
+    return davet;
+  };
+
+  /* ---------- Onay kuyruğu ---------- */
+
+  ISG.depo.talepKaydet = function (kayit) {
+    var veri = depo.al();
+    kayit.olusturma = kayit.olusturma || new Date().toISOString();
+    kayit.durum = kayit.durum || 'bekliyor';
+    var sonuc = kaydetListede(veri.talepler, kayit, 'tp');
+    depo.kaydet();
+    return sonuc;
+  };
+
+  ISG.depo.talepBul = function (id) {
+    if (!id) { return null; }
+    return (depo.al().talepler || []).filter(function (talep) { return talep.id === id; })[0] || null;
+  };
+
+  ISG.depo.talepKarar = function (id, durum, kararVeren, not) {
+    var talep = ISG.depo.talepBul(id);
+    if (!talep) { return null; }
+    talep.durum = durum;
+    talep.kararTarihi = new Date().toISOString();
+    talep.kararVeren = kararVeren || '';
+    talep.kararNotu = not || '';
+    depo.kaydet();
+    return talep;
+  };
+
+  ISG.depo.talepSil = function (id) {
+    var veri = depo.al();
+    veri.talepler = silListeden(veri.talepler, id);
+    depo.kaydet();
+  };
+
+  /* ---------- Denetim izi ---------- */
+
+  ISG.depo.denetimEkle = function (kayit) {
+    var veri = depo.al();
+    var girdi = kayit || {};
+    girdi.id = girdi.id || ISG.yeniId('dn');
+    girdi.tarih = girdi.tarih || new Date().toISOString();
+    veri.denetim = veri.denetim || [];
+    veri.denetim.unshift(girdi);
+    if (veri.denetim.length > 400) { veri.denetim = veri.denetim.slice(0, 400); }
+    depo.kaydet();
+    return girdi;
+  };
+
+  ISG.depo.denetimTemizle = function () {
+    var veri = depo.al();
+    veri.denetim = [];
     depo.kaydet();
   };
 

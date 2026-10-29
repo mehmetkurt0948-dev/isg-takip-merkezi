@@ -90,6 +90,18 @@
     setTimeout(function () { URL.revokeObjectURL(adres); }, 1500);
   }
 
+  function dosyaIndirBayt(dosyaAdi, baytlar, tip) {
+    var blob = new Blob([baytlar], { type: tip || 'application/octet-stream' });
+    var adres = URL.createObjectURL(blob);
+    var bag = document.createElement('a');
+    bag.href = adres;
+    bag.download = dosyaAdi;
+    document.body.appendChild(bag);
+    bag.click();
+    document.body.removeChild(bag);
+    setTimeout(function () { URL.revokeObjectURL(adres); }, 1500);
+  }
+
   function hucre(deger) {
     var metin = String(deger === null || typeof deger === 'undefined' ? '' : deger).replace(/"/g, '""');
     return '"' + metin + '"';
@@ -114,6 +126,15 @@
       return '<option value="' + kacis(deger) + '"' + (String(deger) === String(secili) ? ' selected' : '') + '>' +
         kacis(metin) + '</option>';
     }).join('');
+  }
+
+  function boyut(bayt) {
+    var deger = Number(bayt) || 0;
+    if (deger < 1024) { return deger + ' B'; }
+    if (deger < 1024 * 1024) {
+      return (deger / 1024).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' KB';
+    }
+    return (deger / (1024 * 1024)).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' MB';
   }
 
   function sayi(deger) {
@@ -154,10 +175,12 @@
     durumRozeti: durumRozeti,
     bildir: bildir,
     dosyaIndir: dosyaIndir,
+    dosyaIndirBayt: dosyaIndirBayt,
     csv: csv,
     bosDurum: bosDurum,
     secenekler: secenekler,
     sayi: sayi,
+    boyut: boyut,
     sayfalama: sayfalama
   };
 })(window);

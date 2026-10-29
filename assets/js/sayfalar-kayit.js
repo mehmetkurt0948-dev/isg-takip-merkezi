@@ -8,7 +8,7 @@
   var SAYFALAR = ISG.sayfalar = ISG.sayfalar || {};
   var UI = ISG.ui = ISG.ui || {};
 
-  function veri() { return ISG.depo.al(); }
+  function veri() { return ISG.yetki ? ISG.yetki.gorunum() : ISG.depo.al(); }
   function kacis(deger) { return B.kacis(deger); }
   function isyeriAdi(id) { return ISG.isyeriAdi(veri(), id); }
 
@@ -48,10 +48,12 @@
   function dosyaSatiri(dosya) {
     var durum = ISG.DOSYA_DURUMLARI[dosya.durum] || { ad: dosya.durum, sinif: 'notr' };
     var tarihDurum = ISG.dosyaDurumEtiketi(dosya);
+    var belgeSayisi = ISG.depo.belgeler(dosya.id).length;
     return '<tr>' +
       '<td><span class="dosya-no">' + kacis(dosya.no) + '</span></td>' +
       '<td><span class="dosya-madde">' + kacis(dosya.madde) + '</span>' +
-        '<span class="dosya-bolum">BÖLÜM: ' + kacis(dosya.bolum) + (dosya.aciklama ? ' · ' + kacis(dosya.aciklama) : '') + '</span></td>' +
+        '<span class="dosya-bolum">BÖLÜM: ' + kacis(dosya.bolum) + (dosya.aciklama ? ' · ' + kacis(dosya.aciklama) : '') +
+          (belgeSayisi ? ' · ' + belgeSayisi + ' belge' : '') + '</span></td>' +
       '<td>' + kacis(isyeriAdi(dosya.isyeriId)) + '</td>' +
       '<td>' + B.rozet(durum.ad, durum.sinif) + (dosya.sorumlu ? '<span class="hucre-alt">' + kacis(dosya.sorumlu) + '</span>' : '') + '</td>' +
       '<td><div class="tarih-liste">' +

@@ -7,7 +7,7 @@
   var SAYFALAR = ISG.sayfalar = ISG.sayfalar || {};
   var UI = ISG.ui = ISG.ui || {};
 
-  function veri() { return ISG.depo.al(); }
+  function veri() { return ISG.yetki ? ISG.yetki.gorunum() : ISG.depo.al(); }
   function kacis(deger) { return B.kacis(deger); }
   function ui(deger, varsayilan) {
     return typeof deger === 'undefined' || deger === null || deger === '' ? (varsayilan || '') : deger;
@@ -322,13 +322,13 @@
     var bloklar = isyerleri.map(function (isyeri) { return personelBloku(isyeri, hesap); }).join('');
 
     return sayfaBaslik('PERSONEL', 'Personel listesi', 'İşyeri bazında kayıt ve durum takibi',
-      '<button type="button" class="dugme" data-islem="personel-sablon">' + B.ikon('i-download') + 'Boş Excel tablosu indir</button>' +
-      '<button type="button" class="dugme" data-islem="personel-csv">' + B.ikon('i-download') + 'Güncel listeyi Excel indir</button>' +
-      '<button type="button" class="dugme" data-islem="personel-ice-aktar">' + B.ikon('i-upload') + 'CSV içe aktar</button>' +
+      '<button type="button" class="dugme" data-islem="personel-sablon">' + B.ikon('i-download') + 'Excel şablonu indir (XLSX)</button>' +
+      '<button type="button" class="dugme" data-islem="personel-csv">' + B.ikon('i-download') + 'Güncel listeyi XLSX indir</button>' +
+      '<button type="button" class="dugme" data-islem="personel-ice-aktar">' + B.ikon('i-upload') + 'Excel/CSV içe aktar</button>' +
       '<button type="button" class="dugme birincil" data-islem="personel-yeni" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-plus') + 'Personel ekle</button>') +
 
       '<div class="kart"><div class="kart-baslik" style="border-bottom:0">' +
-        '<div><h2>Güncel personel listesi</h2><p>Personeli işyeri bazında izleyin, değişiklikleri elle veya hazır tablodan aktarın.</p></div>' +
+        '<div><h2>Güncel personel listesi</h2><p>Personeli işyeri bazında izleyin; XLSX şablonunu doldurup yükleyin ya da elle ekleyin.</p></div>' +
         '<div class="kart-arac">' + kapsamSecici(hesap) + '</div>' +
       '</div></div>' +
 

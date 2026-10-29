@@ -8,7 +8,7 @@
   var SAYFALAR = ISG.sayfalar = ISG.sayfalar || {};
   var UI = ISG.ui = ISG.ui || {};
 
-  function veri() { return ISG.depo.al(); }
+  function veri() { return ISG.yetki ? ISG.yetki.gorunum() : ISG.depo.al(); }
   function kacis(deger) { return B.kacis(deger); }
   function isyeriAdi(id) { return ISG.isyeriAdi(veri(), id); }
 
@@ -104,6 +104,16 @@
 
   /* ---------- Risk değerlendirmesi ---------- */
 
+  function ekipAraclari(kaynak, isyeriId, rol, ad) {
+    return '<span class="rol-arac">' +
+      '<button type="button" class="dugme ince" data-islem="ekip-uye" data-kaynak="' + kacis(kaynak) +
+        '" data-isyeri="' + kacis(isyeriId) + '" data-rol="' + kacis(rol) + '">' +
+        (ad ? 'Değiştir' : 'Ekle') + '</button>' +
+      (ad ? '<button type="button" class="dugme ince" data-islem="ekip-uye-sil" data-kaynak="' + kacis(kaynak) +
+        '" data-isyeri="' + kacis(isyeriId) + '" data-rol="' + kacis(rol) + '">Kaldır</button>' : '') +
+    '</span>';
+  }
+
   function riskKarti(isyeri, hesap) {
     var kayit = ISG.ilgiliKayit(hesap, 'riskEkipleri', isyeri.id);
     var ozet = ISG.riskEkipOzeti(kayit);
@@ -130,9 +140,13 @@
         '</div>' +
         '<div class="rol-list">' + ISG.RISK_ROLLERI.map(function (rol) {
           var ad = uyeler[rol.id];
-          return '<div class="rol-satir"><span>' + kacis(rol.ad) + '</span>' +
-            (ad ? '<b>' + kacis(ad) + '</b>' : '<b class="yok">Kişi kaydedilmedi</b>') + '</div>';
+          return '<div class="rol-satir"><span class="rol-ad">' + kacis(rol.ad) + '</span>' +
+            (ad ? '<b>' + kacis(ad) + '</b>' : '<b class="yok">Kişi kaydedilmedi</b>') +
+            ekipAraclari('risk', isyeri.id, rol.id, ad) + '</div>';
         }).join('') + '</div>' +
+        '<p style="margin-top:8px"><button type="button" class="dugme ince" data-islem="ekip-uye" ' +
+          'data-kaynak="risk" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') +
+          'Ekip üyesi ekle</button></p>' +
       '</div>' +
       '<button type="button" class="akis" data-islem="risk-ekip" data-id="' + kacis(isyeri.id) + '">Değerlendirme ve ekibi düzenle →</button>' +
     '</article>';
@@ -189,7 +203,7 @@
     var ozet = ISG.acilPlanOzeti(isyeri, kayit);
     var sinif = ISG.RISK_SINIFLARI[isyeri.tehlikeSinifi] || { ad: '', acilYenilemeYil: 4 };
     var ekip = ozet.ekip || [];
-    var ekipRolleri = ['Acil durum koordinatörü', 'Yangın söndürme ekibi', 'İlk yardım ekibi', 'Tahliye / arama kurtarma'];
+    var ekipRolleri = ISG.ACIL_ROLLERI;
 
     return '<article class="risk-kart">' +
       '<div class="risk-kart-ust">' +
@@ -218,10 +232,14 @@
           (ekip.length ? B.rozet(ekip.length + ' kişi', 'iyi') : B.rozet('Kişi eklenmedi', 'tehlike')) +
         '</div>' +
         '<div class="rol-list">' + ekipRolleri.map(function (rol) {
-          var uye = ekip.filter(function (k) { return k.rol === rol; })[0];
-          return '<div class="rol-satir"><span>' + kacis(rol) + '</span>' +
-            (uye ? '<b>' + kacis(uye.ad) + '</b>' : '<b class="yok">Kişi eklenmedi</b>') + '</div>';
+          var uye = ekip.filter(function (k) { return k.rol === rol.ad; })[0];
+          return '<div class="rol-satir"><span class="rol-ad">' + kacis(rol.ad) + '</span>' +
+            (uye ? '<b>' + kacis(uye.ad) + '</b>' : '<b class="yok">Kişi eklenmedi</b>') +
+            ekipAraclari('acil', isyeri.id, rol.ad, uye ? uye.ad : '') + '</div>';
         }).join('') + '</div>' +
+        '<p style="margin-top:8px"><button type="button" class="dugme ince" data-islem="ekip-uye" ' +
+          'data-kaynak="acil" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') +
+          'Ekip üyesi ekle</button></p>' +
         '<p class="bolum-aciklama" style="margin-top:8px">Plan hazırlanırken görev alan işveren/işveren vekili, iş güvenliği uzmanı ve diğer ilgili kişileri işyeri bazında kaydedin.</p>' +
       '</div>' +
     '</article>';
@@ -363,6 +381,73 @@
       '<section class="kart"><div class="kart-baslik"><div><h2>Kapsam başlıkları</h2>' +
         '<p>Seçili kategoriye göre ' + B.sayi(liste.length) + ' başlık listeleniyor.</p></div></div>' +
         '<div class="mevzuat-list">' + (satirlar || '<div class="kart-ic">' + B.bosDurum('Başlık bulunamadı', 'Arama ölçütünü değiştirin ya da kategori filtresini sıfırlayın.', 'i-law') + '</div>') + '</div>' +
+      '</section>';
+  };
+
+  /* ---------- Onay kuyruğu ---------- */
+
+  var TALEP_DURUM = {
+    bekliyor: { ad: 'Onay bekliyor', sinif: 'uyari' },
+    onaylandi: { ad: 'Onaylandı', sinif: 'iyi' },
+    reddedildi: { ad: 'Reddedildi', sinif: 'hata' }
+  };
+
+  function talepGun(talep) {
+    return String(talep.kararTarihi || talep.olusturma || '').slice(0, 10);
+  }
+
+  SAYFALAR.onaylar = function () {
+    var hesap = veri();
+    var o = ISG.yetki ? ISG.yetki.oturum() : null;
+    var rol = o && ISG.yetki ? ISG.yetki.rolTanimi(o.rol) : null;
+    var onaylayabilir = !!(rol && rol.onaylar);
+
+    var liste = (hesap.talepler || []).slice().sort(function (a, b) {
+      if (a.durum === 'bekliyor' && b.durum !== 'bekliyor') { return -1; }
+      if (b.durum === 'bekliyor' && a.durum !== 'bekliyor') { return 1; }
+      return String(b.olusturma || '').localeCompare(String(a.olusturma || ''));
+    });
+
+    var bekleyen = liste.filter(function (talep) { return talep.durum === 'bekliyor'; }).length;
+
+    var satirlar = liste.map(function (talep) {
+      var durum = TALEP_DURUM[talep.durum] || { ad: talep.durum || '—', sinif: 'notr' };
+      var karar = talep.kararNotu ? ' · Not: ' + talep.kararNotu : '';
+      var kararBilgi = talep.kararVeren ?
+        '<span class="kucuk">' + kacis(talep.kararVeren) + ' · ' + B.tarih(String(talep.kararTarihi || '').slice(0, 10)) + kacis(karar) + '</span>' :
+        '<span class="kucuk">Gönderen: ' + kacis(talep.kullaniciAd || '—') + ' · ' + B.tarih(talepGun(talep)) + '</span>';
+
+      var eylemler = talep.durum === 'bekliyor' && onaylayabilir ?
+        '<button type="button" class="dugme kucuk ikincil" data-islem="talep-reddet" data-id="' + kacis(talep.id) + '">Reddet</button>' +
+        '<button type="button" class="dugme kucuk birincil" data-islem="talep-onayla" data-id="' + kacis(talep.id) + '">Onayla</button>' :
+        '';
+
+      return '<div class="onay-satir">' +
+        '<div class="onay-satir-bilgi">' +
+          '<strong>' + kacis(talep.etiket || 'Değişiklik') + ' · ' + kacis(talep.isyeriAd || isyeriAdi(talep.isyeriId) || 'Tüm işyerleri') + '</strong>' +
+          '<span>' + kacis(talep.ozet || '') + '</span>' +
+          kararBilgi +
+        '</div>' +
+        '<div class="sag">' +
+          B.rozet(durum.ad, durum.sinif) +
+          eylemler +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    var aciklama = onaylayabilir ?
+      'Yetkili kullanıcıların gönderdiği değişiklik taleplerini inceleyin. Onaylanan talepler kayda hemen uygulanır.' :
+      'Gönderdiğiniz değişiklik taleplerinin durumu. Onay yönetici tarafından verilir.';
+
+    return P.sayfaBaslik('DEĞİŞİKLİK ONAYLARI', 'Onay kuyruğu', aciklama,
+      '<button type="button" class="dugme ince" data-islem="yenile">' + B.ikon('i-refresh') + 'Yenile</button>') +
+      '<section class="kart">' +
+        '<div class="kart-baslik"><div><h2>Değişiklik talepleri</h2><p>' + kacis(aciklama) + '</p></div>' +
+          '<div class="kart-arac"><span class="muted kucuk">' + B.sayi(bekleyen) + ' bekleyen · ' + B.sayi(liste.length) + ' kayıt</span></div></div>' +
+        (satirlar ? satirlar :
+          '<div class="kart-ic">' + B.bosDurum('Bekleyen talep yok', onaylayabilir ?
+            'Yetkili kullanıcılar değişiklik gönderdiğinde burada listelenir.' :
+            'Bir kaydı değiştirdiğinizde talep otomatik olarak yönetici onayına gönderilir.', 'i-check') + '</div>') +
       '</section>';
   };
 })(window);

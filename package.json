@@ -1,10 +1,12 @@
 {
   "name": "isg-takip-merkezi",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
-  "description": "İSG Takip Merkezi — işyeri bazlı personel, dosya kontrolü, çalışma planı, risk değerlendirmesi, saha DÖF ve acil durum takibi için statik demo.",
+  "description": "İSG Takip Merkezi — giriş/roller, işyeri bazlı personel, dosya kontrolü, çalışma planı, risk değerlendirmesi, saha DÖF ve acil durum takibi için statik demo.",
   "scripts": {
-    "test": "node tools/kontrol.js",
+    "test": "node tools/kontrol.js && node tools/belge-test.js",
+    "test:kontrol": "node tools/kontrol.js",
+    "test:belge": "node tools/belge-test.js",
     "ikon": "node tools/ikon.js",
     "yayin": "node tools/yayin-hazirla.js"
   },
