@@ -1,9 +1,11 @@
-# İSG Takip Merkezi — çalışma alanı (v3)
+# İSG Takip Merkezi — çalışma alanı (v4)
 
 > İşyeri bazlı İSG takibi: giriş/roller, personel, dosya kontrolleri, çalışma
 > planı, saha/DÖF, risk değerlendirmesi, acil durum planı, ekip davetleri,
 > onay kuyruğu ve mevzuat kapsamı.
-> **Statik** uygulama: build yok, CDN yok, veritabanı yok — tarayıcıda çalışır.
+> **Statik** uygulama: build yok, CDN yok — tarayıcıda çalışır. Kayıtlar önce
+> `localStorage`'a yazılır; **isteğe bağlı Supabase eşitlemesi** açılırsa aynı
+> kayıt birden çok cihazda paylaşılır (bkz. [1.3](#13-cihazlar-arası-ortak-kayıt-supabase)).
 
 Bu sürüm, ChatGPT Sites'te yayınlanan ve 401 ile erişime kapanan "İSG Takip
 Merkezi" fikrinin sıfırdan yazılmış, işyeri bazlı çoklu kapsam destekleyen
@@ -21,16 +23,17 @@ kayıt tabloları.
 | **Personel listesi** | İşyeri bazında bloklar, sicil/TC/meslek/departman/şube/kıdem/telefon/cinsiyet kolonları, arama, detay açma, eğitim kayıtları, gerçek **XLSX şablonu** ve XLSX/CSV içe-dışa aktarma, "listeyi temizle" |
 | **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma, **belge eki yükle / görüntüle / indir / kaldır** (belge başına ≤ 1 MB, `localStorage`) |
 | **Çalışma planı** | İlk yardımcı ihtiyaç/mevcut karşılaştırması, yıllık plan kartları, plan kalemi CRUD, tamamlandı işaretleme, plan KPI'ları |
-| **Saha ve DÖF** | Açık/geciken/doğrulama/kapatılan tespitler, öncelik-tür filtreleri, kapatma akışı, ramak kala ve olay bildirimleri |
+| **Saha ve DÖF** | Açık/geciken/doğrulama/kapatılan tespitler, öncelik-tür filtreleri, kapatma akışı, **iş kazası ve meslek hastalığı kayıt tablosu** (personel + sicil/departman, tanı bölgesi/türü, SGK hastalık grubu, etken, kök neden sınıfı ve açıklaması, kayıp gün, sağlık kuruluşu) ve CSV çıktısı, ramak kala ve diğer olay bildirimleri |
 | **Yönetim raporu** | Tarih aralığı, açık/geciken iş, doğrulama bekleyen, dönemde tamamlanan, işyeri bazında karşılaştırma tablosu, Excel (CSV) çıktısı |
-| **İstatistikler** | Personel, eğitim geçerliliği, saha tespiti, risk seviyesi ve belge durumu dağılımlarının çubuk grafikleri; dört özet KPI; kapsam filtresi |
+| **İstatistikler** | On iki özet KPI, **iş kazası / meslek hastalığı veri girişi ve ortak kayıt listesi** (tarihe göre sıralı; satırdan düzenle / kapat / sil, kapsam işyeriyle "Kaza bildir" ve "Meslek hastalığı bildir") ve iş kazası analizi: **aylık kaza sıklığı (sütun grafik)**, **KSO / KAO / KSH oranları ve 12 aylık oran tablosu**, **kök neden dağılımı**, **neden × vücut bölgesi ısı matrisi**, yaralanma bölgesi/türü, **şiddet sınıfı (SGK)**, **vardiya**, **haftanın günü**, işyeri, departman, kıdem ve iş günü kaybı dağılımları, en çok kazaya uğrayan personel; personel, eğitim, DÖF, risk ve belge dağılımları; kapsam filtresi |
 | **Risk değerlendirmesi** | İşyeri başına son değerlendirme / en geç yenileme / olağan üst sınır, 6 rollü ekip listesi, rol bazlı **ekip üyesi ekle / değiştir / kaldır**, eksik rol uyarısı, **risk belgesi yükle / görüntüle / indir**, 5×5 risk kayıt tablosu |
 | **Acil durum planı** | Çalışan sayısı, plan tarihi, yenileme sınırı (tehlike sınıfına göre), 5 rollü destek ekibi (destek elemanı dâhil), rol bazlı **ekip üyesi ekle / değiştir / kaldır**, **plan belgesi yükle / görüntüle / indir**, plan/ekip kaydı |
 | **Ekip ve davetler** | E-posta + rol + yetkili işyeri seçimiyle davet oluşturma, davet listesi ve iptal |
 | **Mevzuat ve kapsam** | 20 başlıklı katalog (kanun/yönetmelik/tebliğ/rehber/standart), kategori ve konu araması, teyit durumu, seçili işyeri kapsam özeti, Mevzuat Bilgi Sistemi bağlantısı |
 | **Onay kuyruğu** | Yetkili kullanıcıların yazma işlemlerinden doğan talepler: işlem özeti, işyeri, talep sahibi, onayla / reddet, bekleyen sayısı rozeti, denetim izi |
 
-Ek yetenekler: `localStorage` kalıcılığı, JSON yedek al / geri yükle, işyeri
+Ek yetenekler: `localStorage` kalıcılığı, **isteğe bağlı Supabase bulut
+eşitlemesi** (cihazlar arası ortak kayıt), JSON yedek al / geri yükle, işyeri
 kapsam filtresi (tüm ekranlarda), menüyü gizleme, mobil menü, yazdırma dostu
 görünüm, klavye erişilebilir `<dialog>` formları, personel için gerçek
 **XLSX** (şablon + dışa/içe aktarma) desteği, diğer listeler için CSV dışa
@@ -96,6 +99,42 @@ Yönetici işlemleri (`isyeriKaydet`, `isyeriSil`, `kullaniciKaydet`,
 `davetKaydet`, `ayarKaydet`, `sifirla`, `iceAktar`) yalnızca yönetici rolüne
 açıktır; her yazma `denetim` izine düşer.
 
+### 1.3. Cihazlar arası ortak kayıt (Supabase)
+
+Yerel kayıt tek başına yeterlidir; iki bilgisayarda **aynı veriyi** görmek için
+isteğe bağlı bulut katmanı (`assets/js/bulut.js`) açılır. Üst çubuktaki
+**Bulut** düğmesi ayar diyaloğunu açar.
+
+1. [supabase.com](https://supabase.com) üzerinde ücretsiz bir proje açın.
+2. Diyalogdaki **SQL betiği** bloğunu kopyalayıp Supabase → *SQL Editor* →
+   *New query* alanında çalıştırın. Betik `public.isg_veri` tablosunu, zaman
+   damgası tetikleyicisini ve anon rolü için satır politikalarını oluşturur.
+3. **Project URL** (`https://xxxx.supabase.co`), **anon public** anahtarı ve
+   ortak bir **oda kodu** (örn. `isg-merkez`) yazın.
+4. **Bağlan**'ı seçin:
+   - *Bu cihazdaki kayıtlar buluta gönderilsin* işaretliyse yerel veri buluta
+     yazılır (ilk kurulum),
+   - işaretsizse buluttaki veri bu cihaza indirilir (ikinci cihaz).
+
+Eşitleme kuralları:
+
+- Yerel `localStorage` **tek doğru kaynak** olarak kalır; bulut bir üst katmandır.
+  Bağlantı yokken uygulama normal çalışır, değişiklikler `kirli` olarak
+  işaretlenip bağlantı gelince gönderilir.
+- Çakışma **son yazan kazanır** kuralıyla çözülür: istemci ISO zaman damgası
+  (`yerelZaman` / `sonUzakZaman`) karşılaştırılır.
+- Otomatik çekme varsayılan **20 saniyede** birdir (10–300 arası ayarlanır);
+  sekme görünür olduğunda ve ağ geri geldiğinde de çekilir. **Şimdi eşitle**
+  düğmesi elle çalıştırır.
+- Aynı tabloyu paylaşan farklı kurulumlar **oda kodu** ile ayrılır; farklı oda
+  kodları birbirinin verisini görmez.
+- Anon anahtar tarayıcıda görünür ve bu kurulumda kullanıcı doğrulaması yoktur:
+  URL + anahtar + oda kodunu bilen herkes veriyi okuyabilir/yazabilir. Kişisel
+  sağlık verisi veya gerçek kurum verisi için Supabase Auth + satır düzeyi
+  güvenlik (`auth.uid()` koşullu politika) eklenmelidir.
+- **Bağlantıyı kes** yerel veriyi silmez; yalnızca bu cihazın buluta yazmayı
+  bırakmasını sağlar.
+
 ## 2. Görev motoru (Genel bakış'ın kalbi)
 
 Tek bir "iş" listesi, beş ayrı kaynaktan türetilir:
@@ -125,6 +164,8 @@ ve "Öncelikli işler" sayısı bu dağılımdan hesaplanır.
 | Risk değerlendirmesi olağan üst sınır | Az **6**, tehlikeli **4**, çok tehlikeli **2** yıl |
 | Acil durum planı yenileme | Az **6**, tehlikeli **4**, çok tehlikeli **4** yıl |
 | Belge uyarı eşiği | Yenilemeye ≤ 14 gün: sarı, < 0 gün: kırmızı |
+| İş kazası bildirimi | SGK'ya en geç **3 iş günü** içinde; iş günü kaybı 0–365 gün |
+| İş kazası istatistiği | Kıdem = işe başlama ↔ kaza tarihi (tam yıl); şiddet aralıkları 0 / 1–3 / 4–7 / 8–14 / 15+ gün |
 | Risk skoru | Olasılık × şiddet; 15+ kritik, 10–14 yüksek, 5–9 orta, < 5 düşük |
 | İlk yardımcı ihtiyacı | Çalışan / 15 (az: 20, çok tehlikeli: 10), en az 1 |
 | Kontrol kataloğu | 110 temel madde + çok tehlikelide 15 ek + her 100 çalışan için 5 ek |
@@ -133,7 +174,7 @@ ve "Öncelikli işler" sayısı bu dağılımdan hesaplanır.
 
 ```text
 isg-takip-merkezi/
-├─ index.html                 # iskelet, SVG ikon sprite, 11 <dialog> formu
+├─ index.html                 # iskelet, SVG ikon sprite, 13 <dialog> formu
 ├─ 404.html                   # Pages için "sayfa bulunamadı" ekranı
 ├─ manifest.webmanifest       # PWA kimliği, tema rengi, simgeler
 ├─ .nojekyll                  # GitHub Pages Jekyll işlemesini kapatır
@@ -150,13 +191,14 @@ isg-takip-merkezi/
 │     ├─ bicim.js             # tarih/rozet/CSV/sayfalama yardımcıları
 │     ├─ yetki.js             # oturum, roller, işyeri kapsamı, onay kuyruğu
 │     ├─ excel.js             # bağımlılıksız XLSX yazıcı/okuyucu (ZIP + OpenXML)
+│     ├─ bulut.js             # isteğe bağlı Supabase eşitleme katmanı (REST)
 │     ├─ sayfalar.js          # Genel bakış, İşyerleri, Personel
 │     ├─ sayfalar-kayit.js    # Dosya kontrolleri, Çalışma planı, Saha/DÖF
 │     ├─ sayfalar-rapor.js    # Rapor, İstatistik, Risk, Acil durum, Ekip, Mevzuat, Onaylar
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (261 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (347 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (25 kontrol)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
@@ -167,11 +209,11 @@ isg-takip-merkezi/
 Kod bilinçli olarak ES5 tarzı (IIFE + `var`) yazıldı: derleme adımı olmadan,
 doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
 
-## 5. Veri modeli (localStorage: `isgtakip.v3`)
+## 5. Veri modeli (localStorage: `isgtakip.v4`)
 
 ```js
 {
-  surum: 3,
+  surum: 4,
   ayarlar: { kurum, kullanici, gorev, sonMevzuatKontrolu },
   kullanicilar: [{ id, adSoyad, eposta, sifre, rol, gorev, isyerleri: [], aktif, sonGiris }],
   isyerleri: [{ id, ad, tehlikeSinifi, calisanSayisi, sgkSicil, yetkili, adres, sektor, ana }],
@@ -182,7 +224,9 @@ doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
   planlar:   [{ id, isyeriId, sira, ay, gun, faaliyet, sorumlu, takipTarihi, durum, aciklama }],
   tespitler: [{ id, isyeriId, tespit, konum, sorumlu, oncelik, tur, termin, durum, dogrulama, not }],
   riskler:   [{ id, isyeriId, tehlike, alan, olasilik, siddet, onlem, sorumlu, termin, durum }],
-  olaylar:   [{ id, isyeriId, tur, tarih, yer, personelId, aciklama, kokNeden, durum }],
+  olaylar:   [{ id, isyeriId, tur, tarih, yer, personelId, aciklama, kokNeden, durum,
+                kayipGun, vucutBolgesi, yaralanmaTuru, saglikKurulusu,
+                siddet, vardiya, hastaneSevk, istirahatBaslangic, istirahatBitis }],
   riskEkipleri: [{ isyeriId, sonDegerlendirme, enGecYenileme, uyeler: { isveren, uzman, hekim, temsilci, destek, birim }, uyeIdleri }],
   acilPlanlar:  [{ isyeriId, hazirlanma, sonYenileme, tatbikat, ekip: [{ rol, ad, personelId }] }],
   davetler:     [{ id, eposta, rol, isyerleri: [], tarih, durum }],
@@ -194,8 +238,39 @@ doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
 
 Oturum bilgisi ayrı bir anahtarda (`isgtakip.oturum`) yalnızca
 `{ kullaniciId, giris }` olarak tutulur; şifre orada saklanmaz. Eski
-`isgtakip.v2` verisi ilk açılışta okunup `v3` yapısına taşınır, kullanıcı
-listesi boşsa başlangıç hesapları eklenir.
+`isgtakip.v3` / `isgtakip.v2` verisi ilk açılışta okunup `v4` yapısına taşınır
+(`veriTamamla`), kullanıcı listesi boşsa başlangıç hesapları eklenir.
+
+İş kazası ayrı bir dizi değildir: `olaylar` içinde `tur: 'isKazasi'` olan
+kayıtlardır ve yaralanma alanlarını (`kayipGun`, `vucutBolgesi`,
+`yaralanmaTuru`, `saglikKurulusu`), kök neden sınıfını (`neden`), SGK şiddet
+sınıfını (`siddet`) ve vardiya / hastane sevk / istirahat aralığını taşır.
+**Meslek hastalığı** da aynı dizide `tur: 'meslekHastaligi'` olarak tutulur;
+ortak alanlara ek olarak SGK hastalık grubunu (`hastalikGrubu`:
+`ISG.MESLEK_HASTALIK_GRUPLARI`, A–E) ve etken/maruziyet metnini (`etken`)
+taşır. Tanı türleri kaza yaralanma türlerinden ayrıdır
+(`ISG.HASTALIK_TURLERI`); hangi kayıtların kaza/hastalık sayıldığı
+`ISG.kazaKaydi(olay)` ile, görünen adı `ISG.kazaKaydiAdi(olay)` ile bulunur.
+Personel bilgisi kaza kaydına kopyalanmaz; `personelId` ile personel
+listesine bağlanır, sicil/departman/meslek/kıdem istatistikleri bu bağdan
+türetilir. Sınıflandırma listeleri `ISG.YARALANMA_BOLGELERI` /
+`ISG.YARALANMA_TURLERI` / `ISG.HASTALIK_TURLERI` /
+`ISG.MESLEK_HASTALIK_GRUPLARI` / `ISG.KAZA_NEDENLERI` /
+`ISG.KAZA_SIDDETLERI` / `ISG.VARDIYALAR`, görünen ad üretimi
+`ISG.listeAdi(liste, id)` ile yapılır; `v4` göçü eski kayıtlara boş yaralanma
+ve neden alanları, `v5` göçü şiddet/vardiya/sevk/istirahat alanlarını, `v6`
+göçü hastalık grubu/etken alanlarını ekler, böylece ramak kala ve çevresel
+olaylar değişmeden kalır. Kıdem
+(`ISG.kidemYil`) işe başlama tarihi ile kaza tarihi arasındaki tam yıldır;
+kayıp gün şiddeti (`ISG.kayipGunAraligi`) 0 / 1–3 / 4–7 / 8–14 / 15+
+aralıklarına ayrılır.
+
+Kayıp iş günü tek kaynaktan türetilir: `ISG.kazaKayipGun` ölümlü kazada
+6.000 gün (`ISG.OLUM_KAYIP_GUN`), istirahat tarihleri varsa
+`bitiş − başlangıç + 1`, aksi hâlde elle girilen `kayipGun` değerini döndürür.
+Sıklık/ağırlık oranları (`KSO`, `KAO`) 1.000.000 çalışma saati üzerinden
+hesaplanır; saat verisi tutulmadığı için `ISG.ayAktifPersonel` ile ay bazında
+personel sayısı bulunup `ISG.AYLIK_KISI_SAATI` (176 saat) ile çarpılır.
 
 Tüm kayıtlar işyeri kimliğiyle (`isyeriId`) ilişkilidir; işyeri silindiğinde
 bağlı kayıtlar ve belge ekleri de silinir. Yedek dosyası bu yapının tamamını
@@ -226,7 +301,7 @@ Test:
 
 ```powershell
 npm install
-npm test                     # 261 kontrol + belge testi, başarısızda çıkış kodu 1
+npm test                     # 347 kontrol + belge testi, başarısızda çıkış kodu 1
 npm run test:belge           # yalnızca belge eki testi (25 kontrol)
 ```
 
@@ -234,7 +309,8 @@ Test; yükleme, tohum veri, **giriş/oturum**, **rol ve işyeri kapsamı**,
 **onay kuyruğu ve denetim izi**, iş kuralları, kapsam filtresi, personel CRUD,
 eğitim geçerliliği, dosya filtreleri ve sayfalama, DÖF oluşturma, plan
 tamamlama, saha, risk/acil kayıtları ve belge ekleri, istatistikler, rapor,
-davet, mevzuat, şifre sıfırlama kodu, yapısal
+davet, mevzuat, şifre sıfırlama kodu, bulut eşitleme (ayar doğrulama, gönderim,
+indirme, çevrimdışı hata, bağlantı kesme), yapısal
 kontroller (tekrarlanan id, SVG referansı, göreli yollar), JSON yedekleme,
 veri sıfırlama ve yayın paketini (manifest, simgeler, 404, `.nojekyll`,
 CDN'sizlik) kapsar. `belge-test.js` ayrıca belge yükleme/indirme/silme,
@@ -366,9 +442,12 @@ Notlar:
 - Örnek veriler **gerçek kurum verisi değildir**; sayılar ve tarihler örnek
   amaçlı üretilir. Sağlık verisi, TC kimlik no ve kişisel dosya içeriği bu
   ortamda saklanmamalıdır.
-- Veriler yalnızca tarayıcının `localStorage` alanında tutulur; gizli sekmede
-  veya depolama temizlendiğinde kaybolur. Çok kullanıcılı, çok cihazlı bir
-  kurulum için gerçek bir arka uç (Supabase/Firebase) gerekir.
+- Veriler önce tarayıcının `localStorage` alanında tutulur; gizli sekmede veya
+  depolama temizlendiğinde kaybolur. Cihazlar arası paylaşım için isteğe bağlı
+  **Supabase** eşitlemesi vardır ([1.3](#13-cihazlar-arası-ortak-kayıt-supabase)),
+  ancak orada da kullanıcı doğrulaması yoktur: oda kodunu bilen herkes veriyi
+  okuyup yazabilir. Gerçek çok kullanıcılı kurulum için Supabase Auth + RLS
+  politikaları gerekir.
 - Belge ekleri de `localStorage` içinde base64 olarak tutulur: tarayıcı kotası
   genelde 5 MB olduğu için belge başına sınır **1 MB**, toplamda birkaç belge
   pratik sınırdır. Daha büyük arşivler için dosya sunucusu / bulut depolama
@@ -388,6 +467,17 @@ Notlar:
   diğer ekranların "Excel indir" düğmeleri hâlâ `.csv` (UTF-8 BOM, noktalı
   virgül) üretir. Şablon tarih hücrelerini `YYYY-AA-GG` metnine çevirir; birleşik
   hücre, grafik ve formül içeren karmaşık dosyalar desteklenmez.
+- İş kazası ve meslek hastalığı ekranı kayıt tutar; SGK e-bildirge / ÇSGB
+  entegrasyonu yoktur, bildirim süresi takibi kullanıcıya bırakılır. Yaralanma
+  bölgesi/türü ve meslek hastalığı grubu sınıflandırmaları kısaltılmış
+  listelerdir, resmî istatistik kodları (ISCO/ICD eşlemesi) içermez.
+- İstatistikler tanımlayıcıdır (kaza sayısı, dağılım, kayıp gün, KSO/KAO/KSH).
+  KSO/KAO/KSH yalnızca `isKazasi` kayıtlarından hesaplanır; meslek hastalığı
+  kayıtları listede ve sayımlarda görünür ama SGK kaza oranlarına katılmaz.
+  Çalışılan saat ayrıca tutulmadığı için KSO/KAO oranları **aktif personel ×
+  176 saat/ay** (`ISG.AYLIK_KISI_SAATI`) varsayımına dayanır; puantaj/PDKS
+  verisiyle değiştirilmeden resmî SGK bildirimi yerine geçmez. Kırılımlar
+  yalnızca girilen kayıtlara dayanır ve boş alanlar "Belirtilmedi" sayılır.
 - Mevzuat başlıkları özet niteliğindedir; güncel birleştirilmiş metinler ve
   değişiklik takibi otomatik değildir.
 - Kontrol kataloğu şablon tabanlıdır; işyerine özel madde eklenebilir ve
@@ -404,9 +494,183 @@ Notlar:
 6. Supabase/Firebase ile çok kullanıcılı yapı ve sunucu tarafı kimlik doğrulama
    (rol bazlı yetki ve denetim izi demo düzeyinde hazır).
 7. Mevzuat değişiklik takibi ve işyeri kapsam kararının gerekçelendirilmesi.
-8. İstatistik panosu, çevrimdışı PWA güncelleme bildirimi ve yönetim paneli.
+8. Sunucu tarafı raporlama, gerçek puantaj/PDKS çalışma saatiyle KSO/KAO, yaş
+   ve öğrenim kırılımları (personelde doğum tarihi/öğrenim alanı) ve PWA
+   güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.8.1 — Kaza girişi istatistikte görünmüyor şikâyeti: varlık sürümü ve regresyon testi
+
+- İstatistikler sayfasındaki **“İş kazası / meslek hastalığı veri girişi”** kartı
+  2.7.0'dan beri kodda; ancak yayınlanan sürüm 2.2.0'da kaldığı ve JS dosyası
+  `?v=10` ile önbellekten geldiği için ekranda görünmüyordu. JS/CSS varlık
+  sürümü `?v=10` → `?v=11` yapıldı; tarayıcı yeni dosyaları çeker.
+- Giriş akışı **regresyon testine** bağlandı (8 yeni kontrol): kart var mı,
+  kart/başlık/liste olmak üzere üç yerde iki bildirim düğmesi var mı,
+  “Kaza bildir” giriş ekranını `isKazasi` türüyle açıyor mu, “Meslek hastalığı
+  bildir” `meslekHastaligi` türüyle açıp tanı alanlarını gösteriyor mu, iş
+  kazasında hastalık alanları gizli mi.
+- Test kapsamı **339 → 347 kontrol**.
+
+### 2.8.0 — Cihazlar arası ortak kayıt: isteğe bağlı Supabase eşitlemesi
+
+- Yeni **bulut katmanı** eklendi (`assets/js/bulut.js`): sıfır bağımlılıkla,
+  doğrudan Supabase REST (`/rest/v1/isg_veri`) üzerinden çalışır. Veri
+  `localStorage`'ta kalmaya devam eder; bulut yalnızca **üst katman**dır, yani
+  çevrimdışı kullanım bozulmaz.
+- Üst çubuğa **Bulut** düğmesi ve 13. diyalog eklendi: Project URL, anon
+  anahtar, **oda kodu**, otomatik çekme aralığı (10–300 sn, varsayılan 20),
+  "bu cihazdaki kayıtlar buluta gönderilsin" seçeneği, **Şimdi eşitle** ve
+  **Bağlantıyı kes** düğmeleri, canlı durum satırı ve kopyalanabilir **SQL
+  betiği** bloğu.
+- Bağlanırken yön seçilebilir: işaretliyse yerel veri buluta yazılır (ilk
+  kurulum), işaretsizse buluttaki veri bu cihaza indirilir (ikinci cihaz).
+- Çakışma **son yazan kazanır** kuralıyla çözülür: istemci ISO zaman damgası
+  (`yerelZaman` ↔ `sonUzakZaman`) karşılaştırılır; yalnızca değişen kayıtlar
+  (`kirli`) gönderilir.
+- Bağlantı kesildiğinde/çevrimdışıyken değişiklikler yerelde birikir, ağ geri
+  gelince veya sekme görünür olunca otomatik eşitlenir; `online` / `offline` ve
+  `visibilitychange` olayları dinlenir.
+- Ayarlar `isgtakip.bulut` anahtarında saklanır; **Bağlantıyı kes** yerel
+  kayıtları silmez.
+- README'ye kurulum ve güvenlik notları eklendi ([1.3](#13-cihazlar-arası-ortak-kayıt-supabase)):
+  anon anahtar tarayıcıda görünür, bu kurulumda kullanıcı doğrulaması yoktur —
+  oda kodunu bilen herkes veriye erişebilir.
+- Bulut verisi bu cihaza indirildiğinde aynı veri yeniden yukarı gönderilmez;
+  eşitleme başarısız olduğunda durum satırı "Bulut bağlantısı yok" uyarısıyla
+  hata durumunda kalır (sessizce "güncel" yazmaz).
+- JS/CSS varlık sürümü `?v=9` → `?v=10`. Test kapsamı **315 → 339 kontrol**
+  (bulut diyaloğu, alan doğrulama, SQL betiği, ayar kaydı, ilk gönderim, uzak
+  kaydın indirilmesi, çevrimdışı hata durumu ve bağlantı kesme akışı).
+
+### 2.7.0 — Meslek hastalığı veri girişi ve İstatistikler'de belirgin giriş kartı
+
+- Bildirim formuna **kayıt türü** seçimi eklendi: **iş kazası** veya
+  **meslek hastalığı**. Tür değişince form başlığı ve alan etiketleri
+  uyarlanır (kaza tarihi ↔ tanı tarihi, yaralanan ↔ hastalanan personel,
+  yaralanma türü ↔ tanı türü, hastane sevk ↔ sağlık kuruluşuna sevk).
+- Meslek hastalığına özel iki alan eklendi: **SGK meslek hastalığı grubu**
+  (`ISG.MESLEK_HASTALIK_GRUPLARI`, A–E) ve **etken / maruziyet** metni. Tanı
+  türü listesi `ISG.HASTALIK_TURLERI` ile ayrıştırıldı.
+- `ISG.OLAY_TURLERI` içine `meslekHastaligi` eklendi; kayıtlar aynı
+  `olaylar` dizisinde tutulur (`ISG.kazaKaydi`, `ISG.kazaKaydiAdi`).
+- **İstatistikler** ekranında KPI şeridinin altına **"İş kazası / meslek
+  hastalığı veri girişi"** kartı eklendi: iki belirgin düğme (İş kazası
+  bildir, Meslek hastalığı bildir) ve mevcut kayıt sayacı. Sayfa başlığına da
+  "Meslek hastalığı bildir" düğmesi eklendi.
+- Ortak kayıt listesi (`ISG.parcalar.kazaTablosu`) artık iki türü birlikte
+  gösterir: **tür rozeti**, tanı/yaralanma bilgisi, SGK hastalık grubu ve
+  etken; özet satırında `iş kazası · meslek hastalığı · iş günü kaybı` sayılır.
+- CSV çıktısı iki türü kapsayacak şekilde genişletildi: **Kayıt türü**,
+  **SGK hastalık grubu** ve **Etken / maruziyet** kolonları eklendi.
+- Kapatma/silme onay metinleri kayıt türüne göre uyarlanır; meslek
+  hastalığı kaydı silinirken "tanı bilgileri" uyarısı verilir.
+- `v6` veri göçü `hastalikGrubu` / `etken` alanlarını normalleştirir; örnek
+  veriye bir meslek hastalığı kaydı (`o14` — pnömokonyoz, grup D) eklendi.
+- JS/CSS varlık sürümü `?v=8` → `?v=9`. Test kapsamı **308 → 315 kontrol**
+  (veri girişi kartı, meslek hastalığı diyaloğu, türe özel alanlar, tanı türü
+  listesi, kayıt ve satır rozeti).
+
+### 2.6.0 — Statik arayüzden kaza bildirme ve İstatistikler'de kaza kaydı listesi
+
+- İş kazası kayıt listesi **ortak bir parçaya** taşındı
+  (`ISG.parcalar.kazaTablosu`) ve artık hem **Saha ve DÖF** hem
+  **İstatistikler** ekranında aynı tablo kullanılıyor; kod ikiye kopyalanmıyor.
+- **İstatistikler** ekranına kaza **veri girişi ve liste** kartı eklendi: KPI
+  şeridinin altında tarih/yer, personel/işyeri (sicil, departman), yaralanma
+  bölgesi/türü, şiddet rozeti, kayıp gün, açıklama/kök neden, durum kolonları;
+  satırda **Düzenle / Kapat (Yeniden aç) / Sil** işlemleri.
+- Sayfa başlığına ve kart başlığına **"Kaza bildir"** düğmesi eklendi; kapsam
+  filtresindeki işyeri forma taşınır. Kart ayrıca `kaza · iş günü kaybı` özetini
+  ve **CSV liste indirme** düğmesini taşır.
+- Liste **tarihe göre yeniden eskiye** sıralanır (`saha` sayfasındaki sıralama
+  ile aynı davranış).
+- Yeni CSS yazılmadı; mevcut `kart`, `tablo-kucuk`, `kaza-satir`,
+  `kart-arac` ve `filtre-ozet` sınıfları yeniden kullanıldı.
+- JS/CSS varlık sürümü `?v=7` → `?v=8`. Test kapsamı **301 → 308 kontrol**
+  (İstatistikler'de liste, yeni kayıt, bildir düğmesi, diyalog açma ve satırdan
+  düzenleme).
+
+### 2.5.0 — SGK uyumlu kaza istatistikleri (referans çalışma kitabı)
+
+- Kaza kaydına **SGK şiddet sınıfı** (`ISG.KAZA_SIDDETLERI`: hafif/orta, ağır,
+  uzuv kaybı, ölüm), **vardiya** (`ISG.VARDIYALAR`), **hastane sevk**
+  (`ISG.EVET_HAYIR`) ve **istirahat başlangıç/bitiş** alanları eklendi.
+- **Kayıp iş günü tek kaynaktan türetilir** (`ISG.kazaKayipGun`): ölümde 6.000
+  gün (`ISG.OLUM_KAYIP_GUN`), istirahat tarihleri varsa `bitiş − başlangıç + 1`
+  (`ISG.tarihFarki`), aksi hâlde elle girilen değer. Diyalogda şiddet veya
+  tarihler değiştiğinde kayıp gün alanı otomatik güncellenir; bitiş < başlangıç
+  hatası engellenir.
+- **KSO / KAO / KSH oranları** eklendi: `KSO = kaza / 1.000.000 çalışma saati`,
+  `KAO = kayıp gün / 1.000.000 çalışma saati`, `KSH = kaza / çalışan`.
+  Çalışma saati, ay bazında `ISG.ayAktifPersonel` × `ISG.AYLIK_KISI_SAATI`
+  (176 saat) varsayımıyla hesaplanır; bu varsayım arayüzde ve README'de açıkça
+  belirtilir.
+- **İstatistikler** ekranı: dört yeni KPI (KSO, KAO, KSH, hastane sevk) ile KPI
+  sayısı 8 → 12; **12 aylık oran tablosu** (ay, kaza, kayıp gün, iş saati, KSO,
+  KAO), **yaralanma şiddeti (SGK)**, **vardiya** ve **haftanın günü** kırılım
+  kartları; kayıp gün şiddet aralıkları ve matris artık türetilen kayıp günü
+  kullanır.
+- Saha ekranındaki kaza tablosu şiddet rozetini gösterir ve toplam kayıp günü
+  `ISG.kazaKayipGun` üzerinden hesaplar; CSV çıktısına şiddet, vardiya, hastane
+  sevk, istirahat başlangıç/bitiş kolonları eklendi.
+- `veriTamamla` **v5** göçü: eski kayıtlara boş `siddet` / `vardiya` /
+  `hastaneSevk` / istirahat alanları ekler ve iş kazalarında `kayipGun` değerini
+  yeni kuralla yeniden hesaplar.
+- `ISG.bicim.ondalik` (sabit ondalıklı biçim) ve `.ist-tablo` stil sınıfı
+  eklendi; örnek verideki 10 kazanın tamamına şiddet/vardiya/sevk ve istirahat
+  aralığı işlendi (bir uzuv kaybı, iki ağır kaza).
+- JS/CSS varlık sürümü `?v=6` → `?v=7`. Test kapsamı **286 → 301 kontrol**
+  (yeni seçenek listeleri, otomatik kayıp gün, 6.000 gün kuralı, tarih farkı,
+  ay bazlı personel sayımı, oran KPI'ları ve aylık tablo).
+
+### 2.4.0 — iş kazası istatistikleri
+
+- **Kök neden sınıfı** alanı eklendi (`ISG.KAZA_NEDENLERI`: KKD, makine
+  koruyucusu / kilitleme, arızalı ekipman, çalışma yöntemi, eğitim,
+  dikkatsizlik, zemin / ortam, kimyasal, elektrik, trafik, diğer). Kaza
+  diyalogunda serbest metin kök neden açıklaması ayrı alan olarak korunur;
+  CSV çıktısı kök neden sınıfı, departman ve kıdem kolonlarını taşır.
+- Kaza diyalogunda personel listesinden seçilen kişinin **sicil, departman,
+  meslek, şube ve işe başlama tarihi** özetlenir; kayıt yalnızca `personelId`
+  tutar, istatistikler personel listesinden türetilir.
+- **İstatistikler** ekranı iş kazası analizine göre yenilendi: aylık kaza
+  sıklığı sütun grafiği (son 12 ay), kök neden dağılımı, neden × vücut bölgesi
+  ısı matrisi, departman ve kıdem kırılımı, iş günü kaybı şiddet dağılımı, en
+  çok kazaya uğrayan personel listesi ve dört kaza KPI'ı (kaza sayısı, kazalı
+  personel oranı, iş günü kaybı, kaza başına kayıp gün). Toplam KPI sayısı 8.
+- Yardımcılar: `ISG.kidemYil`, `ISG.kidemAraligi`, `ISG.KAYIP_GUN_ARALIKLARI`,
+  `ISG.kayipGunAraligi` ve `ISG.KIDEM_ARALIKLARI`; `veriTamamla` eski
+  kayıtlara boş `neden` alanı ekler (şema `v4` ve veri anahtarı korunur).
+- Örnek veri 6 → 10 iş kazasına çıktı (`o03`, `o05`–`o13`) ve neden sınıfları
+  eklendi; sütun ve matris grafikleri dolu görünür.
+- JS/CSS varlık sürümü `?v=5` → `?v=6`. Test kapsamı **274 → 286 kontrol**
+  (neden seçenekleri, personel özeti, neden kaydı, kıdem / kayıp gün
+  yardımcıları, sütun grafik, ısı matrisi ve kırılım kartları).
+
+### 2.3.0 — iş kazası kayıtları
+
+- **İş kazası kaydı** eklendi: saha ekranında ayrı tablo (`İş kazası kayıtları`),
+  diyalogda personel, tarih, kaza yeri, yaralanma bölgesi/türü, kayıp gün,
+  sağlık kuruluşu, kök neden ve durum alanları. Kayıt yeni `olaylar` şemasına
+  `tur: 'isKazasi'` olarak yazılır; ramak kala ve çevresel olaylar aynı ekranda
+  ayrı tabloda kalır (`kaza-yeni`, `kaza-duzenle`, `kaza-csv` işlemleri).
+- Sınıflandırma listeleri `ISG.YARALANMA_BOLGELERI` (baş, göz, sırt/bel, kol,
+  el, bacak, ayak, iç organ, çoklu, diğer) ve `ISG.YARALANMA_TURLERI` (ezilme,
+  kesik, burkulma, kırık, yanık, yabancı cisim, kimyasal, elektrik, diğer);
+  görünen ad üretimi `ISG.listeAdi`.
+- **İstatistikler** ekranına iş kazası blokları geldi: kaza sayısı, etkilenen
+  personel, kayıp gün toplamı ve ortalama, işyeri bazında kaza dağılımı,
+  yaralanma bölgesi ve türü çubuk grafikleri; alt bilgi satırında son kaza
+  tarihi ve kayıp günlü kaza sayısı.
+- Örnek veriye beş iş kazası (`o05`–`o09`) eklendi; `saha` tablosu ve CSV
+  çıktısı bu kayıtları yaralanma bilgileriyle listeler.
+- Veri anahtarı `isgtakip.v3` → **`isgtakip.v4`** ve şema `surum: 4`; `v3`/`v2`
+  verisi ilk açılışta okunup taşınır, eski olay kayıtlarına boş yaralanma
+  alanları eklenir. JS/CSS varlık sürümü `?v=4` → `?v=5`.
+- Test kapsamı **261 → 274 kontrol** (kaza tablosu, diyalog doğrulaması, kayıt
+  ve istatistik blokları). Onay kuyruğu etiketi `Olay / iş kazası bildirimi`.
 
 ### 2.2.0 — istatistikler, belge önizleme, şifre sıfırlama
 

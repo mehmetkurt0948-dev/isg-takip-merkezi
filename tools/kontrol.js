@@ -329,6 +329,171 @@ function bekle(ms) {
   ISG.uygulama.ciz();
   await bekle(80);
 
+  kontrol('İş kazası tablosu var', /İş kazası ve meslek hastalığı kayıtları/.test(metin('#gorunum')));
+  const kazaSatirOnce = doc.querySelectorAll('.kaza-satir').length;
+  kontrol('Kaza satırları listelendi', kazaSatirOnce >= 5, String(kazaSatirOnce));
+  const kazaOnce = ISG.depo.al().olaylar.filter((o) => o.tur === 'isKazasi').length;
+  doc.querySelector('[data-islem="kaza-yeni"][data-tur="isKazasi"]').click();
+  await bekle(100);
+  kontrol('İş kazası diyalogu açıldı', doc.getElementById('kazaDiyalog').open === true);
+  kontrol('Vücut bölgesi seçenekleri dolu',
+    doc.getElementById('kazaBolge').options.length === ISG.YARALANMA_BOLGELERI.length + 1,
+    String(doc.getElementById('kazaBolge').options.length));
+  kontrol('Yaralanma türü seçenekleri dolu',
+    doc.getElementById('kazaYaralanma').options.length === ISG.YARALANMA_TURLERI.length + 1,
+    String(doc.getElementById('kazaYaralanma').options.length));
+  kontrol('Kök neden sınıfı seçenekleri dolu',
+    doc.getElementById('kazaNeden').options.length === ISG.KAZA_NEDENLERI.length + 1,
+    String(doc.getElementById('kazaNeden').options.length));
+  kontrol('Şiddet sınıfı seçenekleri dolu',
+    doc.getElementById('kazaSiddet').options.length === ISG.KAZA_SIDDETLERI.length + 1,
+    String(doc.getElementById('kazaSiddet').options.length));
+  kontrol('Vardiya seçenekleri dolu',
+    doc.getElementById('kazaVardiya').options.length === ISG.VARDIYALAR.length + 1,
+    String(doc.getElementById('kazaVardiya').options.length));
+  kontrol('Hastane sevk seçenekleri dolu',
+    doc.getElementById('kazaSevk').options.length === ISG.EVET_HAYIR.length + 1,
+    String(doc.getElementById('kazaSevk').options.length));
+  const kazaForm = doc.getElementById('kazaForm');
+  const kazaIsyeri = doc.getElementById('kazaIsyeri');
+  kazaIsyeri.value = 'iy1';
+  kazaIsyeri.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(60);
+  const kazaKisi = ISG.depo.al().personel.filter((p) => p.isyeriId === 'iy1')[0];
+  kontrol('Personel listesi işyerine göre dolduruldu',
+    doc.getElementById('kazaPersonel').options.length > 1,
+    String(doc.getElementById('kazaPersonel').options.length));
+  doc.getElementById('kazaPersonel').value = kazaKisi.id;
+  doc.getElementById('kazaPersonel').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(40);
+  const kisiOzet = doc.getElementById('kazaPersonelOzet');
+  kontrol('Seçilen personelin bilgisi özetlendi',
+    kisiOzet.hidden === false && new RegExp('Sicil ' + kazaKisi.sicil).test(kisiOzet.textContent),
+    kisiOzet.textContent);
+  kazaForm.elements.tarih.value = '2026-03-04';
+  kazaForm.elements.personelId.value = kazaKisi.id;
+  kazaForm.elements.yer.value = 'Pres hattı 2';
+  kazaForm.elements.vucutBolgesi.value = 'el';
+  kazaForm.elements.yaralanmaTuru.value = 'kesik';
+  kazaForm.elements.neden.value = 'makine';
+  kazaForm.elements.kayipGun.value = '3';
+  kazaForm.elements.saglikKurulusu.value = 'Aydın Devlet Hastanesi';
+  kazaForm.elements.aciklama.value = 'Kalıp değişimi sırasında el üzerine kalıp kaydı.';
+  kazaForm.elements.kokNeden.value = 'Kalıp kilitleme pimi takılmamış.';
+  kazaForm.elements.siddet.value = 'agir';
+  kazaForm.elements.vardiya.value = '2';
+  kazaForm.elements.hastaneSevk.value = 'evet';
+  kazaForm.elements.istirahatBaslangic.value = '2026-03-02';
+  kazaForm.elements.istirahatBitis.value = '2026-03-06';
+  kazaForm.elements.istirahatBitis.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(40);
+  kontrol('İstirahat aralığı kayıp günü otomatik hesapladı',
+    kazaForm.elements.kayipGun.value === '5', String(kazaForm.elements.kayipGun.value));
+  kazaForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(150);
+  const kazaKayit = ISG.depo.al().olaylar.filter((o) => o.tur === 'isKazasi');
+  kontrol('İş kazası kaydedildi', kazaKayit.length === kazaOnce + 1, String(kazaKayit.length));
+  const yeniKaza = kazaKayit.filter((o) => o.tarih === '2026-03-04' && o.isyeriId === 'iy1')[0];
+  kontrol('Kaza yaralanma bilgileri saklandı',
+    !!yeniKaza && yeniKaza.vucutBolgesi === 'el' && yeniKaza.yaralanmaTuru === 'kesik' && yeniKaza.kayipGun === 5,
+    JSON.stringify(yeniKaza && { bolge: yeniKaza.vucutBolgesi, tur: yeniKaza.yaralanmaTuru, gun: yeniKaza.kayipGun }));
+  kontrol('Kaza kök neden sınıfı saklandı', !!yeniKaza && yeniKaza.neden === 'makine',
+    String(yeniKaza && yeniKaza.neden));
+  kontrol('Kaza şiddet / vardiya / sevk bilgileri saklandı',
+    !!yeniKaza && yeniKaza.siddet === 'agir' && yeniKaza.vardiya === '2' && yeniKaza.hastaneSevk === 'evet',
+    JSON.stringify(yeniKaza && { siddet: yeniKaza.siddet, vardiya: yeniKaza.vardiya, sevk: yeniKaza.hastaneSevk }));
+  kontrol('İstirahat tarihleri saklandı',
+    !!yeniKaza && yeniKaza.istirahatBaslangic === '2026-03-02' && yeniKaza.istirahatBitis === '2026-03-06',
+    JSON.stringify(yeniKaza && { bas: yeniKaza.istirahatBaslangic, bit: yeniKaza.istirahatBitis }));
+  kontrol('Ölüm kazası 6.000 iş günü sayılır', ISG.kazaKayipGun({ siddet: 'olum', kayipGun: 0 }) === 6000,
+    String(ISG.kazaKayipGun({ siddet: 'olum', kayipGun: 0 })));
+  kontrol('Tarih farkı gün cinsinden', ISG.tarihFarki('2026-03-02', '2026-03-06') === 4,
+    String(ISG.tarihFarki('2026-03-02', '2026-03-06')));
+  kontrol('Ayın başında işe giren personel o aydan sayılır',
+    ISG.ayAktifPersonel([{ iseBaslama: '2026-03-01' }, { iseBaslama: '2026-04-01' }], '2026-03') === 1,
+    String(ISG.ayAktifPersonel([{ iseBaslama: '2026-03-01' }, { iseBaslama: '2026-04-01' }], '2026-03')));
+  kontrol('Kayıp gün aralığı hesaplandı', ISG.kayipGunAraligi(12).id === 'uzun' && ISG.kayipGunAraligi(0).id === 'yok');
+  kontrol('Kıdem yılı hesaplandı', ISG.kidemYil('2020-01-01', '2026-03-04') === 6,
+    String(ISG.kidemYil('2020-01-01', '2026-03-04')));
+  kontrol('Kaza diyalogu kapandı', doc.getElementById('kazaDiyalog').open !== true);
+  kontrol('Kaza satırı listeye eklendi', doc.querySelectorAll('.kaza-satir').length === kazaSatirOnce + 1,
+    String(doc.querySelectorAll('.kaza-satir').length));
+  doc.querySelector('[data-islem="kaza-duzenle"]').click();
+  await bekle(100);
+  kontrol('Kaza düzenleme formu dolu', doc.getElementById('kazaForm').elements.yer.value !== '');
+  doc.querySelector('#kazaDiyalog [data-kapat]').click();
+  await bekle(80);
+  await sayfaAc('#istatistik');
+  kontrol('İstatistikte iş kazası kartı var', /İşyeri bazında iş kazası/.test(metin('#gorunum')));
+  kontrol('İstatistikte yaralanma bölgesi dağılımı var', /Yaralanma bölgesi/.test(metin('#gorunum')));
+  kontrol('İstatistikte şiddet sınıfı kartı var', /Yaralanma şiddeti \(SGK\)/.test(metin('#gorunum')));
+  kontrol('İstatistikte vardiya dağılımı var', /Vardiya dağılımı/.test(metin('#gorunum')));
+  kontrol('İstatistikte haftanın günü kartı var', /Haftanın günü/.test(metin('#gorunum')));
+  kontrol('İstatistikte KSO / KAO KPI var',
+    /KSO \(sıklık oranı\)/.test(metin('#gorunum')) && /KAO \(ağırlık oranı\)/.test(metin('#gorunum')));
+  kontrol('Aylık kaza oranları tablosu 12 satır', doc.querySelectorAll('.ist-tablo tbody tr').length === 12,
+    String(doc.querySelectorAll('.ist-tablo tbody tr').length));
+  kontrol('Aylık tablo KSO / KAO kolonlarını taşır',
+    /İş saati/.test(metin('.ist-tablo thead')) && /KSO/.test(metin('.ist-tablo thead')) && /KAO/.test(metin('.ist-tablo thead')));
+  const istKpiMetin = Array.from(doc.querySelectorAll('#gorunum .kpi')).map((k) => k.textContent).join(' | ');
+  kontrol('KPI değerlerinde NaN yok', !/NaN/.test(istKpiMetin), istKpiMetin.slice(0, 160));
+  kontrol('Oran KPI sayısal biçimde yazıldı', /\d+[.,]\d/.test(istKpiMetin), istKpiMetin.slice(0, 160));
+  kontrol('İstatistikte kaza kayıt listesi var', /İş kazası ve meslek hastalığı kayıtları/.test(metin('#gorunum')) &&
+    doc.querySelectorAll('#gorunum .kaza-satir').length >= 5,
+    String(doc.querySelectorAll('#gorunum .kaza-satir').length));
+  kontrol('İstatistikte yeni kaza kaydı listede', /Pres hattı 2/.test(metin('#gorunum')));
+  kontrol('İstatistikte kaza bildir düğmesi var',
+    doc.querySelectorAll('#gorunum [data-islem="kaza-yeni"]').length >= 1,
+    String(doc.querySelectorAll('#gorunum [data-islem="kaza-yeni"]').length));
+  doc.querySelector('#gorunum [data-islem="kaza-yeni"][data-tur="isKazasi"]').click();
+  await bekle(100);
+  kontrol('İstatistikten kaza diyalogu açıldı', doc.getElementById('kazaDiyalog').open === true);
+  doc.querySelector('#kazaDiyalog [data-kapat]').click();
+  await bekle(80);
+  doc.querySelector('#gorunum [data-islem="kaza-duzenle"]').click();
+  await bekle(100);
+  kontrol('İstatistikten kaza düzenleme açıldı', doc.getElementById('kazaDiyalog').open === true &&
+    doc.getElementById('kazaForm').elements.yer.value !== '');
+  doc.querySelector('#kazaDiyalog [data-kapat]').click();
+  await bekle(80);
+
+  kontrol('İstatistikte veri girişi kartı var', /İş kazası \/ meslek hastalığı veri girişi/.test(metin('#gorunum')));
+  const hastalikOnce = ISG.depo.al().olaylar.filter((o) => o.tur === 'meslekHastaligi').length;
+  doc.querySelector('#gorunum [data-islem="kaza-yeni"][data-tur="meslekHastaligi"]').click();
+  await bekle(100);
+  const hastalikForm = doc.getElementById('kazaForm');
+  kontrol('Meslek hastalığı diyaloğu tür seçili açıldı',
+    doc.getElementById('kazaDiyalog').open === true && hastalikForm.elements.tur.value === 'meslekHastaligi',
+    hastalikForm.elements.tur.value);
+  kontrol('Meslek hastalığı alanları göründü',
+    doc.getElementById('kazaHastalikGrupAlan').hidden === false &&
+    doc.getElementById('kazaEtkenAlan').hidden === false &&
+    doc.getElementById('kazaHastalikGrup').options.length === ISG.MESLEK_HASTALIK_GRUPLARI.length + 1,
+    String(doc.getElementById('kazaHastalikGrup').options.length));
+  kontrol('Tanı türü seçenekleri meslek hastalığına döndü',
+    doc.getElementById('kazaYaralanma').options.length === ISG.HASTALIK_TURLERI.length + 1,
+    String(doc.getElementById('kazaYaralanma').options.length));
+  hastalikForm.elements.tarih.value = '2026-03-06';
+  hastalikForm.elements.isyeriId.value = 'iy1';
+  hastalikForm.elements.aciklama.value = 'Toz maruziyeti sonrası solunum fonksiyon testinde düşüş.';
+  hastalikForm.elements.hastalikGrubu.value = 'd';
+  hastalikForm.elements.etken.value = 'Kristal silika tozu';
+  hastalikForm.elements.yaralanmaTuru.value = 'solunum';
+  hastalikForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(120);
+  const hastalikKayit = ISG.depo.al().olaylar.filter((o) => o.tur === 'meslekHastaligi');
+  kontrol('Meslek hastalığı kaydedildi', hastalikKayit.length === hastalikOnce + 1, String(hastalikKayit.length));
+  const yeniHastalik = hastalikKayit.filter((o) => o.tarih === '2026-03-06')[0];
+  kontrol('Meslek hastalığı tanı bilgileri saklandı',
+    !!yeniHastalik && yeniHastalik.hastalikGrubu === 'd' && yeniHastalik.etken === 'Kristal silika tozu' &&
+    yeniHastalik.yaralanmaTuru === 'solunum',
+    JSON.stringify(yeniHastalik && { grup: yeniHastalik.hastalikGrubu, etken: yeniHastalik.etken }));
+  const hastalikSatir = doc.querySelector('#gorunum .kaza-satir[data-tur="meslekHastaligi"]');
+  kontrol('Meslek hastalığı satırı rozetli listelendi',
+    !!hastalikSatir && /Meslek hastalığı/.test(hastalikSatir.textContent),
+    hastalikSatir ? hastalikSatir.textContent.slice(0, 100) : '');
+  await sayfaAc('#saha');
+
   console.log('\n12) Risk ve acil durum');
   await sayfaAc('#risk');
   kontrol('Altı risk kartı', doc.querySelectorAll('.risk-kart').length === 6, String(doc.querySelectorAll('.risk-kart').length));
@@ -505,13 +670,59 @@ function bekle(ms) {
   console.log('\n13b) İstatistikler');
   await sayfaAc('#istatistik');
   kontrol('İstatistik sayfası açıldı', metin('.sayfa-baslik h1') === 'İstatistikler', metin('.sayfa-baslik h1'));
-  kontrol('Dört istatistik KPI kartı var', doc.querySelectorAll('#gorunum .kpi').length === 4,
+  kontrol('On iki istatistik KPI kartı var', doc.querySelectorAll('#gorunum .kpi').length === 12,
     String(doc.querySelectorAll('#gorunum .kpi').length));
   kontrol('Dağılım çubukları çizildi', doc.querySelectorAll('.ist-cubuk').length >= 20,
     String(doc.querySelectorAll('.ist-cubuk').length));
   kontrol('İşyeri dağılımı listelenir', doc.querySelectorAll('.ist-cubuk').length > 0 && /Eğitim geçerliliği/.test(metin('#gorunum')));
   kontrol('Dolu çubuk genişliği hesaplandı', Array.from(doc.querySelectorAll('.ist-cubuk-dolgu'))
     .some((cubuk) => /width:\s*\d+%/.test(cubuk.getAttribute('style') || '')), String(doc.querySelectorAll('.ist-cubuk-dolgu').length));
+  kontrol('Aylık kaza sıklığı sütun grafiği var', doc.querySelectorAll('.ist-sutun').length === 12,
+    String(doc.querySelectorAll('.ist-sutun').length));
+  kontrol('Sütun yüksekliği hesaplandı', Array.from(doc.querySelectorAll('.ist-sutun-dolgu'))
+    .some((sutun) => /height:\s*\d+%/.test(sutun.getAttribute('style') || '')));
+  kontrol('Kök neden dağılımı gösterilir', /Kök neden dağılımı/.test(metin('#gorunum')));
+  kontrol('Neden × vücut bölgesi matrisi çizildi',
+    doc.querySelectorAll('.ist-matris tbody tr').length >= 4,
+    String(doc.querySelectorAll('.ist-matris tbody tr').length));
+  kontrol('Matriste dolu hücre var', doc.querySelectorAll('.ist-matris td.dolu').length > 0,
+    String(doc.querySelectorAll('.ist-matris td.dolu').length));
+  kontrol('Departman ve kıdem kırılımı var',
+    /Departman bazında kaza/.test(metin('#gorunum')) && /Kıdem dağılımı/.test(metin('#gorunum')));
+  kontrol('Kazalı personel sıralaması var', doc.querySelectorAll('.ist-liste-satir').length > 0,
+    String(doc.querySelectorAll('.ist-liste-satir').length));
+
+  /* Kaza/meslek hastalığı girişi istatistik sayfasından erişilebilir olmalı. */
+  const girisKarti = doc.querySelector('#gorunum .kart-ic .satir-arac [data-islem="kaza-yeni"]');
+  kontrol('İstatistikte kaza giriş kartı görünür',
+    /İş kazası \/ meslek hastalığı veri girişi/.test(metin('#gorunum')) && !!girisKarti);
+  kontrol('Kaza giriş kartında iki bildirim düğmesi var',
+    doc.querySelectorAll('#gorunum .satir-arac [data-islem="kaza-yeni"]').length === 2,
+    String(doc.querySelectorAll('#gorunum .satir-arac [data-islem="kaza-yeni"]').length));
+  kontrol('Sayfa başlığında iki bildirim düğmesi var',
+    doc.querySelectorAll('.sayfa-ust-arac [data-islem="kaza-yeni"]').length === 2,
+    String(doc.querySelectorAll('.sayfa-ust-arac [data-islem="kaza-yeni"]').length));
+  kontrol('Kaza listesi kartında da iki bildirim düğmesi var',
+    doc.querySelectorAll('#gorunum .kart-arac [data-islem="kaza-yeni"]').length === 2,
+    String(doc.querySelectorAll('#gorunum .kart-arac [data-islem="kaza-yeni"]').length));
+
+  doc.querySelector('#gorunum .satir-arac [data-islem="kaza-yeni"][data-tur="isKazasi"]').click();
+  await bekle(120);
+  kontrol('Kaza bildir düğmesi giriş ekranını açar',
+    doc.getElementById('kazaDiyalog').hidden === false && metin('#kazaBaslik') === 'İş kazası bildir',
+    metin('#kazaBaslik'));
+  kontrol('İş kazasında hastalık alanları gizli',
+    doc.getElementById('kazaHastalikGrupAlan').hidden === true && doc.getElementById('kazaEtkenAlan').hidden === true);
+
+  doc.querySelector('#gorunum .satir-arac [data-islem="kaza-yeni"][data-tur="meslekHastaligi"]').click();
+  await bekle(120);
+  kontrol('Meslek hastalığı bildir düğmesi giriş ekranını açar',
+    doc.getElementById('kazaDiyalog').hidden === false && metin('#kazaBaslik') === 'Meslek hastalığı bildir',
+    metin('#kazaBaslik'));
+  kontrol('Meslek hastalığında tanı alanları görünür',
+    doc.getElementById('kazaHastalikGrupAlan').hidden === false && doc.getElementById('kazaEtkenAlan').hidden === false);
+  doc.querySelector('#kazaDiyalog [data-kapat]').click();
+  await bekle(80);
 
   console.log('\n14) Ekip ve davetler');
   await sayfaAc('#ekip');
@@ -547,7 +758,18 @@ function bekle(ms) {
   const kullanimlar = Array.from(doc.querySelectorAll('use[href]')).map((u) => u.getAttribute('href'));
   const eksikIkon = kullanimlar.filter((h) => !doc.querySelector(h));
   kontrol('SVG ikon referansları geçerli', eksikIkon.length === 0, eksikIkon.slice(0, 3).join(', '));
-  kontrol('Diyalog sayısı 11', doc.querySelectorAll('dialog').length === 11, String(doc.querySelectorAll('dialog').length));
+  kontrol('Diyalog sayısı 13', doc.querySelectorAll('dialog').length === 13, String(doc.querySelectorAll('dialog').length));
+  kontrol('Bulut diyaloğu var', !!doc.getElementById('bulutDiyalog'));
+  kontrol('Bulut başlık düğmesi var', doc.querySelectorAll('[data-islem="bulut-ayar"]').length === 1,
+    String(doc.querySelectorAll('[data-islem="bulut-ayar"]').length));
+  kontrol('Bulut alanları hazır',
+    ['bulutUrl', 'bulutAnahtar', 'bulutOda', 'bulutAralik', 'bulutOtomatik', 'bulutYukari',
+      'bulutDurumSatir', 'bulutUyari', 'bulutKes', 'bulutSimdi', 'bulutSql']
+      .every((id) => !!doc.getElementById(id)));
+  kontrol('Bulut SQL betiği dolduruldu',
+    /create table if not exists public\.isg_veri/.test((doc.getElementById('bulutSql') || {}).textContent || ''));
+  kontrol('Bulut düğmeleri varsayılan kapalı',
+    doc.getElementById('bulutKes').hidden === true && doc.getElementById('bulutSimdi').hidden === true);
   const varliklar = Array.from(doc.querySelectorAll('script[src], link[href]'))
     .map((e) => e.getAttribute('src') || e.getAttribute('href'));
   kontrol('Varlık yolları göreli', varliklar.every((y) => !/^\//.test(y)), varliklar.join(', '));
@@ -722,6 +944,100 @@ function bekle(ms) {
   kontrol('Talep onaylandı olarak kapandı', (ISG.depo.talepBul(bizimTalep.id) || {}).durum === 'onaylandi');
   kontrol('Bekleyen talep azaldı', ISG.yetki.bekleyenSayisi() === tabanBekleyen, String(ISG.yetki.bekleyenSayisi()));
   kontrol('Denetim izi kaydedildi', ISG.yetki.denetimListe().length > 0, String(ISG.yetki.denetimListe().length));
+
+  console.log('\n21) Bulut eşitleme akışı');
+  if (ISG.bulut.hazirMi()) { ISG.bulut.kapat(); }
+  window.localStorage.removeItem('isgtakip.bulut');
+  window.localStorage.removeItem('isgtakip.bulut.durum');
+
+  /* Supabase yerine sahte uç nokta: istekler kaydedilir, yanıt taklit edilir. */
+  const istekler = { adet: 0, yontem: '', adres: '', govde: null };
+  let uzakSatir = null;
+  window.fetch = (adres, secenek) => {
+    const yontem = (secenek && secenek.method) || 'GET';
+    istekler.adet += 1;
+    istekler.yontem = yontem;
+    istekler.adres = String(adres);
+    if (yontem === 'POST') {
+      istekler.govde = JSON.parse(secenek.body);
+      return Promise.resolve({ ok: true, status: 201, text: () => Promise.resolve('') });
+    }
+    const govde = JSON.stringify(uzakSatir ? [uzakSatir] : []);
+    return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(govde) });
+  };
+
+  doc.querySelector('[data-islem="bulut-ayar"]').click();
+  await bekle(140);
+  const bulutDiyalog = doc.getElementById('bulutDiyalog');
+  const bulutForm = doc.getElementById('bulutForm');
+  kontrol('Bulut diyaloğu açıldı', bulutDiyalog.open === true);
+  kontrol('SQL betiği diyaloğa yazıldı', /create table if not exists public\.isg_veri/.test(metin('#bulutSql')));
+  kontrol('Bağlantı yokken kes/eşitle gizli, yukarı seçeneği açık',
+    doc.getElementById('bulutKes').hidden === true && doc.getElementById('bulutSimdi').hidden === true &&
+    doc.getElementById('bulutYukari').closest('label').hidden === false);
+
+  doc.getElementById('bulutUrl').value = 'https://ornek.supabase.co';
+  doc.getElementById('bulutAnahtar').value = 'kisa';
+  doc.getElementById('bulutOda').value = 'isg-merkez';
+  bulutForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(80);
+  kontrol('Kısa anon anahtarı reddedilir',
+    doc.getElementById('bulutUyari').hidden === false && /anon anahtar/i.test(metin('#bulutUyari')), metin('#bulutUyari'));
+  kontrol('Doğrulama hatasında istek gitmez', istekler.adet === 0, String(istekler.adet));
+
+  doc.getElementById('bulutAnahtar').value = 'anon-test-anahtari-0123456789';
+  doc.getElementById('bulutYukari').checked = true;
+  bulutForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(500);
+  const bulutAyar = JSON.parse(window.localStorage.getItem('isgtakip.bulut') || 'null');
+  kontrol('Bulut ayarı kaydedildi', !!bulutAyar && bulutAyar.oda === 'isg-merkez' &&
+    bulutAyar.url === 'https://ornek.supabase.co' && bulutAyar.aralik === 20, JSON.stringify(bulutAyar));
+  kontrol('İlk eşitlemede veri buluta yazıldı', istekler.yontem === 'POST' &&
+    istekler.govde[0].oda === 'isg-merkez' && Array.isArray(istekler.govde[0].veri.personel) &&
+    /\/rest\/v1\/isg_veri$/.test(istekler.adres), istekler.yontem + ' ' + istekler.adres);
+  kontrol('Durum satırı bulut kaydını gösterir', /Bulut kayıt açık/.test(metin('#bulutDurumSatir')), metin('#bulutDurumSatir'));
+  kontrol('Bağlantı sonrası diyalog kapandı', bulutDiyalog.open === false);
+  kontrol('Kayıt durumu alt çubukta bulut bilgisini gösterir', /Bulut kayıt açık/.test(metin('#kayitDurumu')),
+    metin('#kayitDurumu'));
+
+  doc.querySelector('[data-islem="bulut-ayar"]').click();
+  await bekle(140);
+  kontrol('Bağlantı açıkken kes/eşitle görünür, yukarı seçeneği gizli',
+    doc.getElementById('bulutKes').hidden === false && doc.getElementById('bulutSimdi').hidden === false &&
+    doc.getElementById('bulutYukari').closest('label').hidden === true);
+  kontrol('Gönder düğmesi "Ayarları kaydet" oldu', metin('#bulutForm button[type="submit"]') === 'Ayarları kaydet',
+    metin('#bulutForm button[type="submit"]'));
+
+  const cihazVeri = ISG.depo.al();
+  const uzakKisi = Object.assign({}, cihazVeri.personel[0], { id: 'bulut-test-1', adSoyad: 'Bulut Test Kişi' });
+  uzakSatir = {
+    veri: Object.assign({}, cihazVeri, { personel: cihazVeri.personel.concat([uzakKisi]) }),
+    guncelleme: '2099-01-01T00:00:00.000Z'
+  };
+  doc.getElementById('bulutSimdi').click();
+  await bekle(600);
+  kontrol('Uzak kayıt bu cihaza indirildi', ISG.depo.al().personel.some((p) => p.id === 'bulut-test-1'));
+  kontrol('Son uzak zaman damgası yazıldı',
+    JSON.parse(window.localStorage.getItem('isgtakip.bulut.durum') || '{}').sonUzakZaman === '2099-01-01T00:00:00.000Z',
+    window.localStorage.getItem('isgtakip.bulut.durum'));
+
+  window.fetch = () => Promise.reject(new TypeError('ağ yok'));
+  doc.getElementById('bulutSimdi').click();
+  await bekle(500);
+  kontrol('Ağ yokken hata durumu gösterilir', /Bulut bağlantısı yok/.test(metin('#bulutDurumSatir')), metin('#bulutDurumSatir'));
+  kontrol('Ağ yokken uyarı kutusu açılır', doc.getElementById('bulutUyari').hidden === false, metin('#bulutUyari'));
+
+  doc.getElementById('bulutKes').click();
+  await bekle(140);
+  const onayDiyalog = doc.getElementById('onayDiyalog');
+  kontrol('Bağlantıyı kesmeden önce onay istenir', onayDiyalog.open === true &&
+    /Bulut bağlantısı kesilsin mi/.test(metin('#onayBaslik')), metin('#onayBaslik'));
+  doc.getElementById('onayEvet').click();
+  await bekle(240);
+  kontrol('Bağlantı ayarları silindi', window.localStorage.getItem('isgtakip.bulut') === null &&
+    window.localStorage.getItem('isgtakip.bulut.durum') === null && !ISG.bulut.hazirMi());
+  kontrol('Bağlantı kesilince yerel kayıt korunur', ISG.depo.al().personel.length > 0 &&
+    /Yerel kayıt açık/.test(metin('#bulutDurumSatir')), metin('#bulutDurumSatir'));
 
   console.log('\nSonuç: ' + gecen + ' geçti, ' + hata + ' başarısız');
   dom.window.close();

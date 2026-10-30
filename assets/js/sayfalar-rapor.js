@@ -459,6 +459,83 @@
     '</section>';
   }
 
+  /* ISO tarihin haftanın hangi gününe denk geldiği (Pazartesi = 0); geçersizse -1. */
+  function haftaGunu(tarih) {
+    var iso = String(tarih || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) { return -1; }
+    var gun = new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))).getDay();
+    return (gun + 6) % 7;
+  }
+
+  /* Dikey sütun grafiği — aylık sıklık gibi zaman serileri için. */
+  function istSutunlar(satirlar, bosMetin) {
+    var dolu = (satirlar || []).filter(function (satir) { return Number(satir.deger) > 0; });
+    if (!dolu.length) { return '<p class="bolum-aciklama">' + kacis(bosMetin || 'Gösterilecek veri yok.') + '</p>'; }
+    var enBuyuk = dolu.reduce(function (en, satir) { return Math.max(en, Number(satir.deger) || 0); }, 0);
+    return '<div class="ist-sutunlar">' + satirlar.map(function (satir) {
+      var deger = Number(satir.deger) || 0;
+      var oran = enBuyuk ? Math.round((deger / enBuyuk) * 100) : 0;
+      return '<div class="ist-sutun ' + (satir.sinif || 'notr') + '" title="' + kacis(satir.ad + ': ' + B.sayi(deger)) + '">' +
+        '<b class="ist-sutun-deger">' + (deger ? B.sayi(deger) : '·') + '</b>' +
+        '<span class="ist-sutun-ray"><span class="ist-sutun-dolgu" style="height:' + (deger ? Math.max(oran, 6) : 0) + '%"></span></span>' +
+        '<span class="ist-sutun-ad">' + kacis(satir.ad) + '</span>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  /* Neden × vücut bölgesi çapraz tablosu — hücre koyuluğu sıklığı gösterir. */
+  function istMatris(kolonlar, satirlar, bosMetin) {
+    var toplam = (satirlar || []).reduce(function (t, satir) { return t + satir.toplam; }, 0);
+    if (!toplam || !kolonlar.length) { return '<p class="bolum-aciklama">' + kacis(bosMetin || 'Gösterilecek veri yok.') + '</p>'; }
+    var enBuyuk = 0;
+    satirlar.forEach(function (satir) {
+      satir.degerler.forEach(function (deger) { enBuyuk = Math.max(enBuyuk, Number(deger) || 0); });
+    });
+    var bas = '<div class="ist-matris-kap"><table class="ist-matris"><thead><tr><th scope="col">Kök neden</th>' +
+      kolonlar.map(function (kolon) { return '<th scope="col">' + kacis(kolon.ad) + '</th>'; }).join('') +
+      '<th scope="col" class="sag">Toplam</th></tr></thead><tbody>';
+    var govde = satirlar.map(function (satir) {
+      return '<tr><th scope="row">' + kacis(satir.ad) + '</th>' + satir.degerler.map(function (deger) {
+        var sayi = Number(deger) || 0;
+        if (!sayi) { return '<td class="bos">·</td>'; }
+        var oran = enBuyuk ? sayi / enBuyuk : 0;
+        var stil = ' style="background:rgba(180,35,24,' + (0.08 + oran * 0.5).toFixed(2) + ')"';
+        return '<td class="dolu' + (oran > 0.55 ? ' koyu' : '') + '"' + stil + '>' + B.sayi(sayi) + '</td>';
+      }).join('') + '<td class="sag"><b>' + B.sayi(satir.toplam) + '</b></td></tr>';
+    }).join('');
+    return bas + govde + '</tbody></table></div>' +
+      '<p class="bolum-aciklama" style="margin-top:8px">Koyu hücre, aynı kök neden içinde daha sık görülen yaralanma bölgesini gösterir.</p>';
+  }
+
+  /* Kişi bazlı sıralama listesi (ad + alt bilgi + değer). */
+  function istListe(satirlar, bosMetin) {
+    if (!satirlar || !satirlar.length) { return '<p class="bolum-aciklama">' + kacis(bosMetin || 'Gösterilecek veri yok.') + '</p>'; }
+    return '<div class="ist-liste">' + satirlar.map(function (satir) {
+      return '<div class="ist-liste-satir">' +
+        '<span class="ist-liste-ad"><b>' + kacis(satir.ad) + '</b>' +
+          (satir.alt ? '<span class="kucuk">' + kacis(satir.alt) + '</span>' : '') + '</span>' +
+        '<span class="ist-liste-deger">' + kacis(satir.deger) + '</span>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  /* Düz sayısal tablo — aylık KSO/KAO gibi dönem karşılaştırmaları için.
+     kolonlar: [{ ad }], satirlar: [{ degerler: [ilk kolon başlık hücresi, ...] }] */
+  function istTablo(kolonlar, satirlar, bosMetin) {
+    if (!satirlar || !satirlar.length) {
+      return '<p class="bolum-aciklama">' + kacis(bosMetin || 'Gösterilecek veri yok.') + '</p>';
+    }
+    var bas = '<div class="ist-matris-kap"><table class="ist-tablo"><thead><tr>' +
+      (kolonlar || []).map(function (kolon) { return '<th scope="col">' + kacis(kolon.ad) + '</th>'; }).join('') +
+      '</tr></thead><tbody>';
+    var govde = satirlar.map(function (satir) {
+      return '<tr>' + (satir.degerler || []).map(function (deger, sira) {
+        return sira === 0 ? '<th scope="row">' + kacis(deger) + '</th>' : '<td>' + kacis(deger) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    return bas + govde + '</tbody></table></div>';
+  }
+
   SAYFALAR.istatistik = function () {
     var hesap = veri();
     var kapsam = UI.kapsam;
@@ -528,10 +605,308 @@
       { id: 'yok', ad: 'Eğitim kaydı yok', sinif: 'notr' }
     ], egitimSayac);
 
+    var olaylar = ISG.kapsamda(hesap, kapsam, 'olaylar');
+    var kazalar = olaylar.filter(function (olay) { return olay.tur === 'isKazasi'; });
+    /* Liste iş kazası ve meslek hastalığı kayıtlarını birlikte gösterir; SGK oranları yalnız iş kazasına dayanır. */
+    var kayitlar = olaylar.filter(ISG.kazaKaydi);
+    var kazaPersonel = [];
+    kazalar.forEach(function (kaza) {
+      if (kaza.personelId && kazaPersonel.indexOf(kaza.personelId) < 0) { kazaPersonel.push(kaza.personelId); }
+    });
+    var kayipGun = kazalar.reduce(function (toplam, kaza) { return toplam + ISG.kazaKayipGun(kaza); }, 0);
+    var kayipliKaza = kazalar.filter(function (kaza) { return ISG.kazaKayipGun(kaza) > 0; }).length;
+    var sonKaza = kazalar.slice().sort(function (a, b) { return String(b.tarih).localeCompare(String(a.tarih)); })[0];
+
+    var kazaIsyeriSatir = isyerleri.map(function (isyeri) {
+      var sayi = kazalar.filter(function (kaza) { return kaza.isyeriId === isyeri.id; }).length;
+      return { ad: isyeri.ad, deger: sayi, sinif: sayi ? 'tehlike' : 'notr' };
+    }).sort(function (a, b) { return b.deger - a.deger; });
+
+    var bolgeSayac = {};
+    var yaralanmaSayac = {};
+    kazalar.forEach(function (kaza) {
+      var bolge = kaza.vucutBolgesi || 'belirtilmedi';
+      var tur = kaza.yaralanmaTuru || 'belirtilmedi';
+      bolgeSayac[bolge] = (bolgeSayac[bolge] || 0) + 1;
+      yaralanmaSayac[tur] = (yaralanmaSayac[tur] || 0) + 1;
+    });
+    var bolgeSatir = istDagilim(ISG.YARALANMA_BOLGELERI.map(function (bolge) {
+      return { id: bolge.id, ad: bolge.ad, sinif: 'tehlike' };
+    }), bolgeSayac);
+    var yaralanmaSatir = istDagilim(ISG.YARALANMA_TURLERI.map(function (tur) {
+      return { id: tur.id, ad: tur.ad, sinif: 'uyari' };
+    }), yaralanmaSayac);
+    if (bolgeSayac.belirtilmedi) {
+      bolgeSatir.push({ ad: 'Belirtilmedi', deger: bolgeSayac.belirtilmedi, sinif: 'notr' });
+    }
+    if (yaralanmaSayac.belirtilmedi) {
+      yaralanmaSatir.push({ ad: 'Belirtilmedi', deger: yaralanmaSayac.belirtilmedi, sinif: 'notr' });
+    }
+
+    /* --- İş kazası kırılımları: neden, bölge, departman, kıdem, şiddet, sıklık --- */
+    var personelHarita = {};
+    (hesap.personel || []).forEach(function (kisi) { personelHarita[kisi.id] = kisi; });
+
+    var bugunIso = B.bugunIso();
+    var ayAnahtarlari = [];
+    var ayYil = Number(bugunIso.slice(0, 4));
+    var ayNo = Number(bugunIso.slice(5, 7));
+    for (var geri = 11; geri >= 0; geri -= 1) {
+      var yil = ayYil;
+      var ay = ayNo - geri;
+      while (ay <= 0) { ay += 12; yil -= 1; }
+      ayAnahtarlari.push(yil + '-' + ('0' + ay).slice(-2));
+    }
+
+    var nedenSayac = {};
+    var bolgeNedenSayac = {};
+    var deptSayac = {};
+    var kidemSayac = {};
+    var siddetSayac = {};
+    var sinifSayac = {};
+    var vardiyaSayac = {};
+    var gunSayac = {};
+    var kisiSayac = {};
+    var aySayac = {};
+    var ayKayipSayac = {};
+    var sonYilKaza = 0;
+    var sonYilKayip = 0;
+    var sevkKaza = 0;
+
+    /* SGK oranları için çalışılan saat: personel × aylık kişi saati varsayımı. */
+    var aySaatSatir = ayAnahtarlari.map(function (anahtar) {
+      var kisiSayisi = ISG.ayAktifPersonel(personel, anahtar);
+      return { anahtar: anahtar, kisi: kisiSayisi, saat: kisiSayisi * ISG.AYLIK_KISI_SAATI };
+    });
+    var toplamSaat = aySaatSatir.reduce(function (toplam, satir) { return toplam + satir.saat; }, 0);
+    var ortalamaKisi = aySaatSatir.length ?
+      Math.round(aySaatSatir.reduce(function (toplam, satir) { return toplam + satir.kisi; }, 0) / aySaatSatir.length) : 0;
+
+    kazalar.forEach(function (kaza) {
+      var kisi = personelHarita[kaza.personelId] || null;
+      var nedenId = kaza.neden || 'belirtilmedi';
+      var bolgeId = kaza.vucutBolgesi || 'belirtilmedi';
+
+      nedenSayac[nedenId] = (nedenSayac[nedenId] || 0) + 1;
+      bolgeNedenSayac[nedenId] = bolgeNedenSayac[nedenId] || {};
+      bolgeNedenSayac[nedenId][bolgeId] = (bolgeNedenSayac[nedenId][bolgeId] || 0) + 1;
+
+      var dept = kisi && kisi.departman ? kisi.departman : 'Belirtilmedi';
+      deptSayac[dept] = (deptSayac[dept] || 0) + 1;
+
+      var kidemAralik = ISG.kidemAraligi(kisi ? ISG.kidemYil(kisi.iseBaslama, kaza.tarih) : null);
+      var kidemId = kidemAralik ? kidemAralik.id : 'bilinmiyor';
+      kidemSayac[kidemId] = (kidemSayac[kidemId] || 0) + 1;
+
+      var siddetAralik = ISG.kayipGunAraligi(ISG.kazaKayipGun(kaza));
+      siddetSayac[siddetAralik.id] = (siddetSayac[siddetAralik.id] || 0) + 1;
+
+      var sinifId = kaza.siddet || 'belirtilmedi';
+      sinifSayac[sinifId] = (sinifSayac[sinifId] || 0) + 1;
+
+      var vardiyaId = kaza.vardiya || 'belirtilmedi';
+      vardiyaSayac[vardiyaId] = (vardiyaSayac[vardiyaId] || 0) + 1;
+
+      var gunSirasi = haftaGunu(kaza.tarih);
+      if (gunSirasi >= 0) { gunSayac[gunSirasi] = (gunSayac[gunSirasi] || 0) + 1; }
+
+      if (kaza.hastaneSevk === 'evet') { sevkKaza += 1; }
+
+      if (kaza.personelId) { kisiSayac[kaza.personelId] = (kisiSayac[kaza.personelId] || 0) + 1; }
+
+      var ayAnahtar = String(kaza.tarih || '').slice(0, 7);
+      if (ayAnahtarlari.indexOf(ayAnahtar) >= 0) {
+        aySayac[ayAnahtar] = (aySayac[ayAnahtar] || 0) + 1;
+        ayKayipSayac[ayAnahtar] = (ayKayipSayac[ayAnahtar] || 0) + ISG.kazaKayipGun(kaza);
+        sonYilKaza += 1;
+        sonYilKayip += ISG.kazaKayipGun(kaza);
+      }
+    });
+
+    /* KSO / KAO / KSH — 1.000.000 çalışma saati ve çalışan başına oranlar. */
+    var kso = toplamSaat ? (sonYilKaza / toplamSaat) * 1000000 : 0;
+    var kao = toplamSaat ? (sonYilKayip / toplamSaat) * 1000000 : 0;
+    var ksh = ortalamaKisi ? sonYilKaza / ortalamaKisi : 0;
+
+    var nedenSatir = ISG.KAZA_NEDENLERI.map(function (neden) {
+      return { ad: neden.ad, deger: nedenSayac[neden.id] || 0, sinif: neden.sinif };
+    });
+    if (nedenSayac.belirtilmedi) {
+      nedenSatir.push({ ad: 'Belirtilmedi', deger: nedenSayac.belirtilmedi, sinif: 'notr' });
+    }
+
+    var AY_KISA = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+    var aylikSatir = ayAnahtarlari.map(function (anahtar) {
+      return {
+        ad: AY_KISA[Number(anahtar.slice(5, 7)) - 1] + ' ' + anahtar.slice(2, 4),
+        deger: aySayac[anahtar] || 0,
+        sinif: 'tehlike'
+      };
+    });
+
+
+    var matrisKolonlar = ISG.YARALANMA_BOLGELERI.filter(function (bolge) {
+      return bolgeSayac[bolge.id];
+    }).map(function (bolge) { return { id: bolge.id, ad: bolge.ad }; });
+    if (bolgeSayac.belirtilmedi) { matrisKolonlar.push({ id: 'belirtilmedi', ad: 'Belirtilmedi' }); }
+
+    var matrisSatir = [];
+    ISG.KAZA_NEDENLERI.forEach(function (neden) {
+      var sayac = bolgeNedenSayac[neden.id];
+      if (!sayac) { return; }
+      var degerler = matrisKolonlar.map(function (kolon) { return sayac[kolon.id] || 0; });
+      matrisSatir.push({
+        ad: neden.ad,
+        degerler: degerler,
+        toplam: degerler.reduce(function (toplam, deger) { return toplam + deger; }, 0)
+      });
+    });
+    if (bolgeNedenSayac.belirtilmedi) {
+      var belirsizDegerler = matrisKolonlar.map(function (kolon) {
+        return bolgeNedenSayac.belirtilmedi[kolon.id] || 0;
+      });
+      matrisSatir.push({
+        ad: 'Belirtilmedi',
+        degerler: belirsizDegerler,
+        toplam: belirsizDegerler.reduce(function (toplam, deger) { return toplam + deger; }, 0)
+      });
+    }
+
+    var deptSatir = Object.keys(deptSayac).map(function (ad) {
+      return { ad: ad, deger: deptSayac[ad], sinif: 'bilgi' };
+    }).sort(function (a, b) { return b.deger - a.deger; });
+
+    var kidemSatir = ISG.KIDEM_ARALIKLARI.map(function (aralik) {
+      return { ad: aralik.ad, deger: kidemSayac[aralik.id] || 0, sinif: aralik.sinif };
+    });
+    if (kidemSayac.bilinmiyor) {
+      kidemSatir.push({ ad: 'Kıdem bilgisi yok', deger: kidemSayac.bilinmiyor, sinif: 'notr' });
+    }
+
+    var siddetSatir = ISG.KAYIP_GUN_ARALIKLARI.map(function (aralik) {
+      return { ad: aralik.ad, deger: siddetSayac[aralik.id] || 0, sinif: aralik.sinif };
+    });
+
+    var sinifSatir = ISG.KAZA_SIDDETLERI.map(function (sinif) {
+      return { ad: sinif.ad, deger: sinifSayac[sinif.id] || 0, sinif: sinif.sinif };
+    });
+    if (sinifSayac.belirtilmedi) {
+      sinifSatir.push({ ad: 'Belirtilmedi', deger: sinifSayac.belirtilmedi, sinif: 'notr' });
+    }
+
+    var vardiyaSatir = ISG.VARDIYALAR.map(function (vardiya) {
+      return { ad: vardiya.ad, deger: vardiyaSayac[vardiya.id] || 0, sinif: 'bilgi' };
+    });
+    if (vardiyaSayac.belirtilmedi) {
+      vardiyaSatir.push({ ad: 'Belirtilmedi', deger: vardiyaSayac.belirtilmedi, sinif: 'notr' });
+    }
+
+    var GUN_ADLARI = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+    var gunSatir = GUN_ADLARI.map(function (ad, sira) {
+      return { ad: ad, deger: gunSayac[sira] || 0, sinif: sira >= 5 ? 'uyari' : 'tehlike' };
+    });
+
+    var oranSatir = ayAnahtarlari.map(function (anahtar, sira) {
+      var saat = aySaatSatir[sira].saat;
+      var kazaSayi = aySayac[anahtar] || 0;
+      var aylikKayip = ayKayipSayac[anahtar] || 0;
+      return {
+        degerler: [
+          AY_KISA[Number(anahtar.slice(5, 7)) - 1] + ' ' + anahtar.slice(2, 4),
+          B.sayi(kazaSayi),
+          B.sayi(aylikKayip),
+          B.sayi(saat),
+          saat ? B.ondalik((kazaSayi / saat) * 1000000, 1) : '—',
+          saat ? B.ondalik((aylikKayip / saat) * 1000000, 1) : '—'
+        ]
+      };
+    });
+
+    var kisiSatir = Object.keys(kisiSayac).map(function (id) {
+      var kisi = personelHarita[id] || {};
+      var alt = [kisi.sicil ? 'Sicil ' + kisi.sicil : '', kisi.departman || '', kisi.meslek || '']
+        .filter(function (parca) { return !!parca; }).join(' · ');
+      return {
+        ad: kisi.adSoyad || 'Silinmiş personel',
+        alt: alt,
+        sayi: kisiSayac[id],
+        deger: B.sayi(kisiSayac[id]) + ' kaza'
+      };
+    }).sort(function (a, b) { return b.sayi - a.sayi; }).slice(0, 6);
+
+    var kazaliOran = aktifPersonel.length ? Math.round((kazaPersonel.length / aktifPersonel.length) * 100) : 0;
+    var ortalamaKayip = kazalar.length ? Math.round((kayipGun / kazalar.length) * 10) / 10 : 0;
+
+    var kazaKpi =
+      '<div class="kpi-izgara ist-kpi">' +
+        istKutu('İş kazası', B.sayi(kazalar.length), 'Son 12 ayda ' + B.sayi(sonYilKaza) + ' bildirim', 'i-risk',
+          kazalar.length ? 'tehlike' : 'soluk') +
+        istKutu('Kazalı personel', B.sayi(kazaPersonel.length), 'Kazalı / aktif personel: %' + kazaliOran, 'i-users',
+          kazaPersonel.length ? 'uyari' : 'soluk') +
+        istKutu('İş günü kaybı', B.sayi(kayipGun), B.sayi(kayipliKaza) + ' kazada kayıp bildirildi', 'i-plan',
+          kayipGun ? 'uyari' : 'soluk') +
+        istKutu('Kaza başına kayıp', B.sayi(ortalamaKayip) + ' gün',
+          sonKaza ? 'Son kaza ' + B.tarih(sonKaza.tarih) : 'Kayıt yok', 'i-chart', 'bilgi') +
+        istKutu('KSO (sıklık oranı)', B.ondalik(kso, 1), '1.000.000 çalışma saatinde kaza', 'i-chart',
+          kso ? 'uyari' : 'soluk') +
+        istKutu('KAO (ağırlık oranı)', B.ondalik(kao, 1), '1.000.000 saatte kayıp gün', 'i-chart',
+          kao ? 'tehlike' : 'soluk') +
+        istKutu('KSH (kişi başına)', B.ondalik(ksh, 2), B.sayi(ortalamaKisi) + ' çalışan ortalaması', 'i-users',
+          ksh ? 'uyari' : 'soluk') +
+        istKutu('Hastane sevk', B.sayi(sevkKaza), kazalar.length ? '%' + Math.round((sevkKaza / kazalar.length) * 100) + ' kazada sevk' : 'Kayıt yok',
+          'i-plan', sevkKaza ? 'bilgi' : 'soluk') +
+      '</div>';
+
+
+
+    var kazaKartlari =
+      '<div class="ist-kartlar">' +
+        istKart('Aylık kaza sıklığı', 'Son 12 ayda bildirilen iş kazası sayısı; sütun yüksekliği aylık sıklığı gösterir.',
+          istSutunlar(aylikSatir, 'Son 12 ayda iş kazası bildirilmedi.')) +
+      '</div>' +
+      '<div class="kart-izgara-3 ist-kartlar">' +
+        istKart('Kök neden dağılımı', 'Kaza kayıtlarının neden sınıfına göre dağılımı.', istCubuklar(nedenSatir, 'Kök neden girilmiş kaza yok.')) +
+        istKart('Yaralanma bölgesi', 'Kaza kayıtlarında bildirilen vücut bölgesi dağılımı.', istCubuklar(bolgeSatir, 'Yaralanma bilgisi girilmiş kaza yok.')) +
+        istKart('Yaralanma türü', 'Ezilme, kesik, burkulma gibi yaralanma şekillerinin dağılımı.', istCubuklar(yaralanmaSatir, 'Yaralanma türü girilmiş kaza yok.')) +
+      '</div>' +
+      '<div class="kart-izgara-3 ist-kartlar">' +
+        istKart('İşyeri bazında iş kazası', 'Kapsamdaki işyerlerinde bildirilen iş kazası sayısı.', istCubuklar(kazaIsyeriSatir, 'İş kazası kaydı yok.')) +
+        istKart('Departman bazında kaza', 'Kazaların kazazedenin departmanına göre dağılımı.', istCubuklar(deptSatir, 'Departman bilgisi olan kaza yok.')) +
+        istKart('Kıdem dağılımı', 'Kaza anındaki kıdeme göre dağılım; yeni çalışan yoğunluğunu gösterir.', istCubuklar(kidemSatir, 'Kıdem bilgisi hesaplanamadı.')) +
+      '</div>' +
+      '<section class="kart">' +
+        '<div class="kart-baslik"><div><h2>Neden × vücut bölgesi</h2>' +
+          '<p>Hangi kök nedenin hangi vücut bölgesinde hasara yol açtığını çapraz gösterir.</p></div>' +
+          '<div class="kart-arac"><span class="muted kucuk">' + B.sayi(kazalar.length) + ' kaza · ' +
+            B.sayi(kazaPersonel.length) + ' kazalı personel · ' + B.sayi(kayipGun) + ' iş günü kaybı</span></div></div>' +
+        '<div class="kart-ic">' + istMatris(matrisKolonlar, matrisSatir, 'Neden ve bölge bilgisi girilmiş kaza yok.') + '</div>' +
+      '</section>' +
+      '<div class="kart-izgara-3 ist-kartlar">' +
+        istKart('İş günü kaybı (şiddet)', 'Kazaların iş günü kaybı aralıklarına göre dağılımı.', istCubuklar(siddetSatir, 'Kaza kaydı yok.')) +
+        istKart('En çok kazaya uğrayan personel', 'Kapsamda en fazla kaza kaydı bulunan çalışanlar.', istListe(kisiSatir, 'Personel eşleşen kaza yok.')) +
+      '</div>' +
+      '<div class="kart-izgara-3 ist-kartlar">' +
+        istKart('Yaralanma şiddeti (SGK)', 'Hafif/orta, ağır, uzuv kaybı ve ölüm sınıflarına göre dağılım; ölümlü kaza 6.000 iş günü kaybı sayılır.',
+          istCubuklar(sinifSatir, 'Şiddet sınıfı girilmiş kaza yok.')) +
+        istKart('Vardiya dağılımı', 'Kazaların bildirildiği vardiyaya göre dağılımı.', istCubuklar(vardiyaSatir, 'Vardiya bilgisi girilmiş kaza yok.')) +
+        istKart('Haftanın günü', 'Kaza tarihinin haftanın hangi gününe denk geldiğini gösterir; hafta sonu vurgulanır.', istCubuklar(gunSatir, 'Tarih bilgisi olan kaza yok.')) +
+      '</div>' +
+      '<section class="kart">' +
+        '<div class="kart-baslik"><div><h2>Aylık kaza oranları (SGK)</h2>' +
+          '<p>KSO = kaza sayısı / 1.000.000 çalışma saati, KAO = kayıp iş günü / 1.000.000 çalışma saati. ' +
+          'Çalışma saati, ay içinde aktif personel × ' + B.sayi(ISG.AYLIK_KISI_SAATI) + ' saat/ay varsayımıyla hesaplanır.</p></div>' +
+          '<div class="kart-arac"><span class="muted kucuk">' + B.sayi(toplamSaat) + ' saat · ' +
+            B.sayi(ortalamaKisi) + ' çalışan (ort.) · ' + B.sayi(sonYilKaza) + ' kaza</span></div></div>' +
+        '<div class="kart-ic">' + istTablo(
+          [{ ad: 'Ay' }, { ad: 'Kaza' }, { ad: 'Kayıp gün' }, { ad: 'İş saati' }, { ad: 'KSO' }, { ad: 'KAO' }],
+          oranSatir, 'Son 12 ayda kaza kaydı yok.') + '</div>' +
+      '</section>';
+
+
     var dosyaTamlik = dosyalar.length ? Math.round(((dosyalar.length - eksikBelge.length) / dosyalar.length) * 100) : 0;
     var kartlar = '';
 
-    kartlar =
+    kartlar = kazaKpi + kazaKartlari +
       '<div class="kart-izgara-3 ist-kartlar">' +
         istKart('İşyeri bazında personel', 'Kapsamdaki işyerlerinin çalışan dağılımı.', istCubuklar(personelSatir, 'Personel kaydı yok.')) +
         istKart('Eğitim geçerliliği', 'Aktif personelin temel İSG eğitimi durumu.', istCubuklar(egitimSatir, 'Aktif personel yok.')) +
@@ -548,14 +923,29 @@
       '</section>';
 
     return P.sayfaBaslik('İSTATİSTİK', 'İstatistikler',
-      'Personel, belge, saha ve risk verilerinin özet dağılımı.', '') +
+      'İş kazası ve meslek hastalığı oranları (KSO/KAO/KSH), kök neden, şiddet, vardiya ve tanı dağılımları; personel, belge, saha ve risk özetleri.',
+      '<button type="button" class="dugme ince" data-islem="kaza-yeni" data-tur="meslekHastaligi" data-isyeri="' + kacis(kapsam || '') + '">' + B.ikon('i-plus') + 'Meslek hastalığı bildir</button>' +
+      '<button type="button" class="dugme birincil" data-islem="kaza-yeni" data-tur="isKazasi" data-isyeri="' + kacis(kapsam || '') + '">' + B.ikon('i-plus') + 'Kaza bildir</button>') +
       P.kapsamSecici(hesap) +
       '<div class="kpi-izgara">' +
         istKutu('Aktif personel', B.sayi(aktifPersonel.length), isyerleri.length + ' işyeri kapsamında', 'i-users', 'bilgi') +
         istKutu('Açık saha tespiti', B.sayi(acikTespit.length), gecikenTespit.length + ' geciken', 'i-clipboard', acikTespit.length ? 'uyari' : 'soluk') +
         istKutu('Eksik / yok belge', B.sayi(eksikBelge.length), 'Belge tamlığı %' + dosyaTamlik, 'i-folder', eksikBelge.length ? 'tehlike' : 'soluk') +
         istKutu('Açık risk kaydı', B.sayi(acikRisk.length), tamamlananPlan.length + ' tamamlanan plan', 'i-risk', acikRisk.length ? 'uyari' : 'soluk') +
-      '</div>' + kartlar;
+      '</div>' +
+      '<section class="kart"><div class="kart-baslik"><div><h2>İş kazası / meslek hastalığı veri girişi</h2>' +
+        '<p>Yeni bildirimi buradan ekleyin; kayıt aşağıdaki listede ve Saha ve DÖF ekranında görünür.</p></div>' +
+        '<div class="kart-arac"><span class="muted kucuk">' + B.sayi(kazalar.length) + ' iş kazası · ' +
+          B.sayi(kayitlar.length - kazalar.length) + ' meslek hastalığı</span></div></div>' +
+        '<div class="kart-ic"><div class="satir-arac">' +
+          '<button type="button" class="dugme birincil" data-islem="kaza-yeni" data-tur="isKazasi" data-isyeri="' + kacis(kapsam || '') + '">' + B.ikon('i-plus') + 'İş kazası bildir</button>' +
+          '<button type="button" class="dugme" data-islem="kaza-yeni" data-tur="meslekHastaligi" data-isyeri="' + kacis(kapsam || '') + '">' + B.ikon('i-plus') + 'Meslek hastalığı bildir</button>' +
+        '</div></div>' +
+      '</section>' +
+      P.kazaTablosu(kayitlar.slice().sort(function (a, b) {
+        return String(b.tarih).localeCompare(String(a.tarih));
+      }), hesap) +
+      kartlar;
   };
 
   SAYFALAR.onaylar = function () {

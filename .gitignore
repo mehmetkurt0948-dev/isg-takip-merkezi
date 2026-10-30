@@ -7,3 +7,8 @@ _*.html
 
 # Yerel yayin paketi (npm run yayin ile uretilir)
 yayin/
+
+# Gecici teshis/QA ciktilari
+out-*.txt
+out-*.js
+out-*.html

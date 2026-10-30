@@ -815,6 +815,7 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 }
 .alan input[readonly] { background: #f6f8fa; color: var(--ink-soft); }
 .alan textarea { resize: vertical; min-height: 62px; }
+.alan .alan-ipucu { color: var(--ink-mute); font-size: 11px; }
 .form-izgara { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .form-izgara .genis { grid-column: 1 / -1; }
 .onay-alani { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
@@ -919,6 +920,35 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
+}
+
+/* ---------- Bulut eşitleme ---------- */
+.onay-alani[hidden] { display: none; }
+.diyalog-eylem .dugme[hidden] { display: none; }
+#bulutDiyalog .diyalog-eylem { flex-wrap: wrap; }
+#bulutDiyalog .diyalog-eylem .tehlike-dugme { margin-right: auto; }
+.bulut-not {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+.bulut-not summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+.bulut-not summary:hover { color: var(--ink); }
+.bulut-not .muted { margin: 8px 0; font-size: 11.5px; }
+.bulut-kod {
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 9px;
+  background: #0f1b28;
+  color: #d7e3ee;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre;
 }
 
 /* ---------- Bildirimler ---------- */
@@ -1147,6 +1177,7 @@ body.oturum-yok .kabuk { display: none; }
 
 /* İstatistikler */
 .ist-kartlar { margin-top: 16px; }
+.kpi-izgara.ist-kpi { margin-top: 12px; }
 .ist-cubuklar { display: grid; gap: 9px; }
 .ist-cubuk {
   display: grid;
@@ -1175,6 +1206,107 @@ body.oturum-yok .kabuk { display: none; }
 .ist-cubuk.bilgi .ist-cubuk-dolgu { background: var(--brand-2); }
 .ist-cubuk.iyi .ist-cubuk-dolgu { background: var(--green); }
 .ist-cubuk.notr .ist-cubuk-dolgu { background: var(--ink-mute); }
+
+/* Dikey sütun grafiği (aylık sıklık) */
+.ist-sutunlar {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(42px, 1fr);
+  align-items: end;
+  gap: 6px;
+  padding-top: 4px;
+  overflow-x: auto;
+}
+.ist-sutun {
+  display: grid;
+  grid-template-rows: auto 96px auto;
+  justify-items: center;
+  gap: 6px;
+  min-width: 42px;
+}
+.ist-sutun-deger { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+.ist-sutun-ray {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 34px;
+  height: 96px;
+  border-radius: 8px;
+  background: #f1f4f8;
+  overflow: hidden;
+}
+.ist-sutun-dolgu { display: block; width: 100%; border-radius: 8px; background: var(--brand); }
+.ist-sutun-ad { font-size: 10.5px; color: var(--ink-mute); white-space: nowrap; }
+.ist-sutun.tehlike .ist-sutun-dolgu { background: var(--red); }
+.ist-sutun.uyari .ist-sutun-dolgu { background: #d59417; }
+.ist-sutun.bilgi .ist-sutun-dolgu { background: var(--brand-2); }
+.ist-sutun.iyi .ist-sutun-dolgu { background: var(--green); }
+.ist-sutun.notr .ist-sutun-dolgu { background: var(--ink-mute); }
+
+/* Neden × vücut bölgesi ısı matrisi */
+.ist-matris-kap { overflow-x: auto; }
+.ist-matris { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ist-matris th, .ist-matris td { padding: 7px 9px; border-bottom: 1px solid var(--line); text-align: center; white-space: nowrap; }
+.ist-matris thead th {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--ink-mute);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line-strong);
+}
+.ist-matris tbody th { text-align: left; font-weight: 600; color: var(--ink-soft); white-space: normal; min-width: 160px; }
+.ist-matris td { font-variant-numeric: tabular-nums; }
+.ist-matris td.dolu { font-weight: 700; color: var(--ink); }
+.ist-matris td.dolu.koyu { color: #fff; }
+.ist-matris td.bos { color: var(--ink-mute); }
+.ist-matris .sag { text-align: right; }
+.ist-matris tbody tr:last-child th, .ist-matris tbody tr:last-child td { border-bottom: 0; }
+
+/* Aylık oran tablosu (KSO / KAO) */
+.ist-tablo { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ist-tablo th, .ist-tablo td { padding: 7px 9px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.ist-tablo thead th {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--ink-mute);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line-strong);
+}
+.ist-tablo thead th:first-child, .ist-tablo tbody th { text-align: left; }
+.ist-tablo tbody th { font-weight: 600; color: var(--ink-soft); }
+.ist-tablo td { font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.ist-tablo tbody tr:last-child th, .ist-tablo tbody tr:last-child td { border-bottom: 0; }
+
+/* Kişi bazlı sıralama listesi */
+.ist-liste { display: grid; gap: 8px; }
+.ist-liste-satir {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fbfcfe;
+}
+.ist-liste-ad { display: grid; gap: 2px; min-width: 0; }
+.ist-liste-ad b { font-size: 12.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ist-liste-ad .kucuk { font-size: 11px; color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ist-liste-deger { font-size: 12px; font-weight: 700; color: var(--red); white-space: nowrap; }
+
+/* İş kazası diyalogu — personel özeti */
+.kaza-kisi-ozet {
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: #f7f9fc;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .ek-kutu { display: grid; gap: 2px; }
 
 .kullanici-cikis {

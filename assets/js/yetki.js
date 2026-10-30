@@ -149,7 +149,7 @@
     var ayarlar = {};
     Object.keys((veri && veri.ayarlar) || {}).forEach(function (anahtar) { ayarlar[anahtar] = veri.ayarlar[anahtar]; });
     return {
-      surum: veri ? veri.surum : 3,
+      surum: veri ? veri.surum : 4,
       olusturma: veri ? veri.olusturma : '',
       ayarlar: ayarlar,
       isyerleri: [], personel: [], egitimler: [], riskler: [], olaylar: [],
@@ -230,7 +230,7 @@
     personelKaydet: 'Personel kaydı', personelSil: 'Personel kaydı silme', personelTemizle: 'Personel listesi temizliği',
     egitimKaydet: 'Eğitim kaydı', egitimSil: 'Eğitim kaydı silme',
     riskKaydet: 'Risk kaydı', riskSil: 'Risk kaydı silme',
-    olayKaydet: 'Olay bildirimi', olaySil: 'Olay kaydı silme',
+    olayKaydet: 'Olay / iş kazası bildirimi', olaySil: 'Olay kaydı silme',
     dosyaKaydet: 'Dosya kontrolü', dosyaSil: 'Dosya kaydı silme', dosyaDurumToplu: 'Toplu dosya durumu',
     belgeKaydet: 'Belge yükleme', belgeSil: 'Belge silme',
     planKaydet: 'Çalışma planı maddesi', planSil: 'Plan maddesi silme', planDurumDegistir: 'Plan durumu',

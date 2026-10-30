@@ -3,9 +3,9 @@
   'use strict';
 
   var ISG = global.ISG = global.ISG || {};
-  var ANAHTAR = 'isgtakip.v3';
-  var ESKI_ANAHTAR = 'isgtakip.v2';
-  var SURUM = 3;
+  var ANAHTAR = 'isgtakip.v4';
+  var ESKI_ANAHTARLAR = ['isgtakip.v3', 'isgtakip.v2'];
+  var SURUM = 4;
 
   /* ---------- Alan kuralları ---------- */
 
@@ -28,7 +28,201 @@
   ISG.OLAY_TURLERI = {
     ramakKala: { ad: 'Ramak kala', sinif: 'uyari' },
     isKazasi: { ad: 'İş kazası', sinif: 'tehlike' },
+    meslekHastaligi: { ad: 'Meslek hastalığı', sinif: 'tehlike' },
     cevresel: { ad: 'Çevresel olay', sinif: 'bilgi' }
+  };
+
+  /* İş kazası ve meslek hastalığı kayıtları aynı bildirim formunda ve aynı listede tutulur. */
+  ISG.kazaKaydi = function (olay) {
+    return !!olay && (olay.tur === 'isKazasi' || olay.tur === 'meslekHastaligi');
+  };
+
+  ISG.kazaKaydiAdi = function (olay) {
+    var tanim = ISG.OLAY_TURLERI[(olay && olay.tur) || ''];
+    return tanim ? tanim.ad : 'Kayıt';
+  };
+
+  /* İş kazası yaralanma sınıflandırması */
+  ISG.YARALANMA_BOLGELERI = [
+    { id: 'bas', ad: 'Baş / yüz' },
+    { id: 'goz', ad: 'Göz' },
+    { id: 'sirt', ad: 'Sırt / bel' },
+    { id: 'kol', ad: 'Kol / omuz' },
+    { id: 'el', ad: 'El / parmak' },
+    { id: 'bacak', ad: 'Bacak / diz' },
+    { id: 'ayak', ad: 'Ayak / bilek' },
+    { id: 'icOrgan', ad: 'İç organ / solunum' },
+    { id: 'cilt', ad: 'Cilt / genel' }
+  ];
+
+  ISG.YARALANMA_TURLERI = [
+    { id: 'ezilme', ad: 'Ezilme / sıkışma' },
+    { id: 'kesik', ad: 'Kesik / batma' },
+    { id: 'burkulma', ad: 'Burkulma / zorlanma' },
+    { id: 'kirik', ad: 'Kırık / çıkık' },
+    { id: 'yanik', ad: 'Yanık' },
+    { id: 'yabanciCisim', ad: 'Yabancı cisim' },
+    { id: 'kimyasal', ad: 'Kimyasal temas' },
+    { id: 'elektrik', ad: 'Elektrik çarpması' },
+    { id: 'diger', ad: 'Diğer' }
+  ];
+
+  /* Meslek hastalığı tanı türleri — bildirim formunda yaralanma türü alanının yerini alır. */
+  ISG.HASTALIK_TURLERI = [
+    { id: 'solunum', ad: 'Solunum yolu hastalığı' },
+    { id: 'cilt', ad: 'Deri hastalığı' },
+    { id: 'kasIskelet', ad: 'Kas-iskelet hastalığı' },
+    { id: 'isitme', ad: 'İşitme kaybı' },
+    { id: 'sinir', ad: 'Sinir sistemi hastalığı' },
+    { id: 'zehirlenme', ad: 'Zehirlenme / maruziyet' },
+    { id: 'diger', ad: 'Diğer' }
+  ];
+
+  /* SGK meslek hastalığı grupları — tanı sınıflandırması için kullanılır. */
+  ISG.MESLEK_HASTALIK_GRUPLARI = [
+    { id: 'a', ad: 'A · Kimyasal etkenler', sinif: 'tehlike' },
+    { id: 'b', ad: 'B · Fiziksel etkenler', sinif: 'uyari' },
+    { id: 'c', ad: 'C · Biyolojik etkenler', sinif: 'uyari' },
+    { id: 'd', ad: 'D · Tozlar (pnömokonyoz)', sinif: 'tehlike' },
+    { id: 'e', ad: 'E · Ergonomik / diğer', sinif: 'bilgi' }
+  ];
+
+  /* İş kazası kök neden sınıflandırması — istatistik kırılımı bu listeye dayanır.
+     Serbest metin kök neden açıklaması (`kokNeden`) ayrıca saklanır. */
+  ISG.KAZA_NEDENLERI = [
+    { id: 'kkd', ad: 'KKD kullanılmaması', sinif: 'tehlike' },
+    { id: 'makine', ad: 'Makine koruyucusu / kilitleme eksikliği', sinif: 'tehlike' },
+    { id: 'ekipman', ad: 'Arızalı veya uygun olmayan ekipman', sinif: 'uyari' },
+    { id: 'yontem', ad: 'Uygun olmayan çalışma yöntemi', sinif: 'uyari' },
+    { id: 'egitim', ad: 'Eğitim / bilgilendirme yetersizliği', sinif: 'bilgi' },
+    { id: 'dikkatsizlik', ad: 'Dikkatsizlik / hatalı davranış', sinif: 'uyari' },
+    { id: 'ortam', ad: 'Zemin ve ortam koşulları', sinif: 'bilgi' },
+    { id: 'kimyasal', ad: 'Kimyasal / malzeme teması', sinif: 'tehlike' },
+    { id: 'elektrik', ad: 'Elektrik ve enerji', sinif: 'tehlike' },
+    { id: 'trafik', ad: 'Araç ve trafik düzeni', sinif: 'bilgi' },
+    { id: 'diger', ad: 'Diğer / belirlenemedi', sinif: 'notr' }
+  ];
+
+  /* Kayıp gün aralıkları — kaza şiddeti dağılımı */
+  ISG.KAYIP_GUN_ARALIKLARI = [
+    { id: 'yok', ad: 'Kayıp yok', enAz: 0, enCok: 0, sinif: 'bilgi' },
+    { id: 'kisa', ad: '1–3 gün', enAz: 1, enCok: 3, sinif: 'uyari' },
+    { id: 'orta', ad: '4–7 gün', enAz: 4, enCok: 7, sinif: 'uyari' },
+    { id: 'uzun', ad: '8–14 gün', enAz: 8, enCok: 14, sinif: 'tehlike' },
+    { id: 'cokUzun', ad: '15 gün ve üzeri', enAz: 15, enCok: Infinity, sinif: 'tehlike' }
+  ];
+
+  ISG.kayipGunAraligi = function (gun) {
+    var deger = Math.max(0, Number(gun) || 0);
+    for (var i = 0; i < ISG.KAYIP_GUN_ARALIKLARI.length; i += 1) {
+      var aralik = ISG.KAYIP_GUN_ARALIKLARI[i];
+      if (deger >= aralik.enAz && deger <= aralik.enCok) { return aralik; }
+    }
+    return ISG.KAYIP_GUN_ARALIKLARI[ISG.KAYIP_GUN_ARALIKLARI.length - 1];
+  };
+
+  /* İş kazası şiddet sınıfı — SGK bildirim sınıflandırması.
+     Ölüm sınıfında kayıp iş günü sabit 6.000 gün alınır. */
+  ISG.KAZA_SIDDETLERI = [
+    { id: 'hafifOrta', ad: 'Hafif / orta', sinif: 'uyari' },
+    { id: 'agir', ad: 'Ağır', sinif: 'tehlike' },
+    { id: 'uzuvKaybi', ad: 'Uzuv kaybı', sinif: 'tehlike' },
+    { id: 'olum', ad: 'Ölüm', sinif: 'tehlike', kayipGunSabit: 6000 }
+  ];
+
+  ISG.VARDIYALAR = [
+    { id: '1', ad: '1. vardiya' },
+    { id: '2', ad: '2. vardiya' },
+    { id: '3', ad: '3. vardiya' },
+    { id: 'gunduz', ad: 'Gündüz / normal' }
+  ];
+
+  ISG.EVET_HAYIR = [
+    { id: 'evet', ad: 'Evet' },
+    { id: 'hayir', ad: 'Hayır' }
+  ];
+
+  /* Ölümle sonuçlanan kazada varsayılan kayıp iş günü. */
+  ISG.OLUM_KAYIP_GUN = 6000;
+
+  /* Kişi başına aylık çalışma saati varsayımı (45 saat/hafta ≈ 176 saat/ay).
+     Çalışılan saat ayrıca tutulmadığı için SGK oranları bu varsayıma dayanır. */
+  ISG.AYLIK_KISI_SAATI = 176;
+
+  ISG.siddetTanim = function (id) {
+    var liste = ISG.KAZA_SIDDETLERI || [];
+    for (var i = 0; i < liste.length; i += 1) {
+      if (liste[i].id === id) { return liste[i]; }
+    }
+    return null;
+  };
+
+  /* İki ISO tarih arasındaki gün sayısı (bitiş − başlangıç); tarih eksikse null. */
+  ISG.tarihFarki = function (baslangic, bitis) {
+    var bas = String(baslangic || '').slice(0, 10);
+    var bit = String(bitis || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(bas) || !/^\d{4}-\d{2}-\d{2}$/.test(bit)) { return null; }
+    var basTarih = Date.UTC(Number(bas.slice(0, 4)), Number(bas.slice(5, 7)) - 1, Number(bas.slice(8, 10)));
+    var bitTarih = Date.UTC(Number(bit.slice(0, 4)), Number(bit.slice(5, 7)) - 1, Number(bit.slice(8, 10)));
+    return Math.round((bitTarih - basTarih) / 86400000);
+  };
+
+  /* Kaza kaydının kayıp iş günü: ölüm > istirahat aralığı > elle girilen değer. */
+  ISG.kazaKayipGun = function (kaza) {
+    if (!kaza) { return 0; }
+    if (kaza.siddet === 'olum') { return ISG.OLUM_KAYIP_GUN; }
+    var fark = ISG.tarihFarki(kaza.istirahatBaslangic, kaza.istirahatBitis);
+    if (fark !== null) { return Math.max(0, fark + 1); }
+    return Math.max(0, Number(kaza.kayipGun) || 0);
+  };
+
+  /* Ayın sonuna kadar işe başlamış (pasif olmayan) personel sayısı; ay: 'YYYY-MM'. */
+  ISG.ayAktifPersonel = function (personel, ayAnahtari) {
+    var ay = String(ayAnahtari || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(ay)) { return 0; }
+    var aySonu = ay + '-31';
+    var sayi = 0;
+    (personel || []).forEach(function (kisi) {
+      if (!kisi || kisi.durum === 'pasif') { return; }
+      var bas = String(kisi.iseBaslama || '').slice(0, 10);
+      if (bas && bas > aySonu) { return; }
+      sayi += 1;
+    });
+    return sayi;
+  };
+
+  /* Kıdem aralıkları — yeni çalışanlarda kaza yoğunluğunu gösterir */
+  ISG.KIDEM_ARALIKLARI = [
+    { id: 'yeni', ad: '0–1 yıl', enAz: 0, enCok: 1, sinif: 'tehlike' },
+    { id: 'gelisim', ad: '1–3 yıl', enAz: 1, enCok: 3, sinif: 'uyari' },
+    { id: 'deneyimli', ad: '3–5 yıl', enAz: 3, enCok: 5, sinif: 'bilgi' },
+    { id: 'kidemli', ad: '5 yıl ve üzeri', enAz: 5, enCok: Infinity, sinif: 'iyi' }
+  ];
+
+  /* İşe başlama ile olay tarihi arasındaki tam yıl; tarih eksikse null. */
+  ISG.kidemYil = function (iseBaslama, tarih) {
+    var bas = String(iseBaslama || '').slice(0, 10);
+    var bit = String(tarih || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(bas) || !/^\d{4}-\d{2}-\d{2}$/.test(bit)) { return null; }
+    var yil = Number(bit.slice(0, 4)) - Number(bas.slice(0, 4));
+    if (bit.slice(5, 10) < bas.slice(5, 10)) { yil -= 1; }
+    return yil < 0 ? 0 : yil;
+  };
+
+  ISG.kidemAraligi = function (yil) {
+    if (yil === null || typeof yil === 'undefined') { return null; }
+    for (var i = 0; i < ISG.KIDEM_ARALIKLARI.length; i += 1) {
+      var aralik = ISG.KIDEM_ARALIKLARI[i];
+      if (yil >= aralik.enAz && yil < aralik.enCok) { return aralik; }
+    }
+    return ISG.KIDEM_ARALIKLARI[ISG.KIDEM_ARALIKLARI.length - 1];
+  };
+
+  /* { id, ad } listelerinden görünen ad üretir. */
+  ISG.listeAdi = function (liste, id, varsayilan) {
+    if (!id) { return varsayilan || 'Belirtilmedi'; }
+    var bulunan = (liste || []).filter(function (oge) { return oge.id === id; })[0];
+    return bulunan ? bulunan.ad : (varsayilan || 'Belirtilmedi');
   };
 
   ISG.RISK_DURUMLARI = { acik: 'Açık', izlemede: 'İzlemede', kapali: 'Kapatıldı' };
@@ -434,6 +628,33 @@
     veri.personel = Array.isArray(veri.personel) ? veri.personel : [];
     veri.ayarlar = veri.ayarlar || {};
 
+    /* v4: olay kayıtlarına iş kazası yaralanma ve kök neden sınıfı alanları eklendi. */
+    (veri.olaylar || []).forEach(function (olay) {
+      olay.kayipGun = Number(olay.kayipGun) || 0;
+      olay.vucutBolgesi = olay.vucutBolgesi || '';
+      olay.yaralanmaTuru = olay.yaralanmaTuru || '';
+      olay.saglikKurulusu = olay.saglikKurulusu || '';
+      olay.neden = olay.neden || '';
+
+      /* v5: şiddet sınıfı, vardiya, hastane sevk ve istirahat tarihleri. */
+      var siddet = ISG.siddetTanim(olay.siddet);
+      olay.siddet = siddet ? siddet.id : '';
+      olay.vardiya = olay.vardiya || '';
+      olay.hastaneSevk = olay.hastaneSevk === 'evet' || olay.hastaneSevk === 'hayir' ? olay.hastaneSevk : '';
+      olay.istirahatBaslangic = String(olay.istirahatBaslangic || '').slice(0, 10);
+      olay.istirahatBitis = String(olay.istirahatBitis || '').slice(0, 10);
+
+      /* v6: meslek hastalığı kayıtları için SGK hastalık grubu ve etken alanları. */
+      var hastalikGrubuGecerli = (ISG.MESLEK_HASTALIK_GRUPLARI || []).filter(function (grup) {
+        return grup.id === olay.hastalikGrubu;
+      }).length > 0;
+      olay.hastalikGrubu = olay.tur === 'meslekHastaligi' && hastalikGrubuGecerli ? olay.hastalikGrubu : '';
+      olay.etken = olay.tur === 'meslekHastaligi' ? (olay.etken || '') : '';
+
+      /* Ölüm ve istirahat aralığı kayıp günün kaynağıdır; elle girilen değer yalnızca yedektir. */
+      if (ISG.kazaKaydi(olay)) { olay.kayipGun = ISG.kazaKayipGun(olay); }
+    });
+
     (veri.davetler || []).forEach(function (davet) {
       if (!davet.kod) { davet.kod = davetKoduUret(); }
       if (davet.durum !== 'kabul') { davet.durum = davet.durum || 'bekliyor'; }
@@ -463,8 +684,10 @@
   var okunanVeri = oku(ANAHTAR);
   var tasindi = false;
   if (!okunanVeri) {
-    var eskiVeri = oku(ESKI_ANAHTAR);
-    if (eskiVeri) { okunanVeri = eskiVeri; tasindi = true; }
+    for (var geri = 0; geri < ESKI_ANAHTARLAR.length && !okunanVeri; geri += 1) {
+      var eskiVeri = oku(ESKI_ANAHTARLAR[geri]);
+      if (eskiVeri) { okunanVeri = eskiVeri; tasindi = true; }
+    }
   }
   if (okunanVeri) { depoDurumu.veri = veriTamamla(okunanVeri); }
   if (!depoDurumu.veri) { depoDurumu.veri = veriTamamla(ISG.ORNEK_VERI()); }

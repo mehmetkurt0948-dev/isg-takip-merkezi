@@ -14,7 +14,7 @@
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="assets/css/style.css?v=4">
+  <link rel="stylesheet" href="assets/css/style.css?v=11">
 </head>
 <body class="oturum-yok">
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -48,7 +48,8 @@
     <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 0 7.7 10h-2.1A6 6 0 1 1 12 6c1.7 0 3.2.7 4.2 1.8L13 11h8V3l-3.2 3.2A7.9 7.9 0 0 0 12 4Z"/></symbol>
     <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 3h14l-3 5 3 5H7v8H5V3Z"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 4 5v6.5c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5V5l-8-3Zm-1.2 13.6-3.2-3.2 1.4-1.4 1.8 1.8 4.2-4.2 1.4 1.4-5.6 5.6Z"/></symbol>
-    <symbol id="i-bos" viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6V2Zm8 1.5V8h4.5L14 3.5ZM8 12h8v2H8v-2Zm0 4h6v2H8v-2Z"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M6.5 19h11a4.5 4.5 0 0 0 .6-8.9A6 6 0 0 0 6.3 8.3 5.4 5.4 0 0 0 6.5 19Z"/></symbol>
+<symbol id="i-bos" viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6V2Zm8 1.5V8h4.5L14 3.5ZM8 12h8v2H8v-2Zm0 4h6v2H8v-2Z"/></symbol>
   </svg>
 
   <div class="giris-katman" id="girisKatman" hidden></div>
@@ -140,6 +141,9 @@
           <strong id="kirintiSayfa">Genel bakış</strong>
         </nav>
         <div class="ustbar-sag">
+          <button type="button" class="dugme ince" data-islem="bulut-ayar" title="Cihazlar arası ortak kayıt (bulut)">
+            <svg class="ikon" aria-hidden="true"><use href="#i-cloud"></use></svg><span class="gizle-kucuk">Bulut</span>
+          </button>
           <button type="button" class="dugme ince" data-islem="yedekle" title="JSON yedeği indir">
             <svg class="ikon" aria-hidden="true"><use href="#i-download"></use></svg><span class="gizle-kucuk">Yedekle</span>
           </button>
@@ -153,7 +157,7 @@
       <main class="gorunum" id="gorunum" tabindex="-1"></main>
 
       <footer class="altbilgi">
-        <span>İSG Takip Merkezi · veriler yalnızca bu cihazda saklanır</span>
+        <span>İSG Takip Merkezi · yerel kayıt, isteğe bağlı bulut eşitlemesi</span>
         <span class="altbilgi-eylem">
           <span class="kayit-durumu" id="kayitDurumu"><span></span>Yerel kayıt açık</span>
         </span>
@@ -540,6 +544,113 @@
   </dialog>
 
   <!-- RİSK EKİBİ -->
+  <!-- İŞ KAZASI BİLDİRİMİ -->
+  <dialog class="diyalog" id="kazaDiyalog" aria-labelledby="kazaBaslik">
+    <form method="dialog" id="kazaForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi" id="kazaUstYazi">İŞ KAZASI BİLDİRİMİ</p>
+      <h2 id="kazaBaslik">İş kazası bildir</h2>
+      <input type="hidden" name="id">
+      <div class="form-izgara">
+        <label class="alan genis">
+          <span>Kayıt türü *</span>
+          <select name="tur" id="kazaTur">
+            <option value="isKazasi">İş kazası</option>
+            <option value="meslekHastaligi">Meslek hastalığı</option>
+          </select>
+        </label>
+        <label class="alan">
+          <span id="kazaTarihEtiket">Kaza tarihi *</span>
+          <input type="date" name="tarih" required>
+        </label>
+        <label class="alan">
+          <span>İşyeri *</span>
+          <select name="isyeriId" id="kazaIsyeri" required></select>
+        </label>
+        <label class="alan">
+          <span id="kazaPersonelEtiket">Yaralanan personel</span>
+          <select name="personelId" id="kazaPersonel"></select>
+        </label>
+        <p class="kaza-kisi-ozet genis" id="kazaPersonelOzet" hidden></p>
+        <label class="alan">
+          <span id="kazaYerEtiket">Kazanın olduğu yer</span>
+          <input type="text" name="yer" maxlength="80" placeholder="Örn. Pres hattı 2">
+        </label>
+        <label class="alan">
+          <span id="kazaBolgeEtiket">Vücut bölgesi</span>
+          <select name="vucutBolgesi" id="kazaBolge"></select>
+        </label>
+        <label class="alan">
+          <span id="kazaYaralanmaEtiket">Yaralanma türü</span>
+          <select name="yaralanmaTuru" id="kazaYaralanma"></select>
+        </label>
+        <label class="alan">
+          <span id="kazaSiddetEtiket">Yaralanma şiddeti</span>
+          <select name="siddet" id="kazaSiddet"></select>
+        </label>
+        <label class="alan" id="kazaHastalikGrupAlan" hidden>
+          <span>SGK meslek hastalığı grubu</span>
+          <select name="hastalikGrubu" id="kazaHastalikGrup"></select>
+        </label>
+        <label class="alan" id="kazaEtkenAlan" hidden>
+          <span>Etken / maruziyet</span>
+          <input type="text" name="etken" maxlength="90" placeholder="Örn. Kristal silika tozu">
+        </label>
+        <label class="alan">
+          <span>Vardiya</span>
+          <select name="vardiya" id="kazaVardiya"></select>
+        </label>
+        <label class="alan">
+          <span id="kazaSevkEtiket">Hastane sevk</span>
+          <select name="hastaneSevk" id="kazaSevk"></select>
+        </label>
+        <label class="alan">
+          <span>İstirahat başlangıç</span>
+          <input type="date" name="istirahatBaslangic" id="kazaIstirahatBas">
+        </label>
+        <label class="alan">
+          <span>İstirahat bitiş</span>
+          <input type="date" name="istirahatBitis" id="kazaIstirahatBit">
+        </label>
+        <label class="alan">
+          <span>İş günü kaybı</span>
+          <input type="number" name="kayipGun" min="0" max="6000" step="1" value="0">
+          <small class="alan-ipucu">İstirahat tarihlerinden otomatik hesaplanır.</small>
+        </label>
+        <label class="alan">
+          <span>Sağlık kuruluşu</span>
+          <input type="text" name="saglikKurulusu" maxlength="90" placeholder="Örn. Aydın Devlet Hastanesi">
+        </label>
+        <label class="alan genis">
+          <span id="kazaAciklamaEtiket">Olay açıklaması *</span>
+          <textarea name="aciklama" rows="2" maxlength="240" required placeholder="Örn. Kalıp değişimi sırasında el üzerine kalıp kaydı."></textarea>
+        </label>
+        <label class="alan genis">
+          <span id="kazaNedenEtiket">Kök neden sınıfı</span>
+          <select name="neden" id="kazaNeden"></select>
+        </label>
+        <label class="alan genis">
+          <span>Kök neden açıklaması</span>
+          <textarea name="kokNeden" rows="2" maxlength="240" placeholder="Örn. Kalıp kilitleme pimi takılmamış."></textarea>
+        </label>
+        <label class="alan">
+          <span>Durum</span>
+          <select name="durum">
+            <option value="acik">Açık</option>
+            <option value="kapali">Kapatıldı</option>
+          </select>
+        </label>
+      </div>
+      <p class="form-uyari" id="kazaUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="diyalog" id="riskEkipDiyalog" aria-labelledby="riskEkipBaslik">
     <form method="dialog" id="riskEkipForm" novalidate>
       <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
@@ -697,6 +808,60 @@
     </form>
   </dialog>
 
+  <!-- BULUT EŞİTLEME -->
+  <dialog class="diyalog" id="bulutDiyalog" aria-labelledby="bulutBaslik">
+    <form method="dialog" id="bulutForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">BULUT</p>
+      <h2 id="bulutBaslik">Cihazlar arası ortak kayıt</h2>
+      <p class="muted">
+        Yerel kayıt her zaman açıktır. Aşağıdaki bilgileri girip bağlanırsanız aynı
+        kayıtlar tüm cihazlarda görünür; internet kesilse bile çalışmaya devam eder.
+      </p>
+      <div class="form-izgara">
+        <label class="alan genis">
+          <span>Supabase proje adresi</span>
+          <input type="url" name="url" id="bulutUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="alan genis">
+          <span>Anon (public) anahtar</span>
+          <input type="text" name="anahtar" id="bulutAnahtar" placeholder="eyJhbGciOi..." autocomplete="off" spellcheck="false">
+        </label>
+        <label class="alan">
+          <span>Oda kodu</span>
+          <input type="text" name="oda" id="bulutOda" placeholder="isg-merkez" maxlength="40" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="alan">
+          <span>Kontrol aralığı (saniye)</span>
+          <input type="number" name="aralik" id="bulutAralik" min="10" max="300" step="5" value="20">
+        </label>
+        <label class="alan onay-alani genis">
+          <input type="checkbox" name="otomatik" id="bulutOtomatik" value="1" checked>
+          <span>Değişiklikleri otomatik gönder ve yeni kayıtları kontrol et</span>
+        </label>
+        <label class="alan onay-alani genis">
+          <input type="checkbox" name="yukari" id="bulutYukari" value="1">
+          <span>Bağlanırken bu cihazdaki veriyi buluta yaz (ilk cihaz için işaretleyin)</span>
+        </label>
+      </div>
+      <p class="muted" id="bulutDurumSatir">Durum: yerel kayıt açık.</p>
+      <details class="bulut-not">
+        <summary>İlk kurulum: Supabase tablosu</summary>
+        <p class="muted">SQL editöründe bir kez çalıştırın, ardından proje adresi ve anon anahtarı yukarıya girin.</p>
+        <pre id="bulutSql" class="bulut-kod"></pre>
+      </details>
+      <p class="form-uyari" id="bulutUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme tehlike-dugme" id="bulutKes" hidden>Bağlantıyı kes</button>
+        <button type="button" class="dugme ikincil" id="bulutSimdi" hidden>Şimdi eşitle</button>
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil">Bağlan</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- ONAY -->
   <dialog class="diyalog kucuk" id="onayDiyalog" aria-labelledby="onayBaslik">
     <form method="dialog">
@@ -718,16 +883,17 @@
 
   <noscript><p class="noscript">Bu uygulama JavaScript gerektirir. Lütfen tarayıcınızda JavaScript'i etkinleştirin.</p></noscript>
 
-  <script src="assets/js/ornek-veri.js?v=4"></script>
-  <script src="assets/js/depo.js?v=4"></script>
-  <script src="assets/js/bicim.js?v=4"></script>
-  <script src="assets/js/yetki.js?v=4"></script>
-  <script src="assets/js/excel.js?v=4"></script>
-  <script src="assets/js/sayfalar.js?v=4"></script>
-  <script src="assets/js/sayfalar-kayit.js?v=4"></script>
-  <script src="assets/js/sayfalar-rapor.js?v=4"></script>
-  <script src="assets/js/giris.js?v=4"></script>
-  <script src="assets/js/uygulama.js?v=4"></script>
+  <script src="assets/js/ornek-veri.js?v=11"></script>
+  <script src="assets/js/depo.js?v=11"></script>
+  <script src="assets/js/bicim.js?v=11"></script>
+  <script src="assets/js/bulut.js?v=11"></script>
+  <script src="assets/js/yetki.js?v=11"></script>
+  <script src="assets/js/excel.js?v=11"></script>
+  <script src="assets/js/sayfalar.js?v=11"></script>
+  <script src="assets/js/sayfalar-kayit.js?v=11"></script>
+  <script src="assets/js/sayfalar-rapor.js?v=11"></script>
+  <script src="assets/js/giris.js?v=11"></script>
+  <script src="assets/js/uygulama.js?v=11"></script>
 </body>
 </html>
 

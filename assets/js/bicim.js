@@ -141,6 +141,15 @@
     return (Number(deger) || 0).toLocaleString('tr-TR');
   }
 
+  /* Sabit ondalıklı sayı biçimi; oran göstergeleri için. */
+  function ondalik(deger, basamak) {
+    var adet = typeof basamak === 'number' ? basamak : 1;
+    return (Number(deger) || 0).toLocaleString('tr-TR', {
+      minimumFractionDigits: adet,
+      maximumFractionDigits: adet
+    });
+  }
+
   function sayfalama(toplam, sayfa, boyut) {
     var sonSayfa = Math.max(1, Math.ceil(toplam / boyut));
     var aktif = Math.min(Math.max(1, sayfa), sonSayfa);
@@ -180,6 +189,7 @@
     bosDurum: bosDurum,
     secenekler: secenekler,
     sayi: sayi,
+    ondalik: ondalik,
     boyut: boyut,
     sayfalama: sayfalama
   };

@@ -1,8 +1,8 @@
 {
   "name": "isg-takip-merkezi",
-  "version": "2.2.0",
+  "version": "2.8.1",
   "private": true,
-  "description": "İSG Takip Merkezi — giriş/roller, işyeri bazlı personel, dosya kontrolü, çalışma planı, risk değerlendirmesi, saha DÖF, acil durum takibi ve istatistikler için statik uygulama.",
+  "description": "İSG Takip Merkezi — giriş/roller, işyeri bazlı personel, dosya kontrolü, çalışma planı, risk değerlendirmesi, saha DÖF, acil durum takibi, iş kazası kayıtları ve kaza istatistikleri için statik uygulama.",
   "scripts": {
     "test": "node tools/kontrol.js && node tools/belge-test.js",
     "test:kontrol": "node tools/kontrol.js",

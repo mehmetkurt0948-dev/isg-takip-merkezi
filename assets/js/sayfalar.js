@@ -335,12 +335,72 @@
       (bloklar || bosKart('Personel yok', 'Yeni personel ekleyerek listeyi oluşturun.', 'i-users'));
   };
 
+  /* İş kazası ve meslek hastalığı kayıt listesi: Saha ve DÖF ile İstatistikler sayfasında ortak kullanılır. */
+  function kazaTablosu(kayitlar, hesap) {
+    var liste = kayitlar || [];
+    var kazaSayi = liste.filter(function (kayit) { return kayit.tur !== 'meslekHastaligi'; }).length;
+    var hastalikSayi = liste.length - kazaSayi;
+    var satirlar = liste.map(function (kaza) {
+      var kisi = (hesap.personel || []).filter(function (p) { return p.id === kaza.personelId; })[0];
+      var hastalik = kaza.tur === 'meslekHastaligi';
+      var tur = ISG.OLAY_TURLERI[kaza.tur] || ISG.OLAY_TURLERI.isKazasi;
+      var bolge = ISG.listeAdi(ISG.YARALANMA_BOLGELERI, kaza.vucutBolgesi, 'Belirtilmedi');
+      var tanim = ISG.listeAdi(hastalik ? ISG.HASTALIK_TURLERI : ISG.YARALANMA_TURLERI,
+        kaza.yaralanmaTuru, 'Belirtilmedi');
+      var grup = hastalik ? ISG.listeAdi(ISG.MESLEK_HASTALIK_GRUPLARI, kaza.hastalikGrubu, '') : '';
+      var neden = ISG.listeAdi(ISG.KAZA_NEDENLERI, kaza.neden, '');
+      var siddet = ISG.siddetTanim(kaza.siddet);
+      var kayip = ISG.kazaKayipGun(kaza);
+      var kisiAlt = [];
+      if (kisi && kisi.sicil) { kisiAlt.push('Sicil ' + kisi.sicil); }
+      if (kisi && kisi.departman) { kisiAlt.push(kisi.departman); }
+      kisiAlt.push(isyeriAdi(kaza.isyeriId));
+      return '<tr class="kaza-satir" data-tur="' + kacis(kaza.tur || 'isKazasi') + '">' +
+        '<td>' + B.tarih(kaza.tarih) + '<span class="hucre-alt">' + kacis(kaza.yer || '—') + '</span></td>' +
+        '<td>' + kacis(kisi ? kisi.adSoyad : '—') + '<span class="hucre-alt">' + kacis(kisiAlt.join(' · ')) + '</span></td>' +
+        '<td>' + B.rozet(tur.ad, tur.sinif) +
+          '<span class="hucre-alt">' + kacis(bolge) + ' · ' + kacis(tanim) + '</span>' +
+          (grup ? '<span class="hucre-alt">' + kacis(grup) + '</span>' : '') +
+          (hastalik && kaza.etken ? '<span class="hucre-alt">Etken: ' + kacis(kaza.etken) + '</span>' : '') +
+          (siddet ? '<span class="hucre-alt">' + B.rozet(siddet.ad, siddet.sinif) + '</span>' : '') + '</td>' +
+        '<td>' + (kayip ? B.sayi(kayip) + ' gün' : '—') + (kaza.saglikKurulusu ? '<span class="hucre-alt">' + kacis(kaza.saglikKurulusu) + '</span>' : '') + '</td>' +
+        '<td>' + kacis(kaza.aciklama) +
+          (neden ? '<span class="hucre-alt">Neden: ' + kacis(neden) + '</span>' : '') +
+          (kaza.kokNeden ? '<span class="hucre-alt">Kök neden: ' + kacis(kaza.kokNeden) + '</span>' : '') + '</td>' +
+        '<td>' + B.rozet(kaza.durum === 'kapali' ? 'Kapatıldı' : 'Açık', kaza.durum === 'kapali' ? 'iyi' : 'tehlike') + '</td>' +
+        '<td class="sag"><div class="dosya-eylem">' +
+          '<button type="button" data-islem="kaza-duzenle" data-id="' + kacis(kaza.id) + '">Düzenle</button>' +
+          '<button type="button" data-islem="olay-kapat" data-id="' + kacis(kaza.id) + '">' + (kaza.durum === 'kapali' ? 'Yeniden aç' : 'Kapat') + '</button>' +
+          '<button type="button" class="sil" data-islem="olay-sil" data-id="' + kacis(kaza.id) + '">Sil</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join('');
+
+    var toplamGun = liste.reduce(function (toplam, kaza) { return toplam + ISG.kazaKayipGun(kaza); }, 0);
+
+    return '<section class="kart"><div class="kart-baslik"><div><h2>İş kazası ve meslek hastalığı kayıtları</h2>' +
+      '<p>Kaza ve meslek hastalığı bildirimleri aynı listede; personel, tanı ve iş günü kaybı birlikte izlenir.</p></div>' +
+      '<div class="kart-arac">' +
+        '<button type="button" class="dugme ince" data-islem="kaza-csv">' + B.ikon('i-download') + 'Liste indir</button>' +
+        '<button type="button" class="dugme birincil kucuk" data-islem="kaza-yeni" data-tur="isKazasi" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-plus') + 'Kaza bildir</button>' +
+        '<button type="button" class="dugme ince" data-islem="kaza-yeni" data-tur="meslekHastaligi" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-plus') + 'Meslek hastalığı bildir</button>' +
+      '</div></div>' +
+      '<div class="kart-ic"><div class="filtre-ozet"><span>' + B.sayi(kazaSayi) + ' iş kazası · ' +
+        B.sayi(hastalikSayi) + ' meslek hastalığı · ' + B.sayi(toplamGun) + ' iş günü kaybı</span></div></div>' +
+      '<div class="tablo-kap"><table class="tablo-kucuk">' +
+        '<thead><tr><th>Tarih / yer</th><th>Personel / işyeri</th><th>Kayıt / tanı</th><th>Kayıp gün</th><th>Açıklama / kök neden</th><th>Durum</th><th class="sag">İşlem</th></tr></thead>' +
+        '<tbody>' + (satirlar || '<tr><td colspan="7">' + B.bosDurum('İş kazası veya meslek hastalığı kaydı yok', 'Bildirim yapıldığında personel, tanı ve iş günü kaybı burada listelenir.', 'i-risk') + '</td></tr>') + '</tbody>' +
+      '</table></div>' +
+    '</section>';
+  }
+
   ISG.parcalar = {
     sayfaBaslik: sayfaBaslik,
     kapsamSecici: kapsamSecici,
     kpi: kpi,
     bosKart: bosKart,
-    secili: secili
+    secili: secili,
+    kazaTablosu: kazaTablosu
   };
 })(window);
 

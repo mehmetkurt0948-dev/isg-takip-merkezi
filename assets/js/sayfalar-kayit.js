@@ -344,6 +344,9 @@
     var ozet = ISG.tespitOzeti(tumu);
     var liste = tespitListesi(hesap);
     var olaylar = ISG.kapsamda(hesap, UI.kapsam, 'olaylar');
+    var kazalar = olaylar.filter(ISG.kazaKaydi)
+      .sort(function (a, b) { return String(b.tarih).localeCompare(String(a.tarih)); });
+    var digerOlaylar = olaylar.filter(function (olay) { return !ISG.kazaKaydi(olay); });
 
     return P.sayfaBaslik('SAHA VE DÖF', 'Saha ve DÖF', 'İşyeri bazında kayıt ve durum takibi',
       '<button type="button" class="dugme birincil" data-islem="tespit-yeni" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-plus') + 'Tespit ekle</button>') +
@@ -394,7 +397,8 @@
               '<button type="button" class="dugme birincil" data-islem="tespit-yeni" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-plus') + 'Tespit ekle</button>' +
             '</div></div>') +
       '</section>' +
-      sahaOlayKarti(olaylar, hesap);
+      sahaOlayKarti(digerOlaylar, hesap) +
+      P.kazaTablosu(kazalar, hesap);
   };
 })(window);
 

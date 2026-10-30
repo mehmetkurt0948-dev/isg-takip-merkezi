@@ -167,6 +167,21 @@
     }
   }
 
+  /* Alt çubuktaki kayıt durumu: yerel depolama + bulut eşitleme özeti. */
+  function kayitDurumuCiz() {
+    var durum = el('kayitDurumu');
+    if (!durum) { return; }
+    var bilgi = bulutVarMi() ? ISG.bulut.ozet() : null;
+    var kalici = D.kaliciMi();
+    var metin = kalici ? ((bilgi && bilgi.metin) || 'Yerel kayıt açık') : 'Kayıt yapılamıyor (gizli mod)';
+    var ayrinti = !kalici
+      ? 'Tarayıcı yerel depolamaya izin vermiyor; sayfayı normal pencerede açın.'
+      : ((bilgi && bilgi.ayrinti) || 'Veriler bu cihazda saklanır.');
+    durum.classList.toggle('hata', !kalici || !!(bilgi && bilgi.hata));
+    durum.title = ayrinti;
+    durum.innerHTML = '<span></span>' + B.kacis(metin);
+  }
+
   function rozetleriGuncelle() {
     var hesap = veri();
     var dosyaOzet = ISG.dosyaOzeti(hesap.dosyalar || []);
@@ -196,11 +211,7 @@
 
     onayRozeti();
 
-    var durum = el('kayitDurumu');
-    if (durum) {
-      durum.classList.toggle('hata', !D.kaliciMi());
-      durum.innerHTML = '<span></span>' + (D.kaliciMi() ? 'Yerel kayıt açık' : 'Kayıt yapılamıyor (gizli mod)');
-    }
+    kayitDurumuCiz();
   }
 
   function ciz(sessiz) {
@@ -702,6 +713,235 @@
     diyalogAc(el('tespitDiyalog'), form.elements.tespit);
   }
 
+  /* ---------- İş kazası bildirimi ---------- */
+
+  function kazaSecenekDoldur(selectId, liste, secili, bosEtiket) {
+    var select = el(selectId);
+    if (!select) { return; }
+    var html = '<option value="">' + B.kacis(bosEtiket) + '</option>';
+    (liste || []).forEach(function (oge) {
+      html += '<option value="' + B.kacis(oge.id) + '"' + (oge.id === secili ? ' selected' : '') + '>' + B.kacis(oge.ad) + '</option>';
+    });
+    select.innerHTML = html;
+  }
+
+  function kazaPersonelDoldur(isyeriId, secili) {
+    var hesap = veri();
+    var liste = (hesap.personel || []).filter(function (kisi) { return !isyeriId || kisi.isyeriId === isyeriId; })
+      .map(function (kisi) {
+        var etiket = kisi.adSoyad;
+        if (kisi.sicil) { etiket += ' · Sicil ' + kisi.sicil; }
+        if (kisi.meslek) { etiket += ' · ' + kisi.meslek; }
+        return { id: kisi.id, ad: etiket };
+      });
+    kazaSecenekDoldur('kazaPersonel', liste, secili, 'Personel seçilmedi');
+  }
+
+  /* Seçilen personelin sicil/departman/kıdem bilgisini personel listesinden özetler. */
+  function kazaPersonelOzet(kisiId) {
+    var kutu = el('kazaPersonelOzet');
+    if (!kutu) { return; }
+    var hesap = veri();
+    var kisi = (hesap.personel || []).filter(function (p) { return p.id === kisiId; })[0];
+    if (!kisi) {
+      kutu.hidden = true;
+      kutu.textContent = '';
+      return;
+    }
+    var parcalar = [];
+    if (kisi.sicil) { parcalar.push('Sicil ' + kisi.sicil); }
+    if (kisi.departman) { parcalar.push(kisi.departman); }
+    if (kisi.meslek) { parcalar.push(kisi.meslek); }
+    if (kisi.sube) { parcalar.push(kisi.sube); }
+    if (kisi.iseBaslama) { parcalar.push('İşe başlama ' + B.tarih(kisi.iseBaslama)); }
+    kutu.textContent = kisi.adSoyad + (parcalar.length ? ' · ' + parcalar.join(' · ') : '');
+    kutu.hidden = false;
+  }
+
+  /* Kayıt türüne göre form başlığını, alan etiketlerini ve türe özel alanları uyarlar. */
+  function kazaTurUygula(form) {
+    if (!form || !form.elements.tur) { return; }
+    var hastalik = form.elements.tur.value === 'meslekHastaligi';
+    var duzenleme = !!form.elements.id.value;
+    var etiketler = hastalik ? {
+      ust: 'MESLEK HASTALIĞI BİLDİRİMİ',
+      baslik: duzenleme ? 'Meslek hastalığı kaydını düzenle' : 'Meslek hastalığı bildir',
+      tarih: 'Tanı tarihi *',
+      personel: 'Hastalanan personel',
+      yer: 'Maruziyet yeri',
+      bolge: 'Etkilenen vücut bölgesi',
+      yaralanma: 'Tanı türü',
+      siddet: 'Hastalık şiddeti',
+      sevk: 'Sağlık kuruluşuna sevk',
+      aciklama: 'Tanı açıklaması *',
+      neden: 'Maruziyet nedeni'
+    } : {
+      ust: 'İŞ KAZASI BİLDİRİMİ',
+      baslik: duzenleme ? 'İş kazası kaydını düzenle' : 'İş kazası bildir',
+      tarih: 'Kaza tarihi *',
+      personel: 'Yaralanan personel',
+      yer: 'Kazanın olduğu yer',
+      bolge: 'Vücut bölgesi',
+      yaralanma: 'Yaralanma türü',
+      siddet: 'Yaralanma şiddeti',
+      sevk: 'Hastane sevk',
+      aciklama: 'Olay açıklaması *',
+      neden: 'Kök neden sınıfı'
+    };
+
+    var etiketAlanlari = {
+      kazaUstYazi: 'ust', kazaBaslik: 'baslik', kazaTarihEtiket: 'tarih', kazaPersonelEtiket: 'personel',
+      kazaYerEtiket: 'yer', kazaBolgeEtiket: 'bolge', kazaYaralanmaEtiket: 'yaralanma', kazaSiddetEtiket: 'siddet',
+      kazaSevkEtiket: 'sevk', kazaAciklamaEtiket: 'aciklama', kazaNedenEtiket: 'neden'
+    };
+    Object.keys(etiketAlanlari).forEach(function (id) {
+      var dugum = el(id);
+      if (dugum) { dugum.textContent = etiketler[etiketAlanlari[id]]; }
+    });
+
+    ['kazaHastalikGrupAlan', 'kazaEtkenAlan'].forEach(function (id) {
+      var alan = el(id);
+      if (alan) { alan.hidden = !hastalik; }
+    });
+    if (!hastalik) {
+      if (form.elements.hastalikGrubu) { form.elements.hastalikGrubu.value = ''; }
+      if (form.elements.etken) { form.elements.etken.value = ''; }
+    }
+
+    var yaralanma = el('kazaYaralanma');
+    if (yaralanma) {
+      var secili = yaralanma.value;
+      kazaSecenekDoldur('kazaYaralanma', hastalik ? ISG.HASTALIK_TURLERI : ISG.YARALANMA_TURLERI, secili, 'Belirtilmedi');
+    }
+  }
+
+  function kazaAc(id, isyeriId, tur) {
+    var form = el('kazaForm');
+    if (!form) { return; }
+    var hesap = veri();
+    var kayit = id ? (hesap.olaylar || []).filter(function (o) { return o.id === id; })[0] : null;
+    var seciliIsyeri = kayit ? kayit.isyeriId : (isyeriId || UI.kapsam || (hesap.isyerleri[0] || {}).id || '');
+    var kayitTuru = kayit ? (kayit.tur === 'meslekHastaligi' ? 'meslekHastaligi' : 'isKazasi')
+      : (tur === 'meslekHastaligi' ? 'meslekHastaligi' : 'isKazasi');
+    form.reset();
+    uyariGoster('kazaUyari', '');
+    form.elements.id.value = kayit ? kayit.id : '';
+    form.elements.tur.value = kayitTuru;
+    el('kazaIsyeri').innerHTML = isyeriSecenekleri(seciliIsyeri);
+    kazaSecenekDoldur('kazaBolge', ISG.YARALANMA_BOLGELERI, kayit ? kayit.vucutBolgesi : '', 'Belirtilmedi');
+    kazaSecenekDoldur('kazaNeden', ISG.KAZA_NEDENLERI, kayit ? kayit.neden : '', 'Belirtilmedi');
+    kazaSecenekDoldur('kazaSiddet', ISG.KAZA_SIDDETLERI, kayit ? kayit.siddet : '', 'Belirtilmedi');
+    kazaSecenekDoldur('kazaVardiya', ISG.VARDIYALAR, kayit ? kayit.vardiya : '', 'Belirtilmedi');
+    kazaSecenekDoldur('kazaSevk', ISG.EVET_HAYIR, kayit ? kayit.hastaneSevk : '', 'Belirtilmedi');
+    kazaSecenekDoldur('kazaHastalikGrup', ISG.MESLEK_HASTALIK_GRUPLARI, kayit ? kayit.hastalikGrubu : '', 'Belirtilmedi');
+    kazaPersonelDoldur(seciliIsyeri, kayit ? kayit.personelId : '');
+    kazaPersonelOzet(kayit ? kayit.personelId : '');
+    kazaTurUygula(form);
+    form.elements.yaralanmaTuru.value = kayit ? (kayit.yaralanmaTuru || '') : '';
+    if (kayit) {
+      form.elements.etken.value = kayit.etken || '';
+      form.elements.tarih.value = kayit.tarih || '';
+      form.elements.yer.value = kayit.yer || '';
+      form.elements.aciklama.value = kayit.aciklama || '';
+      form.elements.kokNeden.value = kayit.kokNeden || '';
+      form.elements.istirahatBaslangic.value = kayit.istirahatBaslangic || '';
+      form.elements.istirahatBitis.value = kayit.istirahatBitis || '';
+      form.elements.kayipGun.value = ISG.kazaKayipGun(kayit);
+      form.elements.saglikKurulusu.value = kayit.saglikKurulusu || '';
+      form.elements.durum.value = kayit.durum === 'kapali' ? 'kapali' : 'acik';
+    } else {
+      form.elements.tarih.value = B.bugunIso();
+      form.elements.kayipGun.value = 0;
+      form.elements.durum.value = 'acik';
+    }
+    diyalogAc(el('kazaDiyalog'), form.elements.tarih);
+  }
+
+  /* Şiddet sınıfı ve istirahat tarihlerine göre kayıp iş günü alanını tazeler. */
+  function kazaKayipGunTazele(form) {
+    if (!form || !form.elements.kayipGun) { return; }
+    form.elements.kayipGun.value = ISG.kazaKayipGun({
+      siddet: form.elements.siddet ? form.elements.siddet.value : '',
+      istirahatBaslangic: form.elements.istirahatBaslangic ? form.elements.istirahatBaslangic.value : '',
+      istirahatBitis: form.elements.istirahatBitis ? form.elements.istirahatBitis.value : '',
+      kayipGun: form.elements.kayipGun.value
+    });
+  }
+
+  function kazaFormuBagla() {
+    var isyeriSecim = el('kazaIsyeri');
+    if (isyeriSecim) {
+      isyeriSecim.addEventListener('change', function () {
+        kazaPersonelDoldur(this.value, '');
+        kazaPersonelOzet('');
+      });
+    }
+    var kisiSecim = el('kazaPersonel');
+    if (kisiSecim) {
+      kisiSecim.addEventListener('change', function () { kazaPersonelOzet(this.value); });
+    }
+    var kazaForm = el('kazaForm');
+    if (kazaForm) {
+      ['siddet', 'istirahatBaslangic', 'istirahatBitis'].forEach(function (alan) {
+        if (!kazaForm.elements[alan]) { return; }
+        kazaForm.elements[alan].addEventListener('change', function () { kazaKayipGunTazele(kazaForm); });
+      });
+      if (kazaForm.elements.tur) {
+        kazaForm.elements.tur.addEventListener('change', function () { kazaTurUygula(kazaForm); });
+      }
+    }
+    formuBagla('kazaForm', function (form) {
+      var veriForm = formVerisi(form);
+      var tur = veriForm.tur === 'meslekHastaligi' ? 'meslekHastaligi' : 'isKazasi';
+      var hastalik = tur === 'meslekHastaligi';
+      if (!veriForm.tarih) {
+        uyariGoster('kazaUyari', (hastalik ? 'Tanı tarihi' : 'Kaza tarihi') + ' zorunlu.');
+        return;
+      }
+      if (!veriForm.isyeriId) { uyariGoster('kazaUyari', 'İşyeri seçilmeli.'); return; }
+      if (!veriForm.aciklama) {
+        uyariGoster('kazaUyari', hastalik ? 'Tanı açıklaması zorunlu.' : 'Olay açıklaması zorunlu.');
+        return;
+      }
+      if (veriForm.istirahatBaslangic && veriForm.istirahatBitis &&
+        veriForm.istirahatBitis < veriForm.istirahatBaslangic) {
+        uyariGoster('kazaUyari', 'İstirahat bitiş tarihi başlangıçtan önce olamaz.');
+        return;
+      }
+      D.olayKaydet({
+        id: veriForm.id || '',
+        isyeriId: veriForm.isyeriId,
+        tur: tur,
+        tarih: veriForm.tarih,
+        yer: veriForm.yer || '',
+        personelId: veriForm.personelId || '',
+        aciklama: veriForm.aciklama,
+        neden: veriForm.neden || '',
+        kokNeden: veriForm.kokNeden || '',
+        vucutBolgesi: veriForm.vucutBolgesi || '',
+        yaralanmaTuru: veriForm.yaralanmaTuru || '',
+        siddet: veriForm.siddet || '',
+        vardiya: veriForm.vardiya || '',
+        hastaneSevk: veriForm.hastaneSevk || '',
+        istirahatBaslangic: veriForm.istirahatBaslangic || '',
+        istirahatBitis: veriForm.istirahatBitis || '',
+        kayipGun: ISG.kazaKayipGun({
+          siddet: veriForm.siddet || '',
+          istirahatBaslangic: veriForm.istirahatBaslangic || '',
+          istirahatBitis: veriForm.istirahatBitis || '',
+          kayipGun: veriForm.kayipGun
+        }),
+        saglikKurulusu: veriForm.saglikKurulusu || '',
+        hastalikGrubu: hastalik ? (veriForm.hastalikGrubu || '') : '',
+        etken: hastalik ? (veriForm.etken || '') : '',
+        durum: veriForm.durum === 'kapali' ? 'kapali' : 'acik'
+      });
+      diyalogKapat(el('kazaDiyalog'));
+      B.bildir(ISG.kazaKaydiAdi({ tur: tur }) + ' kaydedildi.', 'basari');
+      ciz();
+    });
+  }
+
   /* ---------- Risk ekibi / acil durum ---------- */
 
   function riskEkipAc(isyeriId) {
@@ -915,6 +1155,36 @@
           tespit.tur, tespit.termin, ISG.tespitDurumu(tespit).ad, tespit.dogrulama || '', tespit.not || ''];
       }));
     B.bildir('Saha tespitleri indirildi.', 'basari');
+  }
+
+  function csvKaza() {
+    var hesap = veri();
+    var liste = ISG.kapsamda(hesap, UI.kapsam, 'olaylar')
+      .filter(ISG.kazaKaydi)
+      .sort(function (a, b) { return String(b.tarih).localeCompare(String(a.tarih)); });
+    B.csv(tarihliAd('kaza-meslek-hastaligi'),
+      ['Kayıt türü', 'İşyeri', 'Tarih', 'Personel', 'Sicil', 'Departman', 'Kıdem (yıl)', 'Yer', 'Vücut bölgesi',
+        'Tanı / yaralanma türü', 'SGK hastalık grubu', 'Etken / maruziyet', 'Şiddet', 'Vardiya', 'Sağlık kuruluşuna sevk',
+        'İstirahat başlangıç', 'İstirahat bitiş', 'İş günü kaybı', 'Sağlık kuruluşu', 'Kök neden sınıfı',
+        'Kök neden açıklaması', 'Açıklama', 'Durum'],
+      liste.map(function (kaza) {
+        var kisi = (hesap.personel || []).filter(function (p) { return p.id === kaza.personelId; })[0];
+        var kidem = kisi ? ISG.kidemYil(kisi.iseBaslama, kaza.tarih) : null;
+        var hastalik = kaza.tur === 'meslekHastaligi';
+        return [ISG.kazaKaydiAdi(kaza), ISG.isyeriAdi(hesap, kaza.isyeriId), kaza.tarih,
+          kisi ? kisi.adSoyad : '', kisi ? kisi.sicil : '',
+          kisi ? kisi.departman || '' : '', kidem === null ? '' : kidem,
+          kaza.yer || '', ISG.listeAdi(ISG.YARALANMA_BOLGELERI, kaza.vucutBolgesi),
+          ISG.listeAdi(hastalik ? ISG.HASTALIK_TURLERI : ISG.YARALANMA_TURLERI, kaza.yaralanmaTuru),
+          hastalik ? ISG.listeAdi(ISG.MESLEK_HASTALIK_GRUPLARI, kaza.hastalikGrubu) : '',
+          hastalik ? (kaza.etken || '') : '',
+          ISG.listeAdi(ISG.KAZA_SIDDETLERI, kaza.siddet), ISG.listeAdi(ISG.VARDIYALAR, kaza.vardiya),
+          kaza.hastaneSevk === 'evet' ? 'Evet' : (kaza.hastaneSevk === 'hayir' ? 'Hayır' : ''),
+          kaza.istirahatBaslangic || '', kaza.istirahatBitis || '', ISG.kazaKayipGun(kaza),
+          kaza.saglikKurulusu || '', ISG.listeAdi(ISG.KAZA_NEDENLERI, kaza.neden),
+          kaza.kokNeden || '', kaza.aciklama, kaza.durum === 'kapali' ? 'Kapatıldı' : 'Açık'];
+      }));
+    B.bildir('Kaza ve meslek hastalığı listesi indirildi.', 'basari');
   }
 
   function csvRisk() {
@@ -1153,6 +1423,9 @@
       case 'yenile':
         ciz();
         B.bildir('Görünüm yenilendi.', 'basari');
+        break;
+      case 'bulut-ayar':
+        bulutAc();
         break;
 
       /* Oturum */
@@ -1427,22 +1700,42 @@
         UI.sahaDurum = dugme.getAttribute('data-filtre') || '';
         ciz();
         break;
+      case 'kaza-yeni':
+        kazaAc('', isyeriId || UI.kapsam, dugme.getAttribute('data-tur') || 'isKazasi');
+        break;
+      case 'kaza-duzenle':
+        kazaAc(id);
+        break;
+      case 'kaza-csv':
+        csvKaza();
+        break;
       case 'olay-kapat': {
         var olay = veri().olaylar.filter(function (o) { return o.id === id; })[0];
         if (!olay) { return; }
+        var kazaKaydi = ISG.kazaKaydi(olay);
+        var kayitAdi = ISG.kazaKaydiAdi(olay);
         olay.durum = olay.durum === 'kapali' ? 'acik' : 'kapali';
         D.olayKaydet(olay);
-        B.bildir('Olay durumu güncellendi.', 'basari');
+        B.bildir(kazaKaydi
+          ? (olay.durum === 'kapali' ? kayitAdi + ' kaydı kapatıldı.' : kayitAdi + ' kaydı yeniden açıldı.')
+          : 'Olay durumu güncellendi.', 'basari');
         ciz();
         break;
       }
-      case 'olay-sil':
-        onayIste('Olay bildirimi silinsin mi?', 'Bildirim kaydı silinecek.', function () {
-          D.olaySil(id);
-          B.bildir('Olay bildirimi silindi.', 'basari');
-          ciz();
-        });
+      case 'olay-sil': {
+        var silinecek = veri().olaylar.filter(function (o) { return o.id === id; })[0];
+        var kazaMi = ISG.kazaKaydi(silinecek);
+        var silinenAd = ISG.kazaKaydiAdi(silinecek);
+        var detay = silinecek && silinecek.tur === 'meslekHastaligi'
+          ? 'Kayıt ve tanı bilgileri silinecek.' : 'Kaza kaydı ve yaralanma bilgileri silinecek.';
+        onayIste(kazaMi ? silinenAd + ' kaydı silinsin mi?' : 'Olay bildirimi silinsin mi?',
+          kazaMi ? detay : 'Bildirim kaydı silinecek.', function () {
+            D.olaySil(id);
+            B.bildir(kazaMi ? silinenAd + ' kaydı silindi.' : 'Olay bildirimi silindi.', 'basari');
+            ciz();
+          });
         break;
+      }
 
       /* Rapor / risk / acil */
       case 'rapor-csv':
@@ -1514,6 +1807,186 @@
     D.davetKaydet({ eposta: eposta.value.trim(), rol: rol ? rol.value : 'Görüntüleyici', isyerleri: yetkiler });
     B.bildir('Davet oluşturuldu. Davet kodunu kullanıcıya iletin.', 'basari');
     ciz();
+  }
+
+  /* ---------- Bulut eşitleme arayüzü ---------- */
+
+  function bulutVarMi() {
+    return !!(ISG.bulut && typeof ISG.bulut.ozet === 'function');
+  }
+
+  function bulutAlanlari() {
+    return {
+      url: el('bulutUrl'),
+      anahtar: el('bulutAnahtar'),
+      oda: el('bulutOda'),
+      aralik: el('bulutAralik'),
+      otomatik: el('bulutOtomatik'),
+      yukari: el('bulutYukari'),
+      uyari: el('bulutUyari'),
+      durum: el('bulutDurumSatir'),
+      sql: el('bulutSql'),
+      kes: el('bulutKes'),
+      simdi: el('bulutSimdi'),
+      form: el('bulutForm')
+    };
+  }
+
+  function bulutDurumYaz(bilgi) {
+    var a = bulutAlanlari();
+    var acik = bulutVarMi() && ISG.bulut.hazirMi();
+    if (a.sql && !a.sql.textContent && bulutVarMi()) {
+      a.sql.textContent = ISG.bulut.sqlMetni();
+    }
+    if (a.durum) {
+      a.durum.textContent = 'Durum: ' + ((bilgi && bilgi.metin) || 'yerel kayıt açık') +
+        (bilgi && bilgi.ayrinti ? ' · ' + bilgi.ayrinti : '');
+    }
+    if (a.kes) { a.kes.hidden = !acik; }
+    if (a.simdi) { a.simdi.hidden = !acik; }
+    var yukariSatiri = a.yukari && a.yukari.parentNode;
+    if (yukariSatiri) { yukariSatiri.hidden = acik; }
+    if (a.form) {
+      var gonder = a.form.querySelector('button[type="submit"]');
+      if (gonder) { gonder.textContent = acik ? 'Ayarları kaydet' : 'Bağlan'; }
+    }
+  }
+
+  function bulutAc() {
+    var a = bulutAlanlari();
+    if (!bulutVarMi()) {
+      B.bildir('Bulut modülü yüklenemedi; sayfayı yenileyin.', 'hata');
+      return;
+    }
+    var ayar = ISG.bulut.ayar();
+    if (a.uyari) { a.uyari.hidden = true; a.uyari.textContent = ''; }
+    if (a.url) { a.url.value = (ayar && ayar.url) || ''; }
+    if (a.anahtar) { a.anahtar.value = (ayar && ayar.anahtar) || ''; }
+    if (a.oda) { a.oda.value = (ayar && ayar.oda) || ''; }
+    if (a.aralik) { a.aralik.value = String((ayar && ayar.aralik) || 20); }
+    if (a.otomatik) { a.otomatik.checked = !ayar || ayar.otomatik !== false; }
+    if (a.yukari) { a.yukari.checked = false; }
+    bulutDurumYaz(ISG.bulut.ozet());
+    diyalogAc(el('bulutDiyalog'), a.url);
+  }
+
+  function bulutDugmeleriKapali(kapali) {
+    var diyalog = el('bulutDiyalog');
+    if (!diyalog) { return; }
+    Array.prototype.forEach.call(diyalog.querySelectorAll('.diyalog-eylem button'), function (dugme) {
+      dugme.disabled = !!kapali;
+    });
+  }
+
+  function bulutGirdisi(form) {
+    var a = bulutAlanlari();
+    return {
+      url: String((form.elements.url && form.elements.url.value) || ''),
+      anahtar: String((form.elements.anahtar && form.elements.anahtar.value) || ''),
+      oda: String((form.elements.oda && form.elements.oda.value) || ''),
+      aralik: String((form.elements.aralik && form.elements.aralik.value) || ''),
+      otomatik: !!(a.otomatik && a.otomatik.checked)
+    };
+  }
+
+  function bulutDogrula(girdi) {
+    if (!/^https?:\/\/[^\s/]+\.[^\s/]+/i.test(girdi.url.trim())) {
+      return 'Proje adresi https://xxxx.supabase.co biçiminde olmalı.';
+    }
+    if (girdi.anahtar.trim().length < 20) {
+      return 'Anon anahtar eksik ya da çok kısa görünüyor; Supabase panelinden kopyalayın.';
+    }
+    if (!/[a-z0-9]/i.test(girdi.oda.replace(/[^a-z0-9]+/gi, ''))) {
+      return 'Oda kodu en az bir harf ya da rakam içermeli (örn. isg-merkez).';
+    }
+    return '';
+  }
+
+  /* yukari = true: bu cihazdaki veri buluta yazılır, false: buluttaki veri indirilir. */
+  function bulutBaglanIslemi(form, yukari) {
+    if (!bulutVarMi()) {
+      B.bildir('Bulut modülü yüklenemedi; sayfayı yenileyin.', 'hata');
+      return;
+    }
+    var girdi = bulutGirdisi(form);
+    var hata = bulutDogrula(girdi);
+    if (hata) { uyariGoster('bulutUyari', hata); return; }
+
+    var a = bulutAlanlari();
+    if (a.uyari) { a.uyari.hidden = true; a.uyari.textContent = ''; }
+    if (a.durum) { a.durum.textContent = 'Durum: buluta bağlanıyor…'; }
+    bulutDugmeleriKapali(true);
+
+    ISG.bulut.baglan(girdi, !!yukari).then(function () {
+      bulutDugmeleriKapali(false);
+      var bilgi = ISG.bulut.ozet();
+      bulutDurumYaz(bilgi);
+      kayitDurumuCiz();
+      if (bilgi.asama === 'hata') {
+        uyariGoster('bulutUyari', bilgi.ayrinti || 'Bulut bağlantısı kurulamadı.');
+        return;
+      }
+      diyalogKapat(el('bulutDiyalog'));
+      B.bildir(yukari
+        ? 'Bulut bağlandı; bu cihazdaki kayıtlar gönderildi.'
+        : 'Bulut bağlandı; ortak kayıtlar bu cihaza indirildi.', 'basari');
+      ciz();
+    });
+  }
+
+  function bulutSimdiIslemi() {
+    if (!bulutVarMi() || !ISG.bulut.hazirMi()) { return; }
+    var a = bulutAlanlari();
+    if (a.uyari) { a.uyari.hidden = true; a.uyari.textContent = ''; }
+    if (a.durum) { a.durum.textContent = 'Durum: eşitleniyor…'; }
+    bulutDugmeleriKapali(true);
+    ISG.bulut.senkronla(true).then(function () {
+      bulutDugmeleriKapali(false);
+      var bilgi = ISG.bulut.ozet();
+      bulutDurumYaz(bilgi);
+      kayitDurumuCiz();
+      if (bilgi.asama === 'hata') {
+        uyariGoster('bulutUyari', bilgi.ayrinti || 'Eşitleme tamamlanamadı.');
+        return;
+      }
+      ciz();
+    });
+  }
+
+  function bulutKesIslemi() {
+    onayIste('Bulut bağlantısı kesilsin mi?',
+      'Bu cihaz buluta yazmayı bırakır. Yerel kayıtlar silinmez, veriler bu cihazda kalır.',
+      function () {
+        if (bulutVarMi()) { ISG.bulut.kapat(); }
+        bulutDurumYaz(bulutVarMi() ? ISG.bulut.ozet() : null);
+        diyalogKapat(el('bulutDiyalog'));
+        kayitDurumuCiz();
+        B.bildir('Bulut bağlantısı kesildi; yerel kayıt sürüyor.', 'basari');
+        ciz();
+      }, 'Bağlantıyı kes');
+  }
+
+  function bulutBagla() {
+    var sql = el('bulutSql');
+    if (sql && bulutVarMi()) { sql.textContent = ISG.bulut.sqlMetni(); }
+
+    formuBagla('bulutForm', function (form) {
+      var a = bulutAlanlari();
+      bulutBaglanIslemi(form, !!(a.yukari && a.yukari.checked));
+    });
+    var simdi = el('bulutSimdi');
+    if (simdi) { simdi.addEventListener('click', bulutSimdiIslemi); }
+    var kes = el('bulutKes');
+    if (kes) { kes.addEventListener('click', bulutKesIslemi); }
+
+    if (!bulutVarMi()) { return; }
+
+    ISG.bulut.abone(function () {
+      kayitDurumuCiz();
+      bulutDurumYaz(ISG.bulut.ozet());
+    });
+    ISG.bulut.baslat();
+    kayitDurumuCiz();
   }
 
   /* ---------- Formlar ---------- */
@@ -1654,6 +2127,8 @@
       B.bildir('Plan faaliyeti kaydedildi.', 'basari');
       ciz();
     });
+
+    kazaFormuBagla();
 
     formuBagla('tespitForm', function (form) {
       var veriForm = formVerisi(form);
@@ -1868,6 +2343,7 @@
     formlariBagla();
     filtreBagla();
     dosyaGirdileriBagla();
+    bulutBagla();
 
     document.addEventListener('click', tiklamaIslemi);
 
@@ -1886,7 +2362,7 @@
 
     global.addEventListener('hashchange', function () { ciz(); });
     global.addEventListener('storage', function (olay) {
-      if (olay.key === 'isgtakip.v3' || olay.key === 'isgtakip.oturum') { global.location.reload(); }
+      if (olay.key === 'isgtakip.v4' || olay.key === 'isgtakip.v3' || olay.key === 'isgtakip.oturum') { global.location.reload(); }
     });
 
     document.addEventListener('keydown', function (olay) {
