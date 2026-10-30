@@ -23,7 +23,10 @@ const onbellek = new Map();
 
 function icerikOzeti(dosyaYolu) {
   if (onbellek.has(dosyaYolu)) { return onbellek.get(dosyaYolu); }
-  const ozet = crypto.createHash('sha1').update(fs.readFileSync(dosyaYolu)).digest('hex').slice(0, OZET_UZUNLUK);
+  // Satır sonları LF'e normalize edilir: Windows (CRLF) ve Linux/macOS (LF)
+  // çalışma kopyaları aynı damgayı üretir; GitHub Pages de LF servis eder.
+  const metin = fs.readFileSync(dosyaYolu, 'utf8').replace(/\r\n/g, '\n');
+  const ozet = crypto.createHash('sha1').update(Buffer.from(metin, 'utf8')).digest('hex').slice(0, OZET_UZUNLUK);
   onbellek.set(dosyaYolu, ozet);
   return ozet;
 }

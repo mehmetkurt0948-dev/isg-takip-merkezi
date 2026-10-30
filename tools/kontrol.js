@@ -873,7 +873,9 @@ function bekle(ms) {
   kontrol('index.html tüm JS/CSS referanslarında ?v= damgası var', dmgasiz.length === 0,
     dmgasiz.map((m) => m[1]).join(', '));
 
-  const ozet = (goreli) => crypto.createHash('sha1').update(fs.readFileSync(path.join(pubKok, goreli))).digest('hex').slice(0, 8);
+  const ozet = (goreli) => crypto.createHash('sha1')
+    .update(Buffer.from(fs.readFileSync(path.join(pubKok, goreli), 'utf8').replace(/\r\n/g, '\n'), 'utf8'))
+    .digest('hex').slice(0, 8);
   const eskiDamgalar = varlikReferanslari.filter((m) => {
     const damga = /(?:^|&)v=([^&]*)/.exec(m[2] || '');
     return !damga || damga[1] !== ozet(m[1]);

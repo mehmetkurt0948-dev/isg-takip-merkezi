@@ -36,7 +36,8 @@ function yayinAdresi() {
 }
 
 function yerelOzet(dosyaYolu) {
-  return crypto.createHash('sha1').update(fs.readFileSync(dosyaYolu)).digest('hex').slice(0, 8);
+  const metin = fs.readFileSync(dosyaYolu, 'utf8').replace(/\r\n/g, '\n');
+  return crypto.createHash('sha1').update(Buffer.from(metin, 'utf8')).digest('hex').slice(0, 8);
 }
 
 function varliklar(sayfa) {
@@ -88,7 +89,9 @@ async function tekDeneme(adres) {
     } else {
       try {
         const canliIcerik = await indir(adres + varlik.yol + '?v=' + canliDamga + '&dogrulama=' + Date.now());
-        const canliOzet = crypto.createHash('sha1').update(canliIcerik).digest('hex').slice(0, 8);
+        const canliOzet = crypto.createHash('sha1')
+          .update(Buffer.from(canliIcerik.toString('utf8').replace(/\r\n/g, '\n'), 'utf8'))
+          .digest('hex').slice(0, 8);
         if (canliOzet === varlik.ozet) {
           durum = 'içerik aynı';
         } else {

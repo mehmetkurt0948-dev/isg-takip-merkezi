@@ -364,7 +364,10 @@ Bu projede “JS'i değiştirdim ama `?v=` numarasını artırmayı unuttum” v
 Eskiden `?v=10` → `?v=11` elle yazılıyordu; unutulunca tarayıcı eski dosyayı
 önbellekten veriyordu (2.8.1'de yaşanan sorun buydu). Artık damga **içerik
 özetidir**: `assets/js/uygulama.js` değişirse damga kendiliğinden değişir,
-değişmezse aynı kalır. Kimsenin numara takip etmesi gerekmez.
+değişmezse aynı kalır. Kimsenin numara takip etmesi gerekmez. Özet hesaplanırken
+satır sonları LF'e normalize edilir; böylece Windows (CRLF) ve Linux/macOS (LF)
+çalışma kopyaları aynı damgayı üretir ve GitHub Pages'teki içerikle birebir
+eşleşir.
 
 ```powershell
 npm run surum             # damgaları eşitle (değişiklik yoksa hiçbir şey yazmaz)
