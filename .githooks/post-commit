@@ -24,7 +24,7 @@ if ! git remote get-url origin >/dev/null 2>&1; then
 fi
 
 echo "post-commit: origin/$dal dalına gönderiliyor..."
-if git push --porcelain origin "HEAD:refs/heads/$dal" >/dev/null 2>&1; then
+if git push origin "HEAD:refs/heads/$dal"; then
   echo "post-commit: push tamam (origin/$dal)."
   echo "post-commit: canlı sürümü doğrulamak için  npm run yayin:dogrula"
 else
