@@ -1,0 +1,3 @@
+# Git kancaları her platformda LF satır sonuyla çalışsın (CRLF sh'yi bozar)
+.githooks/* text eol=lf
+.gitattributes text eol=lf

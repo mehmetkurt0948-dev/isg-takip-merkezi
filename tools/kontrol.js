@@ -5,6 +5,7 @@
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const crypto = require('crypto');
 const { JSDOM, VirtualConsole } = require('jsdom');
 
 const kok = path.resolve(__dirname, '..');
@@ -863,6 +864,50 @@ function bekle(ms) {
     const icerik = fs.readFileSync(path.join(pubKok, d), 'utf8');
     return !/(?:src|href)="https?:\/\/(?!mevzuat\.gov\.tr)/.test(icerik);
   }));
+
+  // --- Sürüm damgası, git kancaları ve yayın doğrulama altyapısı (2.9.0) ---
+  const sayfaHtml = fs.readFileSync(path.join(pubKok, 'index.html'), 'utf8');
+  const varlikReferanslari = Array.from(sayfaHtml.matchAll(/(?:src|href)="([^"]+\.(?:js|css))(?:\?([^"]*))?"/g))
+    .filter((m) => !/^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(m[1]) && !m[1].startsWith('/'));
+  const dmgasiz = varlikReferanslari.filter((m) => !/(?:^|&)v=/.test(m[2] || ''));
+  kontrol('index.html tüm JS/CSS referanslarında ?v= damgası var', dmgasiz.length === 0,
+    dmgasiz.map((m) => m[1]).join(', '));
+
+  const ozet = (goreli) => crypto.createHash('sha1').update(fs.readFileSync(path.join(pubKok, goreli))).digest('hex').slice(0, 8);
+  const eskiDamgalar = varlikReferanslari.filter((m) => {
+    const damga = /(?:^|&)v=([^&]*)/.exec(m[2] || '');
+    return !damga || damga[1] !== ozet(m[1]);
+  });
+  kontrol('?v= damgaları dosya içeriğiyle uyumlu', eskiDamgalar.length === 0,
+    eskiDamgalar.map((m) => m[1]).join(', '));
+
+  const kancalar = ['pre-commit', 'pre-push', 'post-commit'];
+  kontrol('Git kancaları kurulu dosyalar var', kancalar.every((k) => varMi('.githooks/' + k)),
+    kancalar.filter((k) => !varMi('.githooks/' + k)).join(', '));
+  kontrol('Git kancaları LF satır sonu kullanır', kancalar.every((k) =>
+    !fs.readFileSync(path.join(pubKok, '.githooks', k)).includes(13)));
+  kontrol('pre-commit damgayı eşitler', /node tools\/varlik-surum\.js/.test(
+    fs.readFileSync(path.join(pubKok, '.githooks/pre-commit'), 'utf8')));
+  kontrol('pre-push testleri zorunlu kılar', /npm test/.test(
+    fs.readFileSync(path.join(pubKok, '.githooks/pre-push'), 'utf8')));
+  kontrol('post-commit otomatik push yapar', /git push/.test(
+    fs.readFileSync(path.join(pubKok, '.githooks/post-commit'), 'utf8')));
+
+  const paketJson = JSON.parse(fs.readFileSync(path.join(kok, 'package.json'), 'utf8'));
+  const beklenenBetikler = ['surum', 'surum:denetle', 'hooks', 'yayin:dogrula', 'prepare'];
+  kontrol('package.json otomasyon betiklerini tanımlar',
+    beklenenBetikler.every((b) => paketJson.scripts && paketJson.scripts[b]),
+    beklenenBetikler.filter((b) => !(paketJson.scripts && paketJson.scripts[b])).join(', '));
+  kontrol('prepare betiği kancaları kurar', /hooks-kur\.js/.test(String((paketJson.scripts || {}).prepare || '')));
+  kontrol('package.json yayın adresi tanımlı', /^https:\/\//.test(String(paketJson.homepage || '')));
+
+  const isAkisi = fs.readFileSync(path.join(kok, '.github/workflows/kontrol.yml'), 'utf8');
+  kontrol('CI iş akışı damga ve test denetimi yapar',
+    /varlik-surum\.js --denetle/.test(isAkisi) && /npm test/.test(isAkisi));
+  kontrol('CI iş akışı canlı yayını doğrular', /yayin-dogrula\.js --bekle/.test(isAkisi));
+
+  kontrol('.gitattributes kanca satır sonlarını sabitler', /\.githooks\/\*\s+text\s+eol=lf/.test(
+    fs.readFileSync(path.join(pubKok, '.gitattributes'), 'utf8')));
 
   console.log('\n20) Roller, kapsam ve onay kuyruğu');
   const cikisYap = async () => {

@@ -1,0 +1,39 @@
+#!/bin/sh
+# İSG Takip Merkezi — commit öncesi otomatik bakım
+#   1) index.html / 404.html içindeki ?v= damgalarını içerik özetiyle eşitler
+#   2) değişen JS dosyalarında sözdizimi denetimi yapar
+#   3) çakışma işareti (<<<<<<<) kalmış mı bakar
+# Kurulum: npm install  (veya npm run hooks) → core.hooksPath = .githooks
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# 1) Varlık sürüm damgaları
+node tools/varlik-surum.js || {
+  echo "pre-commit: varlık sürümü güncellenemedi, commit durduruldu." >&2
+  exit 1
+}
+
+for sayfa in index.html 404.html; do
+  if [ -f "$sayfa" ] && ! git diff --quiet -- "$sayfa"; then
+    git add -- "$sayfa"
+    echo "pre-commit: $sayfa içindeki ?v= damgaları güncellendi ve commit'e eklendi."
+  fi
+done
+
+# 2) Sözdizimi denetimi (yalnızca bu commit'te değişen JS dosyaları)
+for dosya in $(git diff --cached --name-only --diff-filter=ACMR -- '*.js'); do
+  node --check "$dosya" || {
+    echo "pre-commit: sözdizimi hatası — $dosya" >&2
+    exit 1
+  }
+done
+
+# 3) Çakışma işareti denetimi
+for dosya in $(git diff --cached --name-only --diff-filter=ACMR); do
+  if grep -qE '^(<<<<<<< |>>>>>>> )' "$dosya" 2>/dev/null; then
+    echo "pre-commit: çözülmemiş çakışma var — $dosya" >&2
+    exit 1
+  fi
+done
+
+exit 0

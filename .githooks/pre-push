@@ -1,0 +1,26 @@
+#!/bin/sh
+# İSG Takip Merkezi — push öncesi kapı
+#   * ?v= damgaları içerikle uyumlu mu (kanca atlanmış olsa bile yakalar)
+#   * testler yeşil mi (jsdom duman testi + belge testi)
+# Atlatmak için: ISG_TEST_ATLA=1 git push
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+if [ "$ISG_TEST_ATLA" = "1" ]; then
+  echo "pre-push: testler atlandı (ISG_TEST_ATLA=1)."
+  exit 0
+fi
+
+node tools/varlik-surum.js --denetle || {
+  echo "pre-push: varlık damgaları eski. 'npm run surum' çalıştırıp commit'leyin." >&2
+  exit 1
+}
+
+echo "pre-push: testler çalışıyor (npm test)..."
+npm test >/dev/null 2>&1 || {
+  echo "pre-push: testler başarısız, push durduruldu. Ayrıntı: npm test" >&2
+  exit 1
+}
+
+echo "pre-push: testler yeşil, push'a izin verildi."
+exit 0

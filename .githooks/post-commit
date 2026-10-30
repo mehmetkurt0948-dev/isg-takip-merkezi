@@ -1,0 +1,34 @@
+#!/bin/sh
+# İSG Takip Merkezi — commit sonrası otomatik yayın
+# Commit yerelde kaldığı sürece kullanıcı eski sürümü görür; bu kanca commit'i
+# hemen origin'e gönderir. pre-push kancası testleri çalıştırır; testler kırmızıysa
+# push olmaz ve commit yerelde kalır (uyarı basılır).
+# Kapatmak için: ISG_OTOMATIK_PUSH=0 git commit ...
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+if [ "$ISG_OTOMATIK_PUSH" = "0" ]; then
+  echo "post-commit: otomatik push kapalı (ISG_OTOMATIK_PUSH=0)."
+  exit 0
+fi
+
+dal=$(git rev-parse --abbrev-ref HEAD)
+if [ "$dal" = "HEAD" ]; then
+  echo "post-commit: ayrık HEAD, otomatik push atlandı."
+  exit 0
+fi
+
+if ! git remote get-url origin >/dev/null 2>&1; then
+  echo "post-commit: 'origin' uzak deposu yok, otomatik push atlandı."
+  exit 0
+fi
+
+echo "post-commit: origin/$dal dalına gönderiliyor..."
+if git push --porcelain origin "HEAD:refs/heads/$dal" >/dev/null 2>&1; then
+  echo "post-commit: push tamam (origin/$dal)."
+  echo "post-commit: canlı sürümü doğrulamak için  npm run yayin:dogrula"
+else
+  echo "post-commit: UYARI — push başarısız (ağ/kimlik/test). Elle deneyin: git push origin $dal" >&2
+fi
+
+exit 0

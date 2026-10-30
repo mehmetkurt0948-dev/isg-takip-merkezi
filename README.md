@@ -198,7 +198,7 @@ isg-takip-merkezi/
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (347 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (360 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (25 kontrol)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
@@ -301,7 +301,7 @@ Test:
 
 ```powershell
 npm install
-npm test                     # 347 kontrol + belge testi, başarısızda çıkış kodu 1
+npm test                     # 360 kontrol + belge testi, başarısızda çıkış kodu 1
 npm run test:belge           # yalnızca belge eki testi (25 kontrol)
 ```
 
@@ -347,6 +347,74 @@ yayin/
 sürüm denetimine alınmaz (`.gitignore`). Bu klasörü olduğu gibi herhangi bir
 statik sunucuya (GitHub Pages, Netlify, kurum içi IIS/nginx) yükleyebilirsiniz.
 
+## 6.2. Sürüm damgası, kancalar ve canlı doğrulama (otomatik)
+
+Bu projede “JS'i değiştirdim ama `?v=` numarasını artırmayı unuttum” ve
+“commit ettim ama push etmedim” hataları **elle iş yapmaya bırakılmaz**.
+Üç katmanlı otomatik altyapı vardır:
+
+| Katman | Dosya | Ne yapar |
+|---|---|---|
+| Sürüm damgası | `tools/varlik-surum.js` | Her JS/CSS dosyasının SHA-1 özetinin ilk 8 karakterini `?v=` olarak yazar |
+| Git kancaları | `.githooks/pre-commit`, `pre-push`, `post-commit` | Commit'te damgayı eşitler, push'ta test ister, commit'i otomatik gönderir |
+| CI | `.github/workflows/kontrol.yml` | Damga uyuşmazlığında/test kırıldığında derlemeyi düşürür, yayını doğrular |
+
+### 6.2.1. Damga neden artık sayı değil?
+
+Eskiden `?v=10` → `?v=11` elle yazılıyordu; unutulunca tarayıcı eski dosyayı
+önbellekten veriyordu (2.8.1'de yaşanan sorun buydu). Artık damga **içerik
+özetidir**: `assets/js/uygulama.js` değişirse damga kendiliğinden değişir,
+değişmezse aynı kalır. Kimsenin numara takip etmesi gerekmez.
+
+```powershell
+npm run surum             # damgaları eşitle (değişiklik yoksa hiçbir şey yazmaz)
+npm run surum:denetle     # yalnızca denetle; eski damga varsa çıkış kodu 1
+```
+
+### 6.2.2. Kancaları kurma
+
+`npm install` çalıştıran herkes kancaları **otomatik** alır (`prepare` betiği
+`tools/hooks-kur.js`'i çağırır ve `git config core.hooksPath .githooks` yazar).
+Bağımlılık kurmadan klonlayan biri için:
+
+```powershell
+npm run hooks
+```
+
+Kurulan kancalar:
+
+- **pre-commit** — `?v=` damgalarını eşitler, değişen JS dosyalarında
+  `node --check` ile sözdizimi denetler, çakışma işareti (`<<<<<<<`) arar.
+  Damga güncellemesi commit'e kendiliğinden eklenir.
+- **pre-push** — `npm test` yeşil değilse push'u **durdurur**; ayrıca damgaları
+  yeniden denetler (kancayı atlayan biri olsa bile yakalanır).
+- **post-commit** — commit'i `origin/<dal>` dalına **otomatik push eder**.
+  Yani “yerelde kaldı, kullanıcı eski sürümü görüyor” durumu oluşamaz.
+
+Atlatma/kapatma (bilinçli istisnalar):
+
+```powershell
+$env:ISG_OTOMATIK_PUSH=0; git commit -m "..."   # yalnızca bu commit'te push yok
+$env:ISG_TEST_ATLA=1; git push                  # testleri atla (önerilmez)
+git config --unset core.hooksPath               # kancaları tamamen devre dışı bırak
+```
+
+Not: GitHub Pages'e **elle** (tarayıcıdan, Yol B) yüklenen sürümlerde kanca
+devrede olmaz; bu durumda commit öncesi `npm run surum` çalıştırın.
+
+### 6.2.3. Yayının gerçekten kullanıcıya ulaştığını doğrulama
+
+```powershell
+npm run yayin:dogrula                      # tek deneme
+npm run yayin:dogrula -- --bekle 300       # 5 dakika, 15 sn'de bir dene
+```
+
+Betik (`tools/yayin-dogrula.js`) canlı `index.html`'i ve bütün JS/CSS
+dosyalarını indirir, **içerik özetini yerelle karşılaştırır**. Uyuşmazlık
+varsa çıkış kodu 1'dir; panoda “yayınladım” demekle yetinilmez. Aynı betik
+`.github/workflows/kontrol.yml` içinde her `main` push'undan sonra çalışır ve
+Pages yeni sürümü servis etmezse derlemeyi kırmızıya çevirir.
+
 ## 7. Yayınlama (GitHub Pages)
 
 Uygulama tamamen statiktir: sunucu tarafı, derleme adımı, veritabanı veya API
@@ -384,6 +452,12 @@ git branch -M main
 git remote add origin https://github.com/<kullanici>/isg-takip-merkezi.git
 git push -u origin main
 ```
+Sonraki tüm değişikliklerde yalnızca `git add` + `git commit` yeterlidir:
+`pre-commit` kancası `?v=` damgalarını içerikle eşitler, `post-commit` kancası
+commit'i `origin/main` dalına gönderir, `pre-push` kancası testleri çalıştırır
+(bkz. §6.2). Elle `git push` ve elle numara artırma gerekmez.
+
+
 
 `.gitignore` sayesinde `node_modules/`, `tools/` dışındaki geçici dosyalar ve
 `yayin/` depoya girmez. Yalnızca ürün dosyalarını göndermek isterseniz:
@@ -425,6 +499,7 @@ Kontrol listesi (yayından sonra):
 | Konsol | Kırmızı hata / 404 yok (F12 → Console, Network) |
 | Veri | Personel ekleyip sayfayı yenileyin: kayıt kalıcı (`localStorage`) |
 | 404 | Var olmayan bir adres (`.../isg-takip-merkezi/yok`) 404 sayfasını gösterir |
+| Canlı sürüm | `npm run yayin:dogrula` → “canlı sürüm yerelle aynı” |
 
 Notlar:
 
@@ -499,6 +574,34 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.9.0 — Sürüm damgası, git kancaları ve canlı doğrulama otomatikleşti
+
+- **`?v=` damgası artık elle artırılmıyor.** Yeni `tools/varlik-surum.js`, her
+  JS/CSS dosyasının SHA-1 özetinin ilk 8 karakterini `?v=` olarak yazar
+  (`v=11` → `v=adffbcf6` gibi). Dosya değişmezse damga aynı kalır, değişirse
+  kendiliğinden değişir; “numara artırmayı unuttum” hatası imkânsız hale gelir.
+  `npm run surum` yazar, `npm run surum:denetle` yalnızca denetler.
+  `404.html` içindeki sürümsüz `style.css` referansı da damgalandı.
+- **Git kancaları** (`.githooks/`) eklendi ve `npm install` sırasında
+  (`prepare` → `tools/hooks-kur.js`) herkese otomatik kuruluyor:
+  `pre-commit` damgayı eşitleyip sözdizimi/çakışma denetler, `pre-push`
+  testler yeşil değilse push'u engeller, `post-commit` commit'i `origin`'e
+  otomatik gönderir. Yani “commit ettim ama push etmedim” durumu oluşamaz.
+  `ISG_OTOMATIK_PUSH=0` ve `ISG_TEST_ATLA=1` ile bilinçli istisna yapılabilir.
+- **`tools/yayin-dogrula.js`** (`npm run yayin:dogrula`) canlı `index.html` ve
+  tüm JS/CSS dosyalarını indirip içerik özetini yerelle karşılaştırır;
+  `--bekle 300` ile yayılma süresini bekler, uyuşmazlıkta çıkış kodu 1 verir.
+- **CI:** `.github/workflows/kontrol.yml` her `main` push'unda damga
+  uyuşmazlığını ve test kırıklarını yakalar, ardından GitHub Pages'in yeni
+  sürümü servis ettiğini doğrular; aksi halde derleme kırmızı olur.
+- `.gitattributes` eklendi (kanca ve araç dosyaları LF satır sonuyla saklanır).
+  `package.json` sürümü **2.9.0**, `homepage` alanı eklendi.
+- Test kapsamı **347 → 360 kontrol** (13 yeni denetim: her JS/CSS referansında
+  `?v=` var mı, damga dosya içeriğiyle uyumlu mu, kanca dosyaları var ve LF mi,
+  kancalar beklenen komutları çağırıyor mu, `package.json` betikleri ve
+  `homepage` alanı, CI iş akışının damga/test/canlı doğrulama adımları,
+  `.gitattributes` satır sonu kuralı). Belge testi 25 kontrol.
 
 ### 2.8.1 — Kaza girişi istatistikte görünmüyor şikâyeti: varlık sürümü ve regresyon testi
 

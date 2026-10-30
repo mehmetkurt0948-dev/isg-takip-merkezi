@@ -1,0 +1,34 @@
+name: test-ve-yayin
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Testler ve sürüm damgası
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Varlık damgaları içerikle uyumlu mu?
+        run: node tools/varlik-surum.js --denetle
+      - name: Duman testleri ve belge testleri
+        run: npm test
+
+  canli:
+    name: Canlı yayın doğrulaması
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: GitHub Pages yeni sürümü servis ediyor mu?
+        run: node tools/yayin-dogrula.js --bekle 300
