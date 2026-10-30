@@ -603,6 +603,12 @@
     'kullanicilar', 'talepler', 'denetim'
   ];
 
+  /* Bulut eşitlemesinde kayıt bazında birleştirilen listeler. */
+  var ESITLEME_ANAHTARLARI = ['isyerleri', 'personel'].concat(LISTE_ANAHTARLARI);
+
+  /* Silinen kayıtların mezar taşları bu süre sonunda birleşimden düşer. */
+  var MEZAR_OMRU_GUN = 120;
+
   function yayinla() {
     depoDurumu.dinleyiciler.forEach(function (fn) {
       try { fn(depoDurumu.veri); } catch (hata) { /* dinleyici hatası uygulamayı durdurmaz */ }
@@ -627,6 +633,15 @@
     veri.isyerleri = Array.isArray(veri.isyerleri) ? veri.isyerleri : [];
     veri.personel = Array.isArray(veri.personel) ? veri.personel : [];
     veri.ayarlar = veri.ayarlar || {};
+
+    /* v7: kayıt bazlı eşitleme bilgisi. `kayit` kimlik→son değişiklik zamanı,
+       `silinen` silinen kayıtların mezar taşı zamanıdır. */
+    var senkron = veri.senkron && typeof veri.senkron === 'object' ? veri.senkron : {};
+    veri.senkron = {
+      kayit: senkron.kayit && typeof senkron.kayit === 'object' ? senkron.kayit : {},
+      silinen: senkron.silinen && typeof senkron.silinen === 'object' ? senkron.silinen : {},
+      ayarlar: String(senkron.ayarlar || '')
+    };
 
     /* v4: olay kayıtlarına iş kazası yaralanma ve kök neden sınıfı alanları eklendi. */
     (veri.olaylar || []).forEach(function (olay) {
@@ -669,6 +684,192 @@
     return veri;
   }
 
+  /* ---------- Kayıt bazlı eşitleme ---------- */
+
+  /* Yerelde son kaydedilen hâlin anlık görüntüsü: kaydet() hangi kayıtların
+     değiştiğini ve hangilerinin silindiğini buradan anlar. */
+  var temel = { kayitlar: {}, ayarlar: '' };
+
+  function esitlemeKodu(anahtar, id) { return anahtar + '|' + id; }
+
+  function temelAl(veri) {
+    temel.kayitlar = {};
+    ESITLEME_ANAHTARLARI.forEach(function (anahtar) {
+      (veri[anahtar] || []).forEach(function (kayit) {
+        if (kayit && kayit.id) { temel.kayitlar[esitlemeKodu(anahtar, kayit.id)] = JSON.stringify(kayit); }
+      });
+    });
+    temel.ayarlar = JSON.stringify(veri.ayarlar || {});
+  }
+
+  function enYeniZaman(a, b) {
+    a = String(a || '');
+    b = String(b || '');
+    return a > b ? a : b;
+  }
+
+  function kayitZamani(kayit, senkron, kod) {
+    if (!kayit) { return ''; }
+    return String(kayit.guncelleme || (senkron && senkron.kayit[kod]) || '');
+  }
+
+  function mezarTaslariniBudat(veri, simdi) {
+    var sinir = new Date(new Date(simdi).getTime() - MEZAR_OMRU_GUN * 24 * 60 * 60 * 1000).toISOString();
+    Object.keys(veri.senkron.silinen).forEach(function (kod) {
+      if (veri.senkron.silinen[kod] < sinir) { delete veri.senkron.silinen[kod]; }
+    });
+  }
+
+  /* kaydet() öncesi çalışır: değişen kayıtları damgalar, silinenlere mezar
+     taşı bırakır. Böylece bulut eşitlemesi kayıt kayıt karşılaştırma yapar. */
+  function degisiklikDamgala(veri, simdi) {
+    veri.senkron = veri.senkron && typeof veri.senkron === 'object' ? veri.senkron : {};
+    veri.senkron.kayit = veri.senkron.kayit || {};
+    veri.senkron.silinen = veri.senkron.silinen || {};
+    ESITLEME_ANAHTARLARI.forEach(function (anahtar) {
+      var gorulen = {};
+      (veri[anahtar] || []).forEach(function (kayit) {
+        if (!kayit || !kayit.id) { return; }
+        var kod = esitlemeKodu(anahtar, kayit.id);
+        gorulen[kod] = true;
+        if (temel.kayitlar[kod] === JSON.stringify(kayit)) { return; }
+        kayit.guncelleme = simdi;
+        veri.senkron.kayit[kod] = simdi;
+        delete veri.senkron.silinen[kod];
+        temel.kayitlar[kod] = JSON.stringify(kayit);
+      });
+      Object.keys(temel.kayitlar).forEach(function (kod) {
+        if (gorulen[kod] || kod.indexOf(anahtar + '|') !== 0) { return; }
+        veri.senkron.silinen[kod] = simdi;
+        delete veri.senkron.kayit[kod];
+        delete temel.kayitlar[kod];
+      });
+    });
+
+    var ayarOzeti = JSON.stringify(veri.ayarlar || {});
+    if (temel.ayarlar !== ayarOzeti) {
+      veri.senkron.ayarlar = simdi;
+      temel.ayarlar = ayarOzeti;
+    }
+    mezarTaslariniBudat(veri, simdi);
+  }
+
+  function senkronBirlestir(yerelSenkron, uzakSenkron) {
+    var birlesik = { kayit: {}, silinen: {}, ayarlar: enYeniZaman(yerelSenkron.ayarlar, uzakSenkron.ayarlar) };
+    ['kayit', 'silinen'].forEach(function (tur) {
+      Object.keys(uzakSenkron[tur] || {}).forEach(function (kod) {
+        birlesik[tur][kod] = uzakSenkron[tur][kod];
+      });
+      Object.keys(yerelSenkron[tur] || {}).forEach(function (kod) {
+        birlesik[tur][kod] = enYeniZaman(birlesik[tur][kod], yerelSenkron[tur][kod]);
+      });
+    });
+    return birlesik;
+  }
+
+  function kayitHaritasi(liste) {
+    var harita = {};
+    (liste || []).forEach(function (kayit) { if (kayit && kayit.id) { harita[kayit.id] = kayit; } });
+    return harita;
+  }
+
+  /* Anahtar sırasından ve liste sırasından bağımsız karşılaştırma metni.
+     Sunucu jsonb alanı anahtarları yeniden sıraladığı için düz metin
+     karşılaştırması yanıltıcı olurdu. */
+  function kanonikMetin(deger) {
+    if (deger === null || deger === undefined) { return 'null'; }
+    if (typeof deger !== 'object') { return JSON.stringify(deger); }
+    if (Array.isArray(deger)) {
+      return '[' + deger.map(kanonikMetin).join(',') + ']';
+    }
+    return '{' + Object.keys(deger).sort().map(function (anahtar) {
+      return JSON.stringify(anahtar) + ':' + kanonikMetin(deger[anahtar]);
+    }).join(',') + '}';
+  }
+
+  function esitlemeOzeti(veri) {
+    if (!veri) { return ''; }
+    var kopya = {};
+    Object.keys(veri).forEach(function (anahtar) { kopya[anahtar] = veri[anahtar]; });
+    ESITLEME_ANAHTARLARI.forEach(function (anahtar) {
+      kopya[anahtar] = (veri[anahtar] || []).slice().sort(function (a, b) {
+        return String((a && a.id) || '') < String((b && b.id) || '') ? -1 : 1;
+      });
+    });
+    return kanonikMetin(kopya);
+  }
+
+  /* Tek bir kimlik için yerel ve uzak kopyadan geçerli olanı seçer.
+     Silme mezar taşı her iki taraftaki değişiklikten yeniyse kayıt düşer. */
+  function kayitSec(baglam, anahtar, id, uzakKayit, yerelKayit) {
+    var kod = esitlemeKodu(anahtar, id);
+    var yerelZaman = kayitZamani(yerelKayit, baglam.yerelSenkron, kod);
+    var uzakZaman = kayitZamani(uzakKayit, baglam.uzakSenkron, kod);
+    var silinme = enYeniZaman(baglam.yerelSenkron.silinen[kod], baglam.uzakSenkron.silinen[kod]);
+    if (silinme && silinme >= enYeniZaman(yerelZaman, uzakZaman)) { return null; }
+    if (yerelKayit && uzakKayit) { return yerelZaman > uzakZaman ? yerelKayit : uzakKayit; }
+    return yerelKayit || uzakKayit;
+  }
+
+  /* İki veri kümesini kayıt bazında birleştirir. `yerelFazla` birleşimde
+     buluta yazılacak yenilik, `uzakFazla` bu cihaza inecek yenilik var demektir. */
+  function birlestir(yerel, uzak) {
+    if (!uzak) { return { veri: yerel, yerelFazla: !!yerel, uzakFazla: false }; }
+    if (!yerel) { return { veri: uzak, yerelFazla: false, uzakFazla: true }; }
+
+    var baglam = {
+      yerelSenkron: yerel.senkron || { kayit: {}, silinen: {}, ayarlar: '' },
+      uzakSenkron: uzak.senkron || { kayit: {}, silinen: {}, ayarlar: '' }
+    };
+    var sonuc = {};
+    Object.keys(uzak).forEach(function (anahtar) { sonuc[anahtar] = uzak[anahtar]; });
+
+    var mevcut = {};
+    ESITLEME_ANAHTARLARI.forEach(function (anahtar) {
+      var yerelHarita = kayitHaritasi(yerel[anahtar]);
+      var uzakHarita = kayitHaritasi(uzak[anahtar]);
+      var islenen = {};
+      var birlesik = [];
+
+      function ekle(kayit, uzakKayit, yerelKayit) {
+        var secilen = kayitSec(baglam, anahtar, kayit.id, uzakKayit, yerelKayit);
+        if (!secilen) { return; }
+        birlesik.push(secilen);
+        mevcut[esitlemeKodu(anahtar, kayit.id)] = true;
+      }
+
+      (uzak[anahtar] || []).forEach(function (kayit) {
+        if (!kayit || !kayit.id) { birlesik.push(kayit); return; }
+        islenen[kayit.id] = true;
+        ekle(kayit, kayit, yerelHarita[kayit.id]);
+      });
+      (yerel[anahtar] || []).forEach(function (kayit) {
+        if (!kayit || !kayit.id || islenen[kayit.id]) { return; }
+        islenen[kayit.id] = true;
+        ekle(kayit, uzakHarita[kayit.id], kayit);
+      });
+
+      sonuc[anahtar] = birlesik;
+    });
+
+    /* Ayarlar tek nesne olarak, en son değişen tarafın kopyasıyla gelir. */
+    var ayarSahibi = String(baglam.yerelSenkron.ayarlar || '') > String(baglam.uzakSenkron.ayarlar || '') ? yerel : uzak;
+    sonuc.ayarlar = (ayarSahibi && ayarSahibi.ayarlar) || {};
+    sonuc.senkron = senkronBirlestir(baglam.yerelSenkron, baglam.uzakSenkron);
+    /* Var olmayan kayıtların damgası tutulmaz; silme bilgisi mezar taşındadır. */
+    Object.keys(sonuc.senkron.kayit).forEach(function (kod) {
+      if (!mevcut[kod]) { delete sonuc.senkron.kayit[kod]; }
+    });
+    sonuc.surum = uzak.surum || yerel.surum;
+    veriTamamla(sonuc);
+
+    return {
+      veri: sonuc,
+      yerelFazla: esitlemeOzeti(sonuc) !== esitlemeOzeti(uzak),
+      uzakFazla: esitlemeOzeti(sonuc) !== esitlemeOzeti(yerel)
+    };
+  }
+
   function oku(anahtar) {
     try {
       var ham = global.localStorage.getItem(anahtar);
@@ -691,6 +892,7 @@
   }
   if (okunanVeri) { depoDurumu.veri = veriTamamla(okunanVeri); }
   if (!depoDurumu.veri) { depoDurumu.veri = veriTamamla(ISG.ORNEK_VERI()); }
+  temelAl(depoDurumu.veri);
 
   var depo = ISG.depo = {
     anahtar: ANAHTAR,
@@ -711,6 +913,11 @@
     surum: function () { return SURUM; },
     kaliciMi: function () { return depoDurumu.kalici; },
     kaydet: function () {
+      /* Değişen kayıtlar kalıcı yazımdan önce damgalanır; bulut eşitlemesi
+         böylece kayıt bazında karşılaştırma yapabilir. */
+      try {
+        degisiklikDamgala(depoDurumu.veri, new Date().toISOString());
+      } catch (hata) { /* damgalama hatası kaydı engellemez */ }
       try {
         global.localStorage.setItem(ANAHTAR, JSON.stringify(depoDurumu.veri));
         depoDurumu.kalici = true;
@@ -719,6 +926,49 @@
       }
       yayinla();
       return depoDurumu.kalici;
+    },
+    /* Bulut eşitlemesinden gelen birleşik veriyi yerleştirir. Yeni kayıt
+       damgası üretilmez; yalnızca yerel temel anlık görüntü güncellenir. */
+    yukle: function (girdi) {
+      var veri = veriTamamla(girdi);
+      depoDurumu.veri = veri;
+      temelAl(veri);
+      try {
+        global.localStorage.setItem(ANAHTAR, JSON.stringify(veri));
+        depoDurumu.kalici = true;
+      } catch (hata) {
+        depoDurumu.kalici = false;
+      }
+      yayinla();
+      return veri;
+    },
+    /* Yerel veri ile bulut verisini kayıt bazında birleştirir.
+       Tek argüman: bulut verisi (yerel taraf depodan alınır).
+       İki argüman: (yerel, uzak) — testler ve toplu doğrulama için. */
+    birlestir: function (birinci, ikinci) {
+      if (ikinci === undefined) { return birlestir(depoDurumu.veri, birinci); }
+      return birlestir(birinci, ikinci);
+    },
+    /* Tüm kayıtları "şimdi değişti" olarak damgalar. "Bu cihazdaki veriyi
+       buluta yükle" seçildiğinde yerel kayıtların birleşimde öne geçmesini
+       sağlar; buluta özgü kayıtlar yine korunur. */
+    damgala: function () {
+      var veri = depoDurumu.veri;
+      veri.senkron = veri.senkron || {};
+      veri.senkron.kayit = veri.senkron.kayit || {};
+      veri.senkron.silinen = veri.senkron.silinen || {};
+      var simdi = new Date().toISOString();
+      ESITLEME_ANAHTARLARI.forEach(function (anahtar) {
+        (veri[anahtar] || []).forEach(function (kayit) {
+          if (!kayit || !kayit.id) { return; }
+          kayit.guncelleme = simdi;
+          veri.senkron.kayit[esitlemeKodu(anahtar, kayit.id)] = simdi;
+        });
+      });
+      veri.senkron.ayarlar = simdi;
+      temelAl(veri);
+      depo.kaydet();
+      return veri;
     },
     sifirla: function () {
       depoDurumu.veri = veriTamamla(ISG.ORNEK_VERI());
@@ -738,7 +988,12 @@
       }
       veriTamamla(veri);
       depoDurumu.veri = veri;
-      depo.kaydet();
+      /* İçe aktarma bilinçli bir kullanıcı işlemidir: yedekteki kayıtlar bu
+         cihazda yeni değişiklik sayılır ve bulut birleşiminde öne geçer.
+         Yedeğin kendi mezar taşları taşınmaz; yedek geri yükleme silmek
+         anlamına gelmez. */
+      veri.senkron.silinen = {};
+      depo.damgala();
       return veri;
     }
   };

@@ -5,7 +5,8 @@
 > onay kuyruğu ve mevzuat kapsamı.
 > **Statik** uygulama: build yok, CDN yok — tarayıcıda çalışır. Kayıtlar önce
 > `localStorage`'a yazılır; **isteğe bağlı Supabase eşitlemesi** açılırsa aynı
-> kayıt birden çok cihazda paylaşılır (bkz. [1.3](#13-cihazlar-arası-ortak-kayıt-supabase)).
+> kayıtlar birden çok cihazda **kayıt bazında birleştirilerek** paylaşılır
+> (bkz. [1.3](#13-cihazlar-arası-ortak-kayıt-supabase)).
 
 Bu sürüm, ChatGPT Sites'te yayınlanan ve 401 ile erişime kapanan "İSG Takip
 Merkezi" fikrinin sıfırdan yazılmış, işyeri bazlı çoklu kapsam destekleyen
@@ -112,17 +113,33 @@ isteğe bağlı bulut katmanı (`assets/js/bulut.js`) açılır. Üst çubuktaki
 3. **Project URL** (`https://xxxx.supabase.co`), **anon public** anahtarı ve
    ortak bir **oda kodu** (örn. `isg-merkez`) yazın.
 4. **Bağlan**'ı seçin:
-   - *Bu cihazdaki kayıtlar buluta gönderilsin* işaretliyse yerel veri buluta
-     yazılır (ilk kurulum),
-   - işaretsizse buluttaki veri bu cihaza indirilir (ikinci cihaz).
+   - *Bu cihazdaki kayıtlar öncelikli olsun* işaretliyse (ilk kurulum) bu
+     cihazdaki kayıtlar "şimdi değişti" sayılır; bulut verisiyle birleştirilir
+     ve çakışan kayıtta bu cihaz kazanır. Buluta özgü kayıtlar korunur.
+   - işaretsizse buluttaki veri önceliklidir (ikinci cihaz). Yine birleştirme
+     yapılır; bu cihazda olup bulutta olmayan kayıtlar silinmez.
 
 Eşitleme kuralları:
 
 - Yerel `localStorage` **tek doğru kaynak** olarak kalır; bulut bir üst katmandır.
   Bağlantı yokken uygulama normal çalışır, değişiklikler `kirli` olarak
   işaretlenip bağlantı gelince gönderilir.
-- Çakışma **son yazan kazanır** kuralıyla çözülür: istemci ISO zaman damgası
-  (`yerelZaman` / `sonUzakZaman`) karşılaştırılır.
+- **Birleştirme kayıt bazındadır.** Her kayıt kendi ISO değişiklik damgasını
+  (`guncelleme`, yedek olarak `senkron.kayit[kimlik]`) taşır; `kaydet()` yalnızca
+  gerçekten değişen kaydı damgalar. Aynı kimlikte **son yazan kazanır**, farklı
+  kayıtlar birbirini ezmez. `isyerleri`, `personel` ve tüm listeler (eğitim,
+  risk, olay, belge, plan, tespit, ekip, acil plan, davet, mevzuat, kullanıcı,
+  talep, denetim) bu şekilde birleştirilir.
+- **Silme yayılır.** Silinen kayıt `senkron.silinen` altında mezar taşı olarak
+  saklanır; mezar taşı kaydın kendi damgasından yeni ya da eşitse kayıt her iki
+  taraftan da düşer. Mezar taşları **120 gün** sonra budanır.
+- `ayarlar` tek nesnedir; `senkron.ayarlar` damgası daha yeni olan tarafın
+  ayarları geçerlidir.
+- **Gönderim döngüsü yoktur:** birleşim buluttaki hâlden farksızsa POST
+  yapılmaz. Karşılaştırma JSON anahtar sırasından ve liste sırasından bağımsız
+  kanonik özetle yapılır; indirilen veri yeniden yukarı gönderilmez.
+- Bağlanırken ve açılışta **önce çekilir, sonra birleştirilir**; kirli yerel veri
+  olsa bile buluttaki diğer cihaz kayıtları körlemesine ezilmez.
 - Otomatik çekme varsayılan **20 saniyede** birdir (10–300 arası ayarlanır);
   sekme görünür olduğunda ve ağ geri geldiğinde de çekilir. **Şimdi eşitle**
   düğmesi elle çalıştırır.
@@ -198,7 +215,7 @@ isg-takip-merkezi/
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (361 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (369 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (25 kontrol)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
@@ -232,9 +249,28 @@ doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
   davetler:     [{ id, eposta, rol, isyerleri: [], tarih, durum }],
   talepler:     [{ id, tur, eylem: { ad, args }, isyeriId, kullaniciId, kullaniciAd, ozet, durum, tarih, karar, kararVeren, kararTarihi }],
   denetim:      [{ id, tur, islem, kullaniciId, kullaniciAd, isyeriId, ozet, tarih }],
-  mevzuat:      [{ id, baslik, kategori, dayanak, durum, ozet }]
+  mevzuat:      [{ id, baslik, kategori, dayanak, durum, ozet }],
+  /* v7: bulut eşitlemesi için kayıt bazlı damgalar (aşağıda açıklanır). */
+  senkron: {
+    kayit:   { 'personel|<id>': 'ISO zaman', 'egitimler|<id>': 'ISO zaman' },
+    silinen: { 'personel|<id>': 'ISO zaman' },
+    ayarlar: 'ISO zaman'
+  }
 }
 ```
+
+`senkron` alanı bulut eşitlemesinin temelidir:
+
+- `kayit[kimlik]`, o kaydın son değişiklik zamanıdır; `kaydet()` yalnızca
+  değişen kayıtları damgalar ve kayda `guncelleme` alanı olarak da yazar.
+- `silinen[kimlik]`, silinen kaydın **mezar taşı** zamanıdır. Mezar taşı, kaydın
+  son değişikliğinden yeni/eşit olduğu sürece kayıt birleşime girmez; böylece
+  silme diğer cihazlara yayılır. 120 günden eski mezar taşları budanır.
+- `ayarlar`, ayar nesnesinin son değişiklik zamanıdır (ayarlar tek parça hâlinde
+  en yeni taraftan alınır).
+- JSON yedeğine bu alanlar da yazılır. Yedek geri yüklenirken mezar taşları
+  atılır ve yedekteki tüm kayıtlar "yeni değişiklik" sayılır; geri yükleme
+  silme anlamına gelmez.
 
 Oturum bilgisi ayrı bir anahtarda (`isgtakip.oturum`) yalnızca
 `{ kullaniciId, giris }` olarak tutulur; şifre orada saklanmaz. Eski
@@ -304,7 +340,7 @@ Test:
 
 ```powershell
 npm install
-npm test                     # 361 kontrol + belge testi, başarısızda çıkış kodu 1
+npm test                     # 369 kontrol + belge testi, başarısızda çıkış kodu 1
 npm run test:belge           # yalnızca belge eki testi (25 kontrol)
 ```
 
@@ -580,6 +616,47 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.10.0 — Bulut eşitlemesi kayıt bazına indi: birleştirme, silme yayılımı, döngü yok
+
+- **Cihazlar artık birbirinin verisini ezmiyor.** Önceki akış tüm veri kümesini
+  tek bir "son yazan kazanır" yarışına sokuyordu: bir cihaz eğitim eklerken
+  diğeri personel düzenlerse biri kayboluyor, bir cihazda silinen kayıt diğer
+  cihazdan geri geliyordu. Artık `isyerleri`, `personel` ve 14 liste (eğitim,
+  risk, olay, belge, plan, tespit, ekip, acil plan, davet, mevzuat, kullanıcı,
+  talep, denetim) **kayıt bazında** birleştiriliyor.
+- **Kayıt damgası:** her kayıt son değişiklik zamanını (`guncelleme`, yedek
+  olarak `senkron.kayit[kimlik]`) taşır. `kaydet()` yalnızca gerçekten değişen
+  kaydı damgalar; bunu yerelde son kaydedilen hâlin anlık görüntüsüyle (`temel`)
+  karşılaştırarak bulur. Aynı kimlikte yeni damga kazanır, damgasız eski
+  kayıtlarda eşitlikte bulut kopyası geçerli olur.
+- **Silme yayılır.** Silinen kayıt `senkron.silinen` altında **mezar taşı**
+  bırakır; mezar taşı, kaydın kendi damgasından yeni ya da eşitse kayıt her iki
+  taraftan da düşer. Mezar taşları 120 gün sonra budanır. Böylece "sildim ama
+  diğer cihaz geri getirdi" durumu ortadan kalkar.
+- **Gönderim döngüsü kapatıldı.** İndirilen veri önceden `kirli` sayılıp yeniden
+  yukarı gönderiliyordu. Karşılaştırma artık anahtar sırasından ve liste
+  sırasından bağımsız **kanonik özetle** yapılıyor; birleşim buluttaki hâlden
+  farksızsa POST yapılmıyor, indirilen kayıtlar geri gönderilmiyor. Boşta
+  çalışan iki cihazlı simülasyonda 12 saniyede 0 gönderim doğrulandı.
+- **Bağlanma ve açılış sırası:** bağlanırken ve açılışta artık önce çekme,
+  sonra birleştirme yapılıyor. *Bu cihazdaki kayıtlar öncelikli olsun* seçeneği
+  tüm yerel kayıtları "şimdi değişti" olarak damgalayıp çakışan kayıtta bu
+  cihazı öne geçiriyor (`ISG.depo.damgala`); buluta özgü kayıtlar yine korunuyor.
+  Arayüz etiketi, bağlantı bildirimleri ve yorumlar bu anlama göre güncellendi.
+- **Ayarlar** tek nesne olarak, `senkron.ayarlar` damgası daha yeni olan taraftan
+  alınıyor. `ISG.depo.birlestir(uzak)` ve `birlestir(yerel, uzak)` imzaları
+  birlikte destekleniyor; dönüş `{ veri, yerelFazla, uzakFazla }`.
+- **Veri modeli** `senkron.kayit` / `senkron.silinen` / `senkron.ayarlar` ile
+  genişledi; eski veriler `veriTamamla` ile tamamlanıp ilk kayıtta damgalanıyor.
+  JSON yedeği bu alanları korur; yedek geri yüklemede mezar taşları taşınmaz ve
+  kayıtlar yeni değişiklik sayılır (geri yükleme silme anlamına gelmez).
+- Test kapsamı **361 → 369** (8 yeni: iki cihazın yeni kayıtları korunur, buluta
+  yazılacak yenilik bildirilir, aynı veri gönderim üretmez, anahtar sırası
+  değişikliği sayılmaz, mezar taşı kaydı buluttan düşürür, silme yenilik sayılır,
+  aynı kayıtta son yazan kazanır, eski taraf yeniden yazılmaz). Ayrıca iki
+  cihazlı jsdom simülasyonuyla silme yayılımı, boşta gönderim olmaması ve
+  eşzamanlı düzenleme doğrulandı. `package.json` sürümü **2.10.0**.
 
 ### 2.9.0 — Sürüm damgası, git kancaları ve canlı doğrulama otomatikleşti
 

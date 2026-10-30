@@ -1902,7 +1902,8 @@
     return '';
   }
 
-  /* yukari = true: bu cihazdaki veri buluta yazılır, false: buluttaki veri indirilir. */
+  /* yukari = true: bu cihazdaki kayıtlar öncelikli olarak birleştirilir,
+     false: buluttaki veri öncelikli olarak birleştirilir. Hiçbir kayıt silinmez. */
   function bulutBaglanIslemi(form, yukari) {
     if (!bulutVarMi()) {
       B.bildir('Bulut modülü yüklenemedi; sayfayı yenileyin.', 'hata');
@@ -1928,8 +1929,8 @@
       }
       diyalogKapat(el('bulutDiyalog'));
       B.bildir(yukari
-        ? 'Bulut bağlandı; bu cihazdaki kayıtlar gönderildi.'
-        : 'Bulut bağlandı; ortak kayıtlar bu cihaza indirildi.', 'basari');
+        ? 'Bulut bağlandı; bu cihazdaki kayıtlar öncelikli olarak birleştirildi.'
+        : 'Bulut bağlandı; ortak kayıtlar birleştirilerek bu cihaza indirildi.', 'basari');
       ciz();
     });
   }

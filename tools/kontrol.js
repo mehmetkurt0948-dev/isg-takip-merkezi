@@ -1070,6 +1070,56 @@ function bekle(ms) {
     JSON.parse(window.localStorage.getItem('isgtakip.bulut.durum') || '{}').sonUzakZaman === '2099-01-01T00:00:00.000Z',
     window.localStorage.getItem('isgtakip.bulut.durum'));
 
+  /* Kayıt bazında birleştirme: bulut tüm belgeyi ezseydi bu senaryolarda
+     kayıtlar kaybolurdu. Birleştirme kuralları depo katmanındadır. */
+  const veriKopyasi = () => JSON.parse(JSON.stringify(ISG.depo.al()));
+  const kisiEkle = (veri, kimlik, ad, zaman) => {
+    const ornek = veri.personel[0];
+    veri.personel = veri.personel.concat([Object.assign({}, ornek, {
+      id: kimlik, adSoyad: ad, guncelleme: zaman
+    })]);
+    return veri;
+  };
+
+  const birlesimYerel = kisiEkle(veriKopyasi(), 'birlesim-yerel', 'Yerel Kişi', '2030-01-02T00:00:00.000Z');
+  const birlesimUzak = kisiEkle(veriKopyasi(), 'birlesim-uzak', 'Uzak Kişi', '2030-01-03T00:00:00.000Z');
+  const birlesim = ISG.depo.birlestir(birlesimYerel, birlesimUzak);
+  kontrol('Birleştirme iki cihazın yeni kayıtlarını korur',
+    birlesim.veri.personel.some((p) => p.id === 'birlesim-yerel') &&
+    birlesim.veri.personel.some((p) => p.id === 'birlesim-uzak'));
+  kontrol('Birleştirme buluta yazılacak yeniliği bildirir', birlesim.yerelFazla === true);
+
+  const ayniBirlesim = ISG.depo.birlestir(veriKopyasi(), veriKopyasi());
+  kontrol('Aynı verinin birleşimi değişiklik üretmez (gönderim döngüsü yok)',
+    ayniBirlesim.yerelFazla === false && ayniBirlesim.uzakFazla === false);
+
+  const tersAnahtar = veriKopyasi();
+  tersAnahtar.personel = tersAnahtar.personel.map((p) => Object.keys(p).reverse()
+    .reduce((toplam, anahtar) => { toplam[anahtar] = p[anahtar]; return toplam; }, {}));
+  const anahtarBirlesim = ISG.depo.birlestir(veriKopyasi(), tersAnahtar);
+  kontrol('Anahtar sırası değişen bulut verisi değişiklik sayılmaz',
+    anahtarBirlesim.yerelFazla === false && anahtarBirlesim.uzakFazla === false);
+
+  const mezarYerel = veriKopyasi();
+  const mezarUzak = kisiEkle(veriKopyasi(), 'birlesim-mezar', 'Silinen Kişi', '2030-01-01T00:00:00.000Z');
+  mezarYerel.senkron.silinen['personel|birlesim-mezar'] = '2030-01-05T00:00:00.000Z';
+  const mezarBirlesim = ISG.depo.birlestir(mezarYerel, mezarUzak);
+  kontrol('Mezar taşı kaydı buluttan da düşürür',
+    !mezarBirlesim.veri.personel.some((p) => p.id === 'birlesim-mezar'));
+  kontrol('Silme buluta yazılacak yenilik sayılır', mezarBirlesim.yerelFazla === true);
+
+  const cakisanYerel = veriKopyasi();
+  const cakisanUzak = veriKopyasi();
+  const cakisanKimlik = cakisanYerel.personel[0].id;
+  cakisanYerel.personel[0] = Object.assign({}, cakisanYerel.personel[0],
+    { meslek: 'Yerel meslek', guncelleme: '2030-02-01T00:00:00.000Z' });
+  cakisanUzak.personel[0] = Object.assign({}, cakisanUzak.personel[0],
+    { meslek: 'Uzak meslek', guncelleme: '2030-02-02T00:00:00.000Z' });
+  const cakisan = ISG.depo.birlestir(cakisanYerel, cakisanUzak);
+  const cakisanSonuc = cakisan.veri.personel.filter((p) => p.id === cakisanKimlik)[0] || {};
+  kontrol('Aynı kayıtta son yazan kazanır', cakisanSonuc.meslek === 'Uzak meslek', String(cakisanSonuc.meslek));
+  kontrol('Eski taraf yeniden buluta yazılmaz', cakisan.yerelFazla === false);
+
   window.fetch = () => Promise.reject(new TypeError('ağ yok'));
   doc.getElementById('bulutSimdi').click();
   await bekle(500);

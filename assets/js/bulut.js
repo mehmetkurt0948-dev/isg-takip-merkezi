@@ -8,7 +8,11 @@
      bir eşitleme katmanıdır (çevrimdışı kullanım bozulmaz).
    - `guncelleme` alanı ISO 8601 zaman damgasıdır; sunucu saati kullanılmaz,
      böylece cihazlar arasında sıralama yapılabilir.
-   - Çakışmada son yazan kazanır (tüm veri kümesi tek satır olarak yazılır). */
+   - Satır tek olsa da birleştirme kayıt bazındadır: her kaydın `guncelleme`
+     damgası ve silinen kayıtların mezar taşları (`veri.senkron`) karşılaştırılır.
+     Böylece iki cihazın aynı anda eklediği kayıtlar birbirini silmez.
+   - Birleştirme kuralı `ISG.depo.birlestir` içindedir; bu katman yalnızca
+     aktarım, zamanlama ve durum bildirimini yönetir. */
 (function (global) {
   'use strict';
 
@@ -20,6 +24,9 @@
   var VARSAYILAN_ARALIK = 20;
   var ZAMAN_ASIMI = 15000;
   var GONDERME_GECIKMESI = 1500;
+  /* Kendi gönderimimizden sonra olası eşzamanlı değişikliği toplamak için
+     yapılan tek çekme gecikmesi. */
+  var GONDERME_SONRASI_ARALIK = 1200;
 
   var durum = {
     ayar: null,
@@ -28,6 +35,7 @@
     yerelZaman: '',
     sonUzakZaman: '',
     kirli: false,
+    degisiklikNo: 0,
     sonCekme: '',
     sonGonderme: ''
   };
@@ -38,6 +46,7 @@
   var baglandi = false;
   var gondermeZamanlayici = null;
   var cekmeZamanlayici = null;
+  var cekmeSonrasiZamanlayici = null;
 
   /* ---------- Yardımcılar ---------- */
 
@@ -223,6 +232,17 @@
     return '?oda=eq.' + encodeURIComponent(durum.ayar.oda) + '&select=veri,guncelleme';
   }
 
+  /* Gönderimden hemen sonra bir kez çekme: başka bir cihazın eşzamanlı
+     değişikliği hızla birleşir. Uzak damga değişmediyse istek yapılmaz. */
+  function sonrakiCekmeyiPlanla() {
+    if (cekmeSonrasiZamanlayici) { return; }
+    cekmeSonrasiZamanlayici = global.setTimeout(function () {
+      cekmeSonrasiZamanlayici = null;
+      if (istekSuruyor || document.hidden || !hazirMi()) { return; }
+      cek(true);
+    }, GONDERME_SONRASI_ARALIK);
+  }
+
   /* ---------- Arayüz tazeleme ---------- */
 
   function arayuzTazele() {
@@ -236,13 +256,19 @@
     }
   }
 
-  function uygula(veri, uzakZaman) {
+  /* Birleşik veriyi yerele aktarır. `sessiz` otomatik eşitlemede arayüz
+     bildirimi gösterilmesini engeller. */
+  function uygula(veri, uzakZaman, sessiz) {
     if (!veri || !Array.isArray(veri.isyerleri) || !Array.isArray(veri.personel)) {
       throw new Error('Bulut kaydı tanınmadı (işyerleri/personel dizileri yok).');
     }
     uygulaniyor = true;
     try {
-      ISG.depo.iceAktar(JSON.stringify(veri));
+      if (ISG.depo && typeof ISG.depo.yukle === 'function') {
+        ISG.depo.yukle(veri);
+      } else {
+        ISG.depo.iceAktar(JSON.stringify(veri));
+      }
     } finally {
       uygulaniyor = false;
     }
@@ -251,7 +277,7 @@
     durum.kirli = false;
     kaydetDurum();
     arayuzTazele();
-    bildirBasari('Bulut verileri güncellendi.');
+    if (!sessiz) { bildirBasari('Bulut verileri güncellendi.'); }
   }
 
   /* ---------- Aktarım ---------- */
@@ -265,6 +291,7 @@
 
     var zaman = new Date().toISOString();
     var govde = [{ oda: durum.ayar.oda, veri: ISG.depo.al(), guncelleme: zaman }];
+    var gonderilenSurum = durum.degisiklikNo;
 
     return istek('', {
       method: 'POST',
@@ -275,10 +302,12 @@
       durum.sonGonderme = zaman;
       durum.sonUzakZaman = zaman;
       durum.yerelZaman = zaman;
-      durum.kirli = false;
+      /* Gönderim sürerken yeni bir yerel değişiklik olduysa kirli kalır. */
+      durum.kirli = durum.degisiklikNo !== gonderilenSurum;
       kaydetDurum();
       asama('hazir');
       if (elle) { bildirBasari('Veriler buluta kaydedildi.'); }
+      if (!durum.kirli && durum.ayar.otomatik) { sonrakiCekmeyiPlanla(); }
       return true;
     }).catch(function (hata) {
       istekSuruyor = false;
@@ -311,15 +340,33 @@
         return false;
       }
 
-      /* Gönderilmemiş yerel değişiklik daha yeniyse buluta yazılır. */
-      if (durum.kirli && uzak && uzak <= durum.yerelZaman) {
-        return gonder(false);
+      /* Kayıt bazında birleştir: her kaydın kendi damgası ve mezar taşı
+         karşılaştırılır, böylece iki cihazın değişiklikleri birbirini silmez. */
+      var sonuc = null;
+      if (ISG.depo && typeof ISG.depo.birlestir === 'function') {
+        sonuc = ISG.depo.birlestir(satir.veri);
       }
 
-      uygula(satir.veri, uzak);
+      if (!sonuc) {
+        /* Birleştirme yoksa (eski depo) güvenli tarafta kal: kirli yerel veri
+           buluta yazılır, temiz cihaz uzak veriyi alır. */
+        if (durum.kirli) { return gonder(false); }
+        uygula(satir.veri, uzak, sessiz);
+        asama('hazir');
+        kaydetDurum();
+        return true;
+      }
+
+      if (sonuc.uzakFazla) {
+        uygula(sonuc.veri, uzak, sessiz);
+      }
       asama('hazir');
       kaydetDurum();
-      return true;
+
+      /* Birleşim buluttaki hâlden farklıysa (yerel yenilik ya da yeni mezar
+         taşı) sonuç buluta yazılır; yoksa yapılacak iş kalmaz. */
+      if (sonuc.yerelFazla) { return gonder(!sessiz); }
+      return sonuc.uzakFazla;
     }).catch(function (hata) {
       istekSuruyor = false;
       hataDurumu(hata, sessiz);
@@ -347,6 +394,7 @@
   function degisiklik() {
     if (uygulaniyor || !hazirMi()) { return; }
     durum.kirli = true;
+    durum.degisiklikNo += 1;
     durum.yerelZaman = new Date().toISOString();
     kaydetDurum();
 
@@ -430,12 +478,27 @@
   }
 
   /* Ayarları kaydeder ve ilk eşitlemeyi yapar.
-     yukari = true: bu cihazdaki veri buluta yazılır; false: buluttaki veri indirilir. */
+     yukari = true: bu cihazdaki veri öncelikli olacak şekilde birleştirilir;
+     false: buluttaki veri öncelikli olarak birleştirilir. Her iki yönde de
+     yalnızca öteki tarafta olmayan kayıtlar eklenir, hiçbir kayıt silinmez. */
   function baglan(girdi, yukari) {
     var ayar = ayarYaz(girdi, yukari ? { yukari: true } : { sifirla: true });
     if (!ayar) { return Promise.resolve(false); }
     bagla();
     zamanlayiciKur();
+
+    if (yukari && ISG.depo && typeof ISG.depo.damgala === 'function') {
+      /* Yerel kayıtlar "şimdi değişti" olarak damgalanır: çakışan kayıtlarda
+         bu cihaz kazanır, buluta özgü kayıtlar ise korunur. */
+      uygulaniyor = true;
+      try {
+        ISG.depo.damgala();
+      } finally {
+        uygulaniyor = false;
+      }
+      return cek(false);
+    }
+
     return yukari ? gonder(true) : cek(false);
   }
 
@@ -455,6 +518,7 @@
   function durdur() {
     if (cekmeZamanlayici) { global.clearInterval(cekmeZamanlayici); cekmeZamanlayici = null; }
     if (gondermeZamanlayici) { global.clearTimeout(gondermeZamanlayici); gondermeZamanlayici = null; }
+    if (cekmeSonrasiZamanlayici) { global.clearTimeout(cekmeSonrasiZamanlayici); cekmeSonrasiZamanlayici = null; }
   }
 
   function baslat() {
@@ -466,7 +530,9 @@
     }
 
     zamanlayiciKur();
-    if (durum.kirli) { gonder(false); } else { cek(true); }
+    /* Gönderilmemiş yerel değişiklik olsa bile önce çekilir: aksi hâlde
+       buluttaki başka cihaz kayıtları körlemesine ezilir. */
+    cek(true);
   }
 
   function abone(fn) {
