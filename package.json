@@ -4,6 +4,9 @@
   "private": true,
   "description": "İSG Takip Merkezi — giriş/roller, işyeri bazlı personel, dosya kontrolü, çalışma planı, risk değerlendirmesi, saha DÖF, acil durum takibi, iş kazası kayıtları ve kaza istatistikleri için statik uygulama.",
   "homepage": "https://mehmetkurt0948-dev.github.io/isg-takip-merkezi/",
+  "engines": {
+    "node": ">=22.22.2"
+  },
   "scripts": {
     "test": "node tools/kontrol.js && node tools/belge-test.js",
     "test:kontrol": "node tools/kontrol.js",

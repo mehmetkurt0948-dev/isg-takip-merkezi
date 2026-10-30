@@ -198,7 +198,7 @@ isg-takip-merkezi/
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (360 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (361 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (25 kontrol)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
@@ -297,11 +297,14 @@ start index.html
 npx --yes serve .            # http://localhost:3000
 ```
 
+Gereksinim: **Node.js 22.22+ veya 24+** (test bağımlılığı `jsdom@30` daha eski
+sürümlerde çalışmaz; `package.json` → `engines` alanı bunu belirtir).
+
 Test:
 
 ```powershell
 npm install
-npm test                     # 360 kontrol + belge testi, başarısızda çıkış kodu 1
+npm test                     # 361 kontrol + belge testi, başarısızda çıkış kodu 1
 npm run test:belge           # yalnızca belge eki testi (25 kontrol)
 ```
 
@@ -599,8 +602,9 @@ Notlar:
   uyuşmazlığını ve test kırıklarını yakalar, ardından GitHub Pages'in yeni
   sürümü servis ettiğini doğrular; aksi halde derleme kırmızı olur.
 - `.gitattributes` eklendi (kanca ve araç dosyaları LF satır sonuyla saklanır).
-  `package.json` sürümü **2.9.0**, `homepage` alanı eklendi.
-- Test kapsamı **347 → 360 kontrol** (13 yeni denetim: her JS/CSS referansında
+  `package.json` sürümü **2.9.0**, `homepage` ve `engines` (Node ≥ 22.22) alanları
+  eklendi. CI, `jsdom@30` ile uyumlu **Node 24** üzerinde çalışır.
+- Test kapsamı **347 → 361 kontrol** (14 yeni denetim: her JS/CSS referansında
   `?v=` var mı, damga dosya içeriğiyle uyumlu mu, kanca dosyaları var ve LF mi,
   kancalar beklenen komutları çağırıyor mu, `package.json` betikleri ve
   `homepage` alanı, CI iş akışının damga/test/canlı doğrulama adımları,

@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
       - run: npm ci
       - name: Varlık damgaları içerikle uyumlu mu?
@@ -29,6 +29,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - name: GitHub Pages yeni sürümü servis ediyor mu?
         run: node tools/yayin-dogrula.js --bekle 300

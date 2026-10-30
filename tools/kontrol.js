@@ -907,6 +907,8 @@ function bekle(ms) {
   kontrol('CI iş akışı damga ve test denetimi yapar',
     /varlik-surum\.js --denetle/.test(isAkisi) && /npm test/.test(isAkisi));
   kontrol('CI iş akışı canlı yayını doğrular', /yayin-dogrula\.js --bekle/.test(isAkisi));
+  kontrol('CI Node sürümü jsdom 30 ile uyumlu (>=22)', /node-version: '(?:2[2-9]|[3-9]\d)'/.test(isAkisi) &&
+    /"node": ">=22/.test(fs.readFileSync(path.join(kok, 'package.json'), 'utf8')));
 
   kontrol('.gitattributes kanca satır sonlarını sabitler', /\.githooks\/\*\s+text\s+eol=lf/.test(
     fs.readFileSync(path.join(pubKok, '.gitattributes'), 'utf8')));
