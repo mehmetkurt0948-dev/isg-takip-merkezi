@@ -1,0 +1,962 @@
+{
+  "kod": "ITFAIYE",
+  "ad": "İtfaiye Dairesi Başkanlığı — Dosya Kontrol Listesi",
+  "kaynak": "İSG Dosya Kontrol Checklisti (Excel: itfaiye dairesi bşk..xlsx) · Sayfadaki birim: İTFAİYE DAİRESİ BŞK. ADLI SİCİL",
+  "duzenleyen": "Kontrolü yapan: A Sınıfı İş Güvenliği Uzmanı Oğuzhan ÖNAY · İSG uzmanı: A sınıfı İş Güvenliği Uzmanı Tülay ACAR",
+  "sicilNo": "",
+  "isyeriAdi": "İtfaiye Dairesi Başkanlığı",
+  "asilIsveren": "",
+  "kontrolTarihi": "2026-09-16",
+  "sonrakiKontrol": "",
+  "eslesme": [
+    "İtfaiye Dairesi Başkanlığı",
+    "İtfaiye"
+  ],
+  "genelDegerlendirme": "Kontrol özeti (108 madde): 50 var/uygun, 28 eksik, 8 güncellenecek, 22 uygulanamaz.",
+  "bolumler": [
+    {
+      "ad": "İşyeri ve İSG Organizasyonu",
+      "maddeler": [
+        {
+          "no": 1,
+          "madde": "İşyerine ait temel bilgiler",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "ilk 5 madde hakkında dosyanın ilk başına ilgili sicilde hangi daire bşk.larının olduğu hangi iş kollarında çalışmaların olduğu gibi bir yazı eklenmesi önerilir."
+        },
+        {
+          "no": 2,
+          "madde": "SGK işyeri sicil bilgileri",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "ilk 5 madde hakkında dosyanın ilk başına ilgili sicilde hangi daire bşk.larının olduğu hangi iş kollarında çalışmaların olduğu gibi bir yazı eklenmesi önerilir."
+        },
+        {
+          "no": 3,
+          "madde": "NACE kodu / faaliyet bilgisi",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "ilk 5 madde hakkında dosyanın ilk başına ilgili sicilde hangi daire bşk.larının olduğu hangi iş kollarında çalışmaların olduğu gibi bir yazı eklenmesi önerilir."
+        },
+        {
+          "no": 4,
+          "madde": "Tehlike sınıfı",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "ilk 5 madde hakkında dosyanın ilk başına ilgili sicilde hangi daire bşk.larının olduğu hangi iş kollarında çalışmaların olduğu gibi bir yazı eklenmesi önerilir."
+        },
+        {
+          "no": 5,
+          "madde": "Çalışan sayısı",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "ilk 5 madde hakkında dosyanın ilk başına ilgili sicilde hangi daire bşk.larının olduğu hangi iş kollarında çalışmaların olduğu gibi bir yazı eklenmesi önerilir."
+        },
+        {
+          "no": 6,
+          "madde": "İSG profesyonellerinin görevlendirme kayıtları",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "ilk 5 madde hakkında dosyanın ilk başına ilgili sicilde hangi daire bşk.larının olduğu hangi iş kollarında çalışmaların olduğu gibi bir yazı eklenmesi önerilir."
+        },
+        {
+          "no": 7,
+          "madde": "İSG-KATİP sözleşmeleri / görevlendirmeleri",
+          "dayanak": "",
+          "isaret": "GUNCELLENECEK",
+          "tarih": "",
+          "not": "Tülay ACAR sözleşme eski güncellenmesi gerekiyor"
+        },
+        {
+          "no": 8,
+          "madde": "İSG Kurulu belgeleri (kurul yükümlülüğü varsa)",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "Kurul atama formu Abdullah ÇAĞLAR imza eksik"
+        }
+      ]
+    },
+    {
+      "ad": "Çalışan temsilcisi",
+      "maddeler": [
+        {
+          "no": 9,
+          "madde": "Çalışan Temsilcisi Atama yazısı",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 10,
+          "madde": "Çalışan temsilcisi Eğitim yazısı",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 11,
+          "madde": "Çalışan temsilcisi talimatları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 12,
+          "madde": "Çalışan temsilcisi test",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 13,
+          "madde": "Baş Çalışan Temsilcisi yazısı",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        }
+      ]
+    },
+    {
+      "ad": "Yıllık planlar",
+      "maddeler": [
+        {
+          "no": 14,
+          "madde": "Yıllık değerlendirme raporu",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 15,
+          "madde": "Yıllık çalışma planı",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 16,
+          "madde": "Yıllı Eğitim planı",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        }
+      ]
+    },
+    {
+      "ad": "Risk Değerlendirmesi",
+      "maddeler": [
+        {
+          "no": 17,
+          "madde": "Risk değerlendirmesi",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 18,
+          "madde": "Ekip görevlendirmeleri",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "Tayfun KÜÇÜKÇAL Destek elemanı şefi imza eksik bilgi sahibi çalışan eğitim eksik"
+        },
+        {
+          "no": 19,
+          "madde": "Risk değerlendirmesi yenileme kayıtları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "Tayfun KÜÇÜKÇAL Destek elemanı şefi imza eksik bilgi sahibi çalışan eğitim eksik"
+        },
+        {
+          "no": 20,
+          "madde": "Tespit edilen riskler",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 21,
+          "madde": "Alınacak önlemler",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 22,
+          "madde": "Düzeltici / önleyici faaliyetler",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 23,
+          "madde": "Revizyon kayıtları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        }
+      ]
+    },
+    {
+      "ad": "Acil Durum",
+      "maddeler": [
+        {
+          "no": 24,
+          "madde": "Acil durum planı",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "Destek elemanı şefi Tayfun KÜÇÜKÇAL"
+        },
+        {
+          "no": 25,
+          "madde": "Acil durum ekipleri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 26,
+          "madde": "Görevlendirme listeleri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 27,
+          "madde": "Acil durum krokileri",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "Kısmen birimlerin var çoğunluk olarak yok"
+        },
+        {
+          "no": 28,
+          "madde": "Kaçış yolları ve toplanma alanı",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "Kısmen birimlerin var çoğunluk olarak yok"
+        },
+        {
+          "no": 29,
+          "madde": "Acil durum iletişim bilgileri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 30,
+          "madde": "Tatbikat kayıtları",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 31,
+          "madde": "Tatbikat sonuçları ve değerlendirmeler",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": ""
+        }
+      ]
+    },
+    {
+      "ad": "Eğitim Dosyası",
+      "maddeler": [
+        {
+          "no": 32,
+          "madde": "İSG eğitim planı",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 33,
+          "madde": "Eğitim katılım tutanakları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 34,
+          "madde": "Eğitim içerikleri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 35,
+          "madde": "Eğitim değerlendirme kayıtları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 36,
+          "madde": "Eğitim sertifikaları / belgeleri",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 37,
+          "madde": "İşe başlama eğitimleri",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 38,
+          "madde": "İlave eğitimler (gerekirse)",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 39,
+          "madde": "Özel eğitim gerektiren çalışanlara ait kayıtlar",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": ""
+        }
+      ]
+    },
+    {
+      "ad": "Sağlık Gözetimi",
+      "maddeler": [
+        {
+          "no": 40,
+          "madde": "İşe giriş sağlık raporları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 41,
+          "madde": "Periyodik muayene kayıtları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 42,
+          "madde": "Sağlık gözetimine ilişkin kayıtlar",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 43,
+          "madde": "Yapılan işe / riske göre gerekli tetkik sonuçları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 44,
+          "madde": "Özel politika gerektiren çalışanlara ilişkin kayıtlar",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "işyeri hekimi ilgilenecek"
+        }
+      ]
+    },
+    {
+      "ad": "Olay Kayıtları",
+      "maddeler": [
+        {
+          "no": 45,
+          "madde": "İş kazası kayıtları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 46,
+          "madde": "İş kazası bildirimleri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 47,
+          "madde": "Kaza araştırma ve inceleme raporları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 48,
+          "madde": "Kök neden analizleri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 49,
+          "madde": "Ramak kala kayıtları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "Ramak kala kayıtları tutulmuyor."
+        },
+        {
+          "no": 50,
+          "madde": "Alınan düzeltici / önleyici faaliyetler",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 51,
+          "madde": "Takip kayıtları",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "Kaza sonrası personellere İLGİLİ raporlar yapılmalı ve kayıt altına alınmalıdır."
+        }
+      ]
+    },
+    {
+      "ad": "Periyodik Kontroller",
+      "maddeler": [
+        {
+          "no": 52,
+          "madde": "Kaldırma ve iletme araçları periyodik kontrol raporları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında yapılması gereken ekipmanlar çıkarılarak daire bşk. Üst yazı ile teslim edilmelidir. (tek yazı yönetmelik yazıp göndermek uygun değilidir.)"
+        },
+        {
+          "no": 53,
+          "madde": "Basınçlı kaplar periyodik kontrol raporları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": "Kompresörlerin periyodik kontrolleri yapılmış eksiklerde ilgili daireye bildirilmiştir."
+        },
+        {
+          "no": 54,
+          "madde": "Elektrik tesisatı periyodik kontrol raporları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında yapılması gereken ekipmanlar çıkarılarak daire bşk. Üst yazı ile teslim edilmelidir. (tek yazı yönetmelik yazıp göndermek uygun değilidir.)"
+        },
+        {
+          "no": 55,
+          "madde": "Topraklama ölçüm / kontrol raporları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında yapılması gereken ekipmanlar çıkarılarak daire bşk. Üst yazı ile teslim edilmelidir. (tek yazı yönetmelik yazıp göndermek uygun değilidir.)"
+        },
+        {
+          "no": 56,
+          "madde": "Paratoner kontrol raporları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında yapılması gereken ekipmanlar çıkarılarak daire bşk. Üst yazı ile teslim edilmelidir. (tek yazı yönetmelik yazıp göndermek uygun değilidir.)"
+        },
+        {
+          "no": 57,
+          "madde": "Yangın tesisatı ve ekipmanları kontrol raporları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında yapılması gereken ekipmanlar çıkarılarak daire bşk. Üst yazı ile teslim edilmelidir. (tek yazı yönetmelik yazıp göndermek uygun değilidir.)"
+        },
+        {
+          "no": 58,
+          "madde": "Havalandırma tesisatı kontrol raporları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında yapılması gereken ekipmanlar çıkarılarak daire bşk. Üst yazı ile teslim edilmelidir. (tek yazı yönetmelik yazıp göndermek uygun değilidir.)"
+        },
+        {
+          "no": 59,
+          "madde": "Diğer iş ekipmanlarının periyodik kontrol raporları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında yapılması gereken ekipmanlar çıkarılarak daire bşk. Üst yazı ile teslim edilmelidir. (tek yazı yönetmelik yazıp göndermek uygun değilidir.)"
+        }
+      ]
+    },
+    {
+      "ad": "Ölçüm ve Analizler",
+      "maddeler": [
+        {
+          "no": 60,
+          "madde": "Gürültü ölçümü",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "İlgili daire bşk.larına ortam ölçümlerini yapılması için yazı yazılmalıdır (biz alt işveren olduğumuz için yazmamız yeterlidir.)"
+        },
+        {
+          "no": 61,
+          "madde": "Toz ölçümü",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "İlgili daire bşk.larına ortam ölçümlerini yapılması için yazı yazılmalıdır (biz alt işveren olduğumuz için yazmamız yeterlidir.)"
+        },
+        {
+          "no": 62,
+          "madde": "Termal konfor ölçümü",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "İlgili daire bşk.larına ortam ölçümlerini yapılması için yazı yazılmalıdır (biz alt işveren olduğumuz için yazmamız yeterlidir.)"
+        },
+        {
+          "no": 63,
+          "madde": "Aydınlatma ölçümü",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "İlgili daire bşk.larına ortam ölçümlerini yapılması için yazı yazılmalıdır (biz alt işveren olduğumuz için yazmamız yeterlidir.)"
+        },
+        {
+          "no": 64,
+          "madde": "Titreşim ölçümü",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "İlgili daire bşk.larına ortam ölçümlerini yapılması için yazı yazılmalıdır (biz alt işveren olduğumuz için yazmamız yeterlidir.)"
+        },
+        {
+          "no": 65,
+          "madde": "Kimyasal maruziyet ölçümleri",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "İlgili daire bşk.larına ortam ölçümlerini yapılması için yazı yazılmalıdır (biz alt işveren olduğumuz için yazmamız yeterlidir.)"
+        },
+        {
+          "no": 66,
+          "madde": "Kişisel maruziyet ölçümleri",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "İlgili daire bşk.larına ortam ölçümlerini yapılması için yazı yazılmalıdır (biz alt işveren olduğumuz için yazmamız yeterlidir.)"
+        },
+        {
+          "no": 67,
+          "madde": "Gerekli diğer ölçüm ve analizler",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "İlgili daire bşk.larına ortam ölçümlerini yapılması için yazı yazılmalıdır (biz alt işveren olduğumuz için yazmamız yeterlidir.)"
+        }
+      ]
+    },
+    {
+      "ad": "KKD Dosyası",
+      "maddeler": [
+        {
+          "no": 68,
+          "madde": "KKD ihtiyaçlarının belirlenmesi",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında KKD ihtiyacı olan birimler belirlenmeli ve alınması için dairelere üst yazı yazılmalı."
+        },
+        {
+          "no": 69,
+          "madde": "KKD teslim / kullanım kayıtları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında KKD ihtiyacı olan birimler belirlenmeli ve alınması için dairelere üst yazı yazılmalı."
+        },
+        {
+          "no": 70,
+          "madde": "KKD kullanım eğitimleri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": "Temel İSG eğitiminde var"
+        },
+        {
+          "no": 71,
+          "madde": "KKD uygunluk belgeleri",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İhale sonrası ilgili daire bşk.larına alınan KKDlerin uygun beyanaları dosyaya koyulmalı"
+        },
+        {
+          "no": 72,
+          "madde": "Kullanım ve bakım talimatları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "KKDlerin içlerinden bunlarla alakalı birer adet örnek alınmalı"
+        },
+        {
+          "no": 73,
+          "madde": "KKD zimmet kayıtları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "Dağıtımdan sonra KKD lerin zimmetlenmesi için ilgili daire bşk.larına yazı yazılmalı"
+        }
+      ]
+    },
+    {
+      "ad": "Talimatlar ve Prosedürler",
+      "maddeler": [
+        {
+          "no": 74,
+          "madde": "İş güvenliği talimatları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 75,
+          "madde": "Makine kullanım talimatları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 76,
+          "madde": "İşe özel çalışma talimatları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 77,
+          "madde": "Acil durum talimatları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 78,
+          "madde": "Kimyasal kullanım talimatları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 79,
+          "madde": "Yüksekte çalışma prosedürleri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 80,
+          "madde": "Kapalı alan çalışma prosedürleri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 81,
+          "madde": "Sıcak çalışma prosedürleri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        }
+      ]
+    },
+    {
+      "ad": "Kimyasal Maddeler",
+      "maddeler": [
+        {
+          "no": 82,
+          "madde": "Güncel güvenlik bilgi formları (SDS/GBF)",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında kullanılan Kimyasalların SDS formları istenmeli ve dosyalanmalı özellikle kreş ve otizim merkezlerindekiler"
+        },
+        {
+          "no": 83,
+          "madde": "Kimyasal envanteri",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında kullanılan Kimyasalların SDS formları istenmeli ve dosyalanmalı özellikle kreş ve otizim merkezlerindekiler"
+        },
+        {
+          "no": 84,
+          "madde": "Etiketleme kayıtları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında kullanılan Kimyasalların SDS formları istenmeli ve dosyalanmalı özellikle kreş ve otizim merkezlerindekiler"
+        },
+        {
+          "no": 85,
+          "madde": "Kimyasal depolama kuralları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında kullanılan Kimyasalların SDS formları istenmeli ve dosyalanmalı özellikle kreş ve otizim merkezlerindekiler"
+        },
+        {
+          "no": 86,
+          "madde": "Maruziyet değerlendirmeleri",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında kullanılan Kimyasalların SDS formları istenmeli ve dosyalanmalı özellikle kreş ve otizim merkezlerindekiler"
+        },
+        {
+          "no": 87,
+          "madde": "Kimyasal risklere yönelik eğitim ve talimatlar",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "İlgili daire bşk.larında kullanılan Kimyasalların SDS formları istenmeli ve dosyalanmalı özellikle kreş ve otizim merkezlerindekiler"
+        }
+      ]
+    },
+    {
+      "ad": "İSG Kurulu ve Toplantılar",
+      "maddeler": [
+        {
+          "no": 88,
+          "madde": "Kurul oluşturma belgeleri",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 89,
+          "madde": "Kurul üyeleri ve görevlendirmeler",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 90,
+          "madde": "Kurul toplantı tutanakları",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "Haziran ayı kurul kararları imza eksik"
+        },
+        {
+          "no": 91,
+          "madde": "Alınan kararlar",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 92,
+          "madde": "Kararların takip kayıtları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 93,
+          "madde": "Yıllık çalışma planı",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 94,
+          "madde": "Yıllık değerlendirme raporu",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        }
+      ]
+    },
+    {
+      "ad": "Saha Kontrolleri",
+      "maddeler": [
+        {
+          "no": 95,
+          "madde": "Saha gözlem formları",
+          "dayanak": "",
+          "isaret": "GUNCELLENECEK",
+          "tarih": "",
+          "not": "Ayda bir saha gözlem gönderilmesi önerilir."
+        },
+        {
+          "no": 96,
+          "madde": "Tespit ve öneriler",
+          "dayanak": "",
+          "isaret": "GUNCELLENECEK",
+          "tarih": "",
+          "not": "Ayda bir saha gözlem gönderilmesi önerilir."
+        },
+        {
+          "no": 97,
+          "madde": "Uygunsuzluk kayıtları",
+          "dayanak": "",
+          "isaret": "GUNCELLENECEK",
+          "tarih": "",
+          "not": "Ayda bir saha gözlem gönderilmesi önerilir."
+        },
+        {
+          "no": 98,
+          "madde": "Fotoğraflı tespitler",
+          "dayanak": "",
+          "isaret": "GUNCELLENECEK",
+          "tarih": "",
+          "not": "Ayda bir saha gözlem gönderilmesi önerilir."
+        },
+        {
+          "no": 99,
+          "madde": "Düzeltici faaliyetler",
+          "dayanak": "",
+          "isaret": "GUNCELLENECEK",
+          "tarih": "",
+          "not": "Ayda bir saha gözlem gönderilmesi önerilir."
+        },
+        {
+          "no": 100,
+          "madde": "Faaliyetlerin kapanış / takip kayıtları",
+          "dayanak": "",
+          "isaret": "GUNCELLENECEK",
+          "tarih": "",
+          "not": "Ayda bir saha gözlem gönderilmesi önerilir."
+        },
+        {
+          "no": 101,
+          "madde": "Onaylı defter kayıtları",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        }
+      ]
+    },
+    {
+      "ad": "Son Kontrol",
+      "maddeler": [
+        {
+          "no": 102,
+          "madde": "Risk değerlendirmesi güncel mi?",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": "Güncellenmesi önerilir."
+        },
+        {
+          "no": 103,
+          "madde": "Acil durum planı güncel mi?",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 104,
+          "madde": "Eğitim kayıtları tamam mı?",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 105,
+          "madde": "Sağlık gözetimleri takip ediliyor mu?",
+          "dayanak": "",
+          "isaret": "VAR",
+          "tarih": "",
+          "not": ""
+        },
+        {
+          "no": 106,
+          "madde": "Periyodik kontrollerin süresi geçmemiş mi?",
+          "dayanak": "",
+          "isaret": "YOK",
+          "tarih": "",
+          "not": "takip edilmelidir. Eksik varsa yapılmalıdır."
+        },
+        {
+          "no": 107,
+          "madde": "Kaza ve ramak kala kayıtları tutuluyor mu?",
+          "dayanak": "",
+          "isaret": "KD",
+          "tarih": "",
+          "not": "daire bşk.larında böyle bi evrak tutulmuyor."
+        },
+        {
+          "no": 108,
+          "madde": "Saha tespitleri kapatılıyor mu?",
+          "dayanak": "",
+          "isaret": "GUNCELLENECEK",
+          "tarih": "",
+          "not": "Ayda bir saha gözlem gönderilmesi önerilir."
+        }
+      ]
+    }
+  ]
+}

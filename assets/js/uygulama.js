@@ -459,12 +459,18 @@
     var bolumler = (sablon.bolumler || []).map(function (bolum) {
       return B.kacis(bolum.ad) + ' (' + B.sayi((bolum.maddeler || []).length) + ')';
     }).join(' · ');
+    /* Aynı işyeri adına birden fazla liste uygunsa (ör. kadrolu / daire) kullanıcı uyarılır. */
+    var isyeri = (veri().isyerleri || []).filter(function (kayit) { return kayit.id === isyeriId; })[0];
+    var eslesenler = typeof ISG.listeEsleyenSablonlar === 'function' ?
+      (ISG.listeEsleyenSablonlar(isyeri) || []) : [];
 
     kutu.innerHTML =
       '<p><strong>' + B.sayi(ozet.toplam) + '</strong> madde · <strong>' + B.sayi(ozet.yeni) +
         '</strong> yeni kayıt eklenecek · ' + B.sayi(ozet.mevcut) + ' madde zaten açık · ' +
         B.sayi(ozet.eksik) + ' madde eksik işaretli.</p>' +
       (ozet.yeni ? '' : '<p class="hucre-alt">Bu liste işyerinde zaten tam; eklenecek yeni madde yok.</p>') +
+      (eslesenler.length > 1 ? '<p class="hucre-alt">Bu işyeri adına ' + eslesenler.length +
+        ' liste uygun: ' + eslesenler.map(function (s) { return B.kacis(s.ad); }).join(' · ') + '</p>' : '') +
       '<p class="hucre-alt">' + B.kacis(sablon.kaynak || '') + '</p>' +
       '<p class="hucre-alt">' + bolumler + '</p>' +
       (sablon.kontrolTarihi ? '<p class="hucre-alt">Kontrol tarihi: ' + B.tarih(sablon.kontrolTarihi) +

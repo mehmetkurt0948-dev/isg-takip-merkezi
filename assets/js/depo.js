@@ -1368,9 +1368,10 @@
 
   /* ---------- Hazır dosya kontrol listeleri ---------- */
 
-  /* Word'den üretilen kontrol listesini işyerine madde madde ekler.
+  /* Word/Excel'den üretilen kontrol listesini işyerine madde madde ekler.
      Aynı madde o işyerinde zaten açıksa atlanır; düğmeye ikinci kez basmak
-     kayıt çoğaltmaz. Durum eşlemesi: VAR→var, YOK→eksik, K/D→yok. */
+     kayıt çoğaltmaz. Durum eşlemesi: VAR→var, YOK/GÜNCELLENECEK→eksik, K-D/UYGULANAMAZ→yok.
+     Excel'deki "Açıklama / Eksiklik" hücresi kaydın açıklamasına not olarak yazılır. */
   ISG.depo.listeUygula = function (isyeriId, kod) {
     if (typeof ISG.listeSablonBul !== 'function') { throw new Error('Hazır kontrol listesi kataloğu yüklü değil.'); }
     var sablon = ISG.listeSablonBul(kod);
@@ -1394,7 +1395,11 @@
         mevcut[anahtar] = true;
         no += 1;
         var aciklama = madde.dayanak ? 'Yasal dayanak: ' + madde.dayanak : '';
-        if (madde.isaret === 'KD') { aciklama = (aciklama ? aciklama + ' · ' : '') + 'Kapsam dışı (K/D)'; }
+        if (ISG.listeDurumKod(madde.isaret) === 'yok') {
+          aciklama = (aciklama ? aciklama + ' · ' : '') + 'Kapsam dışı';
+        }
+        /* Excel listelerindeki "Açıklama / Eksiklik" hücresi maddenin notu olarak taşınır. */
+        if (madde.not) { aciklama = (aciklama ? aciklama + ' · ' : '') + madde.not; }
         kaydetListede(veri.dosyalar, {
           isyeriId: isyeriId,
           no: no,
@@ -1403,7 +1408,7 @@
           durum: ISG.listeDurumKod(madde.isaret),
           sorumlu: '',
           yenileme: '',
-          kontrolTarihi: madde.tarih || '',
+          kontrolTarihi: madde.tarih || sablon.kontrolTarihi || '',
           aciklama: aciklama.slice(0, 240),
           sablon: sablon.kod
         }, 'd');

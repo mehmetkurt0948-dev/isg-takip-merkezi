@@ -1,0 +1,87 @@
+{
+  "aski-2.xlsx": {
+    "kod": "ASKI-2",
+    "isyeri": "ASKİ-2",
+    "eslesme": ["ASKİ-2", "ASKİ 2"]
+  },
+  "aybel.xlsx": {
+    "kod": "AYBEL",
+    "isyeri": "Aybel",
+    "eslesme": ["Aybel"]
+  },
+  "ayulaş.xlsx": {
+    "kod": "AYULAS",
+    "isyeri": "Ayulaş",
+    "eslesme": ["Ayulaş"]
+  },
+  "çevre koruma ve kontrol dairesi.xlsx": {
+    "kod": "CEVRE-KORUMA",
+    "isyeri": "Çevre Koruma ve Kontrol Dairesi",
+    "eslesme": ["Çevre Koruma ve Kontrol Dairesi"]
+  },
+  "çevre koruma ve kontrol dairesi kadrolu.xlsx": {
+    "kod": "CEVRE-KORUMA-KADROLU",
+    "isyeri": "Çevre Koruma ve Kontrol Dairesi Kadrolu",
+    "eslesme": ["Çevre Koruma ve Kontrol Dairesi Kadrolu", "Çevre Koruma Kadrolu"]
+  },
+  "destek hizmetleri sicil.xlsx": {
+    "kod": "DESTEK-HIZMETLERI",
+    "isyeri": "Destek Hizmetleri",
+    "eslesme": ["Destek Hizmetleri"]
+  },
+  "diğer daire bşk..xlsx": {
+    "kod": "DIGER-DAIRE-BASKANLIGI",
+    "isyeri": "Diğer Daire Başkanlıkları",
+    "eslesme": ["Diğer Daire Başkanlıkları", "Diğer Daire Bşk."]
+  },
+  "güvenlik.xlsx": {
+    "kod": "GUVENLIK",
+    "isyeri": "Güvenlik",
+    "eslesme": ["Güvenlik", "Özel Güvenlik"]
+  },
+  "halk ekmek.xlsx": {
+    "kod": "HALK-EKMEK",
+    "isyeri": "Halk Ekmek",
+    "eslesme": ["Halk Ekmek"]
+  },
+  "itfaiye dairesi bşk..xlsx": {
+    "kod": "ITFAIYE",
+    "isyeri": "İtfaiye Dairesi Başkanlığı",
+    "eslesme": ["İtfaiye Dairesi Başkanlığı", "İtfaiye"]
+  },
+  "makine ikmal ve fen işleri.xlsx": {
+    "kod": "MAKINE-IKMAL",
+    "isyeri": "Makine İkmal ve Fen İşleri",
+    "eslesme": ["Makine İkmal ve Fen İşleri", "Makine İkmal"]
+  },
+  "park ve bahçeler dairesi.xlsx": {
+    "kod": "PARK-BAHCELER",
+    "isyeri": "Park ve Bahçeler Dairesi",
+    "eslesme": ["Park ve Bahçeler Dairesi", "Park ve Bahçeler"]
+  },
+  "park ve bahçeler kadrolular.xlsx": {
+    "kod": "PARK-BAHCELER-KADROLU",
+    "isyeri": "Park ve Bahçeler Kadrolusu",
+    "eslesme": ["Park ve Bahçeler Kadrolusu", "Park Bahçeler Kadrolular"]
+  },
+  "sosyal hizmetler.xlsx": {
+    "kod": "SOSAL-HIZMETLER",
+    "isyeri": "Sosyal Hizmetler",
+    "eslesme": ["Sosyal Hizmetler"]
+  },
+  "ulaşım dairesi bşk..xlsx": {
+    "kod": "ULASIM",
+    "isyeri": "Ulaşım Dairesi Başkanlığı",
+    "eslesme": ["Ulaşım Dairesi Başkanlığı", "Ulaşım"]
+  },
+  "veterinerlik aypaş.xlsx": {
+    "kod": "VETERINERLIK-AYPAS",
+    "isyeri": "Veterinerlik İşleri (Aypaş)",
+    "eslesme": ["Veterinerlik Aypaş", "Veterinerlik İşleri", "Veterinerlik"]
+  },
+  "veterinerlik kadrolu.xlsx": {
+    "kod": "VETERINERLIK-KADROLU",
+    "isyeri": "Veterinerlik Kadrolu",
+    "eslesme": ["Veterinerlik Kadrolu"]
+  }
+}

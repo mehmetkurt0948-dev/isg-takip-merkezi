@@ -392,7 +392,7 @@ function bekle(ms) {
   await bekle(80);
   kontrol('Tümü sekmesi geri döndü', ISG.ui.dosyaSekme === 'tumu');
 
-  console.log('\n8b) Hazır dosya kontrol listeleri (Word şablonları)');
+  console.log('\n8b) Hazır dosya kontrol listeleri (Word/Excel şablonları)');
   const listeSablon = ISG.listeSablonBul('ASKI-1');
   const listeMadde = ISG.listeMaddeSayisi(listeSablon);
   kontrol('ASKİ-1 hazır listesi yüklü', !!listeSablon, listeSablon ? listeSablon.kod : 'yok');
@@ -401,17 +401,41 @@ function bekle(ms) {
   kontrol('Her maddenin metni ve geçerli durumu var',
     !!listeSablon && listeSablon.bolumler.every((bolum) => bolum.maddeler.length > 0 &&
       bolum.maddeler.every((madde) => madde.madde && ISG.DOSYA_DURUMLARI[ISG.listeDurumKod(madde.isaret)])));
-  kontrol('VAR / YOK / K-D işaretleri duruma dönüştü',
+  kontrol('VAR / YOK / GÜNCELLENECEK / K-D işaretleri duruma dönüştü',
     ISG.listeDurumKod('VAR') === 'var' && ISG.listeDurumKod('YOK') === 'eksik' &&
-    ISG.listeDurumKod('KD') === 'yok' && ISG.listeDurumKod('') === 'incelenmedi');
+    ISG.listeDurumKod('GUNCELLENECEK') === 'eksik' && ISG.listeDurumKod('KD') === 'yok' &&
+    ISG.listeDurumKod('UYGULANAMAZ') === 'yok' && ISG.listeDurumKod('') === 'incelenmedi');
   kontrol('Bölüm başlıkları listeye yazılıyor',
     !!listeSablon && /BÖLÜM 1/.test(listeSablon.bolumler[0].ad), listeSablon ? listeSablon.bolumler[0].ad : '');
   kontrol('İşyeri adı şablonu tanıyor',
     ISG.listeEsleyenSablonlar({ ad: 'ASKİ-1' }).some((s) => s.kod === 'ASKI-1'));
   kontrol('Farklı yazımda da eşleşiyor (Aski 1)',
     ISG.listeEsleyenSablonlar({ ad: 'Aski 1 Şantiyesi' }).some((s) => s.kod === 'ASKI-1'));
-  kontrol('Başka işyeri şablonu önermiyor',
-    ISG.listeEsleyenSablonlar({ ad: 'Park ve Bahçeler' }).length === 0);
+  kontrol('İlgisiz işyeri şablon önermiyor',
+    ISG.listeEsleyenSablonlar({ ad: 'Örnek OSGB Danışmanlık' }).length === 0,
+    ISG.listeEsleyenSablonlar({ ad: 'Örnek OSGB Danışmanlık' }).map((s) => s.kod).join(','));
+
+  /* Excel "İSG Dosya Kontrol Checklisti" sayfalarından üretilen işyeri listeleri. */
+  const excelListe = ISG.listeSablonBul('ASKI-2');
+  const excelMadde = ISG.listeMaddeSayisi(excelListe);
+  kontrol('Excel listeleri kataloğa yüklendi (ASKİ-1 + 17 işyeri)',
+    (ISG.KONTROL_LISTESI_SABLONLARI || []).length === 18,
+    String((ISG.KONTROL_LISTESI_SABLONLARI || []).length));
+  kontrol('ASKİ-2 Excel listesi 16 bölüm / 107 madde',
+    !!excelListe && excelListe.bolumler.length === 16 && excelMadde === 107, String(excelMadde));
+  kontrol('Excel bölüm adları aynen taşındı',
+    !!excelListe && excelListe.bolumler[0].ad === 'İşyeri ve İSG Organizasyonu',
+    excelListe ? excelListe.bolumler[0].ad : 'yok');
+  kontrol('Excel "Açıklama / Eksiklik" hücresi maddeye not olarak yazıldı',
+    !!excelListe && excelListe.bolumler.some((bolum) => bolum.maddeler.some((madde) => madde.not)), 'not yok');
+  kontrol('Excel kontrol tarihi ve özeti şablona yazıldı',
+    !!excelListe && /^\d{4}-\d{2}-\d{2}$/.test(excelListe.kontrolTarihi || '') &&
+    /Kontrol özeti/.test(excelListe.genelDegerlendirme || ''),
+    excelListe ? excelListe.kontrolTarihi : 'yok');
+  kontrol('Excel işyeri adı şablonu tanıyor (Halk Ekmek)',
+    ISG.listeEsleyenSablonlar({ ad: 'Halk Ekmek A.Ş.' }).some((s) => s.kod === 'HALK-EKMEK'));
+  kontrol('Kadrolu ve daire listeleri ayrı şablon',
+    !!ISG.listeSablonBul('PARK-BAHCELER') && !!ISG.listeSablonBul('PARK-BAHCELER-KADROLU'));
 
   /* Uçtan uca: düğme → diyalog → 142 madde → ikinci denemede çoğalmıyor.
      Test kendi işyerini açar ve sonunda anlık yedeğe döner. */
@@ -426,9 +450,9 @@ function bekle(ms) {
   listeDugme.click();
   await bekle(120);
   kontrol('Hazır liste diyaloğu açılıyor', doc.getElementById('listeDiyalog').open === true);
-  kontrol('Diyalogda işyeri ve liste seçenekleri dolu',
+  kontrol('Diyalogda işyeri ve tüm hazır listeler seçiliyor',
     doc.querySelectorAll('#listeIsyeri option').length > 1 &&
-    doc.querySelectorAll('#listeSablon option').length === 1,
+    doc.querySelectorAll('#listeSablon option').length === (ISG.KONTROL_LISTESI_SABLONLARI || []).length,
     doc.querySelectorAll('#listeIsyeri option').length + '/' + doc.querySelectorAll('#listeSablon option').length);
 
   const listeForm = doc.getElementById('listeForm');
@@ -526,6 +550,32 @@ function bekle(ms) {
   kontrol('Liste dışında kalan kayıtlar korundu',
     ISG.depo.al().dosyalar.length === listeOncesi, String(ISG.depo.al().dosyalar.length));
   kontrol('Silinen listenin kaynak filtresi sıfırlandı', ISG.ui.dosyaSablon === '');
+
+  /* Excel'den üretilen liste de aynı akışla eklenir ve tek hamlede silinir.
+     ASKİ-2 kaynağında iki madde iki bölümde tekrarlı yazılı; uygulama aynı maddeyi
+     ikinci kez açmadığı için 107 maddeden 105 kayıt ürer. */
+  const excelUygulama = ISG.depo.listeUygula(testIsyeri.id, 'ASKI-2');
+  const excelKayitlar = ISG.depo.al().dosyalar.filter((d) => d.isyeriId === testIsyeri.id);
+  kontrol('Excel listesi işyerine uygulandı (107 madde → 105 yeni kayıt)',
+    excelMadde === 107 && excelUygulama.eklenen === 105 && excelUygulama.atlanan === 2 &&
+    excelKayitlar.length === 105, JSON.stringify(excelUygulama));
+  kontrol('Excel maddeleri listenin kontrol tarihini aldı',
+    excelKayitlar.length > 0 && excelKayitlar.every((d) => d.kontrolTarihi === '2026-09-23'),
+    excelKayitlar.length ? String(excelKayitlar[0].kontrolTarihi) : 'kayıt yok');
+  kontrol('Excel açıklama/eksiklik notu kaydın açıklamasına yazıldı',
+    excelKayitlar.some((d) => /sicilde hangi daire/.test(d.aciklama || '')), 'not yok');
+  kontrol('Güncellenecek işaretleri eksik durumuna dönüştü',
+    excelKayitlar.filter((d) => d.durum === 'eksik').length === 73 &&
+    excelKayitlar.filter((d) => d.durum === 'var').length === 15,
+    'eksik=' + excelKayitlar.filter((d) => d.durum === 'eksik').length);
+  kontrol('Uygulanamaz işaretleri kapsam dışı kaldı',
+    excelKayitlar.filter((d) => d.durum === 'yok').length === 17 &&
+    excelKayitlar.filter((d) => d.durum === 'yok').every((d) => /Kapsam dışı/.test(d.aciklama || '')),
+    'kapsam=' + excelKayitlar.filter((d) => d.durum === 'yok').length);
+  const excelSilme = ISG.depo.listeGeriAl(testIsyeri.id, 'ASKI-2');
+  kontrol('Excel listesi de tek hamlede silindi',
+    excelSilme.silinen === 105 && !ISG.depo.al().dosyalar.some((d) => d.isyeriId === testIsyeri.id),
+    JSON.stringify(excelSilme));
 
   /* Sonraki testler dosya tablosunu kullanır: kapsam ve filtreler geri alınır. */
   ISG.ui.kapsam = '';

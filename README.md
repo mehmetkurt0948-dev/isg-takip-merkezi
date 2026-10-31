@@ -226,7 +226,7 @@ isg-takip-merkezi/
 │  │  └─ apple-touch-icon.png # iOS ana ekran
 │  └─ js/
 │     ├─ ornek-veri.js        # boş tohum (BOS_VERI), örnek/tanıtım verisi, katalog üretimi, mevzuat
-│     ├─ kontrol-listeleri.js # ÜRETİLMİŞ: işyeri bazlı hazır dosya kontrol listeleri (Word çıktısı)
+│     ├─ kontrol-listeleri.js # ÜRETİLMİŞ: işyeri bazlı hazır dosya kontrol listeleri (Word/Excel çıktısı)
 │     ├─ depo.js              # alan kuralları, localStorage, CRUD, görev motoru
 │     ├─ bicim.js             # tarih/rozet/CSV/sayfalama yardımcıları
 │     ├─ yetki.js             # oturum, roller, işyeri kapsamı, onay kuyruğu
@@ -238,10 +238,11 @@ isg-takip-merkezi/
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (471 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (500 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (27 kontrol)
-│  ├─ kontrol-listesi.js      # Word (.docx) kontrol listesini hazır şablona çevirir
-│  ├─ kontrol-listeleri/      # dönüştürülmüş işyeri listeleri (ASKI-1.json …)
+│  ├─ kontrol-listesi.js      # Word (.docx) / Excel (.xlsx) kontrol listesini hazır şablona çevirir
+│  ├─ kontrol-listesi-kaynaklari.json  # Excel dosya adı → işyeri kodu/ad eşleşmesi (toplu dönüşüm)
+│  ├─ kontrol-listeleri/      # dönüştürülmüş işyeri listeleri (ASKI-1.json, ASKI-2.json, …)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
 ├─ package.json               # npm test / test:belge / ikon / yayin
@@ -484,14 +485,20 @@ varsa çıkış kodu 1'dir; panoda “yayınladım” demekle yetinilmez. Aynı 
 `.github/workflows/kontrol.yml` içinde her `main` push'undan sonra çalışır ve
 Pages yeni sürümü servis etmezse derlemeyi kırmızıya çevirir.
 
-## 6.4. İşyeri Word kontrol listesini uygulamaya ekleme
+## 6.4. İşyeri kontrol listesini uygulamaya ekleme (Word / Excel)
 
-Her işyeri için Word olarak hazırlanan dosya kontrol listesi (ABB-OSGB-KL-001
-şablonu) iki adımda uygulamaya girer:
+İşyerleri için iki kaynak paylaşılıyor: Word dosya kontrol listesi
+(ABB-OSGB-KL-001 şablonu) ve Excel **"İSG DOSYA KONTROL CHECKLİSTİ"**. İkisi de
+aynı hazır şablona (`tools/kontrol-listeleri/<KOD>.json`) dönüştürülür:
 
 ```powershell
-# 1) Word listesini şablona çevir → tools/kontrol-listeleri/<KOD>.json + assets/js/kontrol-listeleri.js
+# 1) Tek dosyayı şablona çevir → tools/kontrol-listeleri/<KOD>.json + assets/js/kontrol-listeleri.js
 node tools/kontrol-listesi.js donustur "C:\...\ASKI-1 DOSYA KONTROL LISTESI.docx" ASKI-1
+node tools/kontrol-listesi.js donustur "C:\...\halk ekmek.xlsx" HALK-EKMEK --isyeri="Halk Ekmek"
+
+# 1b) Klasördeki tüm Excel listelerini birden çevir (kod/ad eşleşmesi kaynak dosyasından)
+node tools/kontrol-listesi.js toplu "C:\...\kontrol listeleri" `
+  --kaynaklar=tools/kontrol-listesi-kaynaklari.json
 
 # 2) Damgaları yenile, testi koştur, yayın paketini hazırla
 npm run surum
@@ -505,14 +512,32 @@ tablosu (sütunlar başlık satırından bulunur, sıra değişebilir), dolu kut
 işaretleri, işyeri/birim adı, SGK sicili, asıl işveren, kontrol ve sıradaki
 kontrol tarihi, genel değerlendirme notu ile kontrolü yapan uzman.
 
+Excel'de (`İSG Dosya Checklist` sayfası) üst bilgi satırları — `İşyeri / Birim`,
+`Kontrol Tarihi` (Excel seri tarihi ISO'ya çevrilir), `Kontrolü Yapan`,
+`İSG Uzmanı` — ve `No | Ana Başlık | Kontrol Edilecek Belge / Kayıt | Durum |
+Açıklama / Eksiklik | Kontrol` tablosu okunur. `Ana Başlık` bölüm adı olur,
+`Durum` işarete döner: **Var / Uygun → VAR**, **Eksik → YOK**,
+**Güncellenecek → GUNCELLENECEK**, **Uygulanamaz → KD (kapsam dışı)**;
+"Açıklama / Eksiklik" hücresi maddenin `not` alanına taşınır. Sayfadaki "Özet"
+sekmesi okunmaz; özet satırı kontrol sayımlarından yeniden üretilir.
+
 Uygulamada **Dosya kontrolleri → Hazır kontrol listesi**: işyeri ve liste
 seçilir; önizleme "kaç madde eklenecek / kaçı zaten açık / kaçı eksik işaretli"
-bilgisini gösterir. Eklenen her madde `bölüm`, `durum` (VAR→Var, YOK→Eksik,
-K/D→Yok), `kontrol tarihi` ve `Yasal dayanak: …` açıklamasıyla açılır, kaydına
-`sablon: ASKI-1` etiketi yazılır. Aynı liste ikinci kez eklenirse maddeler
-çoğalmaz (Türkçe duyarlı metin anahtarıyla atlanır). Yönetici dışında kayıt
-yapan 142 tekil talep yerine **tek bir onay talebi** üretilecek şekilde yetki
-kuyruğuna `listeUygula` olarak girer.
+bilgisini gösterir. Eklenen her madde `bölüm`, `durum` (VAR→Var,
+YOK/GÜNCLENECEK→Eksik, K-D/Uygulanamaz→Yok), `kontrol tarihi` ve `Yasal
+dayanak: …` ya da Excel'deki eksiklik notuyla açılır, kaydına `sablon: <KOD>`
+etiketi yazılır. Aynı liste ikinci kez eklenirse maddeler çoğalmaz (Türkçe
+duyarlı metin anahtarıyla atlanır — aynı madde iki bölümde tekrarlı yazılıysa da
+tek kayıt açılır). Yönetici dışında kayıt yapan, 107 tekil talep yerine **tek bir
+onay talebi** üretilecek şekilde yetki kuyruğuna `listeUygula` olarak girer.
+
+Katalogda bugün **18 işyeri listesi / 1.965 madde** var: Word'den ASKİ-1;
+Excel'den ASKİ-2, Aybel, Ayulaş, Çevre Koruma ve Kontrol Dairesi (+kadrolu),
+Destek Hizmetleri, Diğer Daire Başkanlıkları, Güvenlik, Halk Ekmek, İtfaiye,
+Makine İkmal ve Fen İşleri, Park ve Bahçeler (+kadrolu), Sosyal Hizmetler,
+Ulaşım ve Veterinerlik (Aypaş + kadrolu). İşyeri adı bu adlarla eşleşen listeyi
+otomatik önerir; birden fazla liste uygunsa (ör. kadrolu / daire) önizlemede
+"Bu işyeri adına N liste uygun" yazılır ve liste kutusundan değiştirilebilir.
 
 Yeni bir işyeri listesi geldiğinde tek gereken, komutu yeni bir `KOD` ile
 çalıştırmaktır: `tools/kontrol-listeleri/*.json` dosyalarının tamamı
@@ -678,6 +703,47 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.14.0 — 17 işyerinin Excel kontrol listesi hazır şablon oldu
+
+- **Excel (.xlsx) dönüştürücü eklendi.** `tools/kontrol-listesi.js` Word'ün
+  yanında "İSG DOSYA KONTROL CHECKLİSTİ" sayfalarını da okuyor: üst bilgi
+  (işyeri/birim, kontrol tarihi, kontrolü yapan, İSG uzmanı), `Ana Başlık`
+  bölümleri, `Durum` işaretleri ve `Açıklama / Eksiklik` notları.
+- **17 işyeri listesi kataloğa girdi** (16 bölüm / 107–108 madde): ASKİ-2,
+  Aybel, Ayulaş, Çevre Koruma ve Kontrol Dairesi (+kadrolu), Destek Hizmetleri,
+  Diğer Daire Başkanlıkları, Güvenlik, Halk Ekmek, İtfaiye, Makine İkmal ve Fen
+  İşleri, Park ve Bahçeler (+kadrolu), Sosyal Hizmetler, Ulaşım ve Veterinerlik
+  (Aypaş + kadrolu). Katalog **18 listeye / 1.965 maddeye** çıktı.
+- **Durum eşlemesi genişledi:** Var / Uygun→**Var**, Eksik→**Eksik**,
+  **Güncellenecek→Eksik**, **Uygulanamaz→Kapsam dışı (Yok)**. Excel'deki
+  eksiklik notu kaydın açıklamasına yazılır; maddenin kendi tarihi yoksa
+  listenin kontrol tarihi kullanılır.
+- **Toplu dönüşüm:** `node tools/kontrol-listesi.js toplu "<klasör>"
+  --kaynaklar=tools/kontrol-listesi-kaynaklari.json` klasördeki tüm Excel
+  listelerini işyeri kod/adlarıyla birlikte çevirir; yeni Excel geldiğinde tek
+  komut yeter.
+- **Önizleme uyarısı:** işyeri adına birden fazla liste uygunsa (kadrolu /
+  daire) "Bu işyeri adına N liste uygun: …" satırı gösterilir.
+- **Üretici dosya disipline edildi:** `listeUygulananOzeti` yalnız üretilmiş
+  dosyada duruyordu; üretici yardımcılara (`YARDIMCILAR`) taşındı, böylece
+  `olustur` yeniden çalıştığında kaybolmuyor.
+- **Test kapsamı 471 → 500 kontrol** (Excel şablon bütünlüğü, bölüm/not/tarih
+  taşınması, GÜNCLENECEK/UYGULANAMAZ eşlemesi, Excel listesinin uçtan uca
+  eklenip tek hamlede silinmesi) + belge testi 27 kontrol.
+- `package.json` sürümü **2.14.0**; `kontrol-listeleri.js`, `depo.js` ve
+  `uygulama.js` damgaları yeniden üretildi.
+
+### 2.13.0 — Uygulanan hazır liste tek hamlede siliniyor
+
+- **Listeyi geri al:** yanlış işyerine/bölüme eklenen hazır liste
+  `depo.listeGeriAl(isyeriId, kod, bolumAdi?)` ile, ekli belgeleriyle birlikte,
+  tek hamlede silinir; elle eklenen maddeler hiçbir zaman toplu silinmez.
+- **Kaynak filtresi:** hazır şablondan üretilen maddeler `sablon` etiketiyle
+  süzülebilir; liste eklenince çalışma alanı otomatik olarak o listeye odaklanır
+  (içe aktarılan maddeler hemen görünür).
+- **Yetki ve denetim:** silme işlemi `listeGeriAl` adıyla yazma işlemlerine
+  kayıtlı; yönetici dışındaki roller tek bir onay talebi açar.
 
 ### 2.12.0 — İşyerine özel hazır dosya kontrol listeleri (Word → uygulama)
 
