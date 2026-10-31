@@ -45,6 +45,17 @@
     return say;
   }
 
+  /* Word'den üretilen hazır kontrol listesi varsa düğme görünür;
+     görüntüleyici rolü hiçbir zaman düğmeyi görmez. */
+  function listeDugmesi() {
+    var sablonVar = typeof ISG.listeSablonBul === 'function' &&
+      (ISG.KONTROL_LISTESI_SABLONLARI || []).length > 0;
+    if (!sablonVar) { return ''; }
+    if (ISG.yetki && !ISG.yetki.degistirebilir(UI.kapsam || '')) { return ''; }
+    return '<button type="button" class="dugme" data-islem="dosya-liste" data-isyeri="' +
+      kacis(UI.kapsam || '') + '">' + B.ikon('i-upload') + 'Hazır kontrol listesi</button>';
+  }
+
   function dosyaSatiri(dosya) {
     var durum = ISG.DOSYA_DURUMLARI[dosya.durum] || { ad: dosya.durum, sinif: 'notr' };
     var tarihDurum = ISG.dosyaDurumEtiketi(dosya);
@@ -92,6 +103,7 @@
 
     return P.sayfaBaslik('DOSYA KONTROLLERİ', 'Dosya kontrolleri', 'İşyeri bazında kayıt ve durum takibi',
       '<button type="button" class="dugme" data-islem="dosya-csv">' + B.ikon('i-download') + 'Excel indir</button>' +
+      listeDugmesi() +
       '<button type="button" class="dugme birincil" data-islem="dosya-yeni" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-plus') + 'Yeni madde ekle</button>') +
 
       P.kapsamSecici(hesap) +

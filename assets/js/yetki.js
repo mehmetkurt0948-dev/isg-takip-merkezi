@@ -218,7 +218,7 @@
     'egitimKaydet', 'egitimSil',
     'riskKaydet', 'riskSil',
     'olayKaydet', 'olaySil',
-    'dosyaKaydet', 'dosyaSil', 'dosyaDurumToplu',
+    'dosyaKaydet', 'dosyaSil', 'dosyaDurumToplu', 'listeUygula',
     'belgeKaydet', 'belgeSil',
     'planKaydet', 'planSil', 'planDurumDegistir',
     'tespitKaydet', 'tespitSil', 'tespitDurumDegistir',
@@ -232,6 +232,7 @@
     riskKaydet: 'Risk kaydı', riskSil: 'Risk kaydı silme',
     olayKaydet: 'Olay / iş kazası bildirimi', olaySil: 'Olay kaydı silme',
     dosyaKaydet: 'Dosya kontrolü', dosyaSil: 'Dosya kaydı silme', dosyaDurumToplu: 'Toplu dosya durumu',
+    listeUygula: 'Hazır dosya kontrol listesi',
     belgeKaydet: 'Belge yükleme', belgeSil: 'Belge silme',
     planKaydet: 'Çalışma planı maddesi', planSil: 'Plan maddesi silme', planDurumDegistir: 'Plan durumu',
     tespitKaydet: 'Saha tespiti', tespitSil: 'Tespit silme', tespitDurumDegistir: 'Tespit durumu',
@@ -248,14 +249,14 @@
     egitimKaydet: 'personel', egitimSil: 'personel',
     riskKaydet: 'risk', riskSil: 'risk', riskEkipKaydet: 'risk', riskEkipUyeEkle: 'risk', riskEkipUyeSil: 'risk',
     olayKaydet: 'saha', olaySil: 'saha', tespitKaydet: 'saha', tespitSil: 'saha', tespitDurumDegistir: 'saha',
-    dosyaKaydet: 'dosyalar', dosyaSil: 'dosyalar', dosyaDurumToplu: 'dosyalar',
+    dosyaKaydet: 'dosyalar', dosyaSil: 'dosyalar', dosyaDurumToplu: 'dosyalar', listeUygula: 'dosyalar',
     belgeKaydet: 'dosyalar', belgeSil: 'dosyalar',
     planKaydet: 'plan', planSil: 'plan', planDurumDegistir: 'plan',
     acilPlanKaydet: 'acil', acilEkipEkle: 'acil', acilEkipSil: 'acil'
   };
 
   var ISYERI_ILK_ARG = {
-    personelTemizle: 1, dosyaDurumToplu: 1, riskEkipKaydet: 1, acilPlanKaydet: 1,
+    personelTemizle: 1, dosyaDurumToplu: 1, listeUygula: 1, riskEkipKaydet: 1, acilPlanKaydet: 1,
     riskEkipUyeEkle: 1, riskEkipUyeSil: 1, acilEkipEkle: 1, acilEkipSil: 1
   };
 

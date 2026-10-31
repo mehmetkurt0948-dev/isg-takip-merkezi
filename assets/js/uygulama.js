@@ -441,6 +441,73 @@
     diyalogAc(el('dosyaDiyalog'), form.elements.madde);
   }
 
+  /* ---------- Hazır dosya kontrol listeleri ---------- */
+
+  /* Seçili işyeri + liste için "kaç madde eklenecek" önizlemesi. */
+  function listeOnizlemeGuncelle() {
+    var kutu = el('listeOnizleme');
+    if (!kutu) { return; }
+    var sablon = typeof ISG.listeSablonBul === 'function' ?
+      ISG.listeSablonBul((el('listeSablon') || {}).value || '') : null;
+    if (!sablon) {
+      kutu.innerHTML = B.bosDurum('Liste seçilmedi', 'Aşağıdan bir kontrol listesi seçin.', 'i-folder');
+      return;
+    }
+    var isyeriId = (el('listeIsyeri') || {}).value || '';
+    var dosyalar = (veri().dosyalar || []).filter(function (dosya) { return dosya.isyeriId === isyeriId; });
+    var ozet = ISG.listeKarsilastir(sablon, dosyalar);
+    var bolumler = (sablon.bolumler || []).map(function (bolum) {
+      return B.kacis(bolum.ad) + ' (' + B.sayi((bolum.maddeler || []).length) + ')';
+    }).join(' · ');
+
+    kutu.innerHTML =
+      '<p><strong>' + B.sayi(ozet.toplam) + '</strong> madde · <strong>' + B.sayi(ozet.yeni) +
+        '</strong> yeni kayıt eklenecek · ' + B.sayi(ozet.mevcut) + ' madde zaten açık · ' +
+        B.sayi(ozet.eksik) + ' madde eksik işaretli.</p>' +
+      (ozet.yeni ? '' : '<p class="hucre-alt">Bu liste işyerinde zaten tam; eklenecek yeni madde yok.</p>') +
+      '<p class="hucre-alt">' + B.kacis(sablon.kaynak || '') + '</p>' +
+      '<p class="hucre-alt">' + bolumler + '</p>' +
+      (sablon.kontrolTarihi ? '<p class="hucre-alt">Kontrol tarihi: ' + B.tarih(sablon.kontrolTarihi) +
+        (sablon.sonrakiKontrol ? ' · sıradaki kontrol: ' + B.tarih(sablon.sonrakiKontrol) : '') + '</p>' : '') +
+      (sablon.duzenleyen ? '<p class="hucre-alt">' + B.kacis(sablon.duzenleyen) + '</p>' : '') +
+      (sablon.genelDegerlendirme ? '<p class="hucre-alt">' + B.kacis(sablon.genelDegerlendirme) + '</p>' : '');
+  }
+
+  /* İşyeri adına göre eşleşen liste (ör. "ASKİ-1" → ASKI-1 şablonu). */
+  function listeOnerilenSablon() {
+    var alan = el('listeIsyeri');
+    if (!alan || typeof ISG.listeEsleyenSablonlar !== 'function') { return null; }
+    var isyeri = (veri().isyerleri || []).filter(function (kayit) { return kayit.id === alan.value; })[0];
+    return ISG.listeEsleyenSablonlar(isyeri)[0] || null;
+  }
+
+  function listeIsyeriDegisti() {
+    var onerilen = listeOnerilenSablon();
+    var secim = el('listeSablon');
+    if (onerilen && secim) { secim.value = onerilen.kod; }
+    listeOnizlemeGuncelle();
+  }
+
+  function listeAc(isyeriId) {
+    var form = el('listeForm');
+    if (!form) { return; }
+    if (typeof ISG.listeSablonBul !== 'function' || !(ISG.KONTROL_LISTESI_SABLONLARI || []).length) {
+      B.bildir('Hazır kontrol listesi kataloğu boş görünüyor.', 'uyari');
+      return;
+    }
+    form.reset();
+    uyariGoster('listeUyari', '');
+    el('listeIsyeri').innerHTML = isyeriSecenekleri(isyeriId || UI.kapsam || (veri().isyerleri[0] || {}).id);
+    var onerilen = listeOnerilenSablon();
+    el('listeSablon').innerHTML = (ISG.KONTROL_LISTESI_SABLONLARI || []).map(function (sablon) {
+      return '<option value="' + B.kacis(sablon.kod) + '"' +
+        (onerilen && onerilen.kod === sablon.kod ? ' selected' : '') + '>' +
+        B.kacis(sablon.ad) + ' · ' + B.sayi(ISG.listeMaddeSayisi(sablon)) + ' madde</option>';
+    }).join('');
+    listeOnizlemeGuncelle();
+    diyalogAc(el('listeDiyalog'), el('listeIsyeri'));
+  }
+
   /* ---------- Dosya belgeleri (ekler) ---------- */
 
   function belgeListesi(dosyaId) {
@@ -1590,6 +1657,9 @@
       case 'dosya-csv':
         csvDosyalar();
         break;
+      case 'dosya-liste':
+        listeAc(isyeriId);
+        break;
       case 'dosya-yeni':
         dosyaAc('', isyeriId);
         break;
@@ -2149,6 +2219,32 @@
       diyalogKapat(el('dosyaDiyalog'));
       B.bildir('Kontrol maddesi kaydedildi.', 'basari');
       ciz();
+    });
+
+    formuBagla('listeForm', function (form) {
+      var veriForm = formVerisi(form);
+      if (!veriForm.isyeriId) { uyariGoster('listeUyari', 'İşyeri seçilmeli.'); return; }
+      if (!veriForm.kod) { uyariGoster('listeUyari', 'Kontrol listesi seçilmeli.'); return; }
+      var sonuc = D.listeUygula(veriForm.isyeriId, veriForm.kod);
+      diyalogKapat(el('listeDiyalog'));
+      if (sonuc && sonuc.bekliyor) {
+        B.bildir('Liste ekleme talebi yönetici onayına gönderildi.', 'uyari');
+        ciz();
+        return;
+      }
+      UI.dosyaSekme = 'tumu';
+      UI.dosyaSayfa = 1;
+      B.bildir(sonuc.eklenen + ' kontrol maddesi eklendi.' +
+        (sonuc.atlanan ? ' ' + sonuc.atlanan + ' madde zaten açık olduğundan atlandı.' : ''),
+        sonuc.eklenen ? 'basari' : 'uyari');
+      ciz();
+    });
+
+    /* Seçim değiştikçe önerilen liste ve önizleme tazelenir. */
+    (['listeIsyeri', 'listeSablon']).forEach(function (alanId) {
+      var alan = el(alanId);
+      if (!alan) { return; }
+      alan.addEventListener('change', alanId === 'listeIsyeri' ? listeIsyeriDegisti : listeOnizlemeGuncelle);
     });
 
     formuBagla('planForm', function (form) {

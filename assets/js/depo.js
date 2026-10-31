@@ -1366,6 +1366,61 @@
     return sayi;
   };
 
+  /* ---------- Hazır dosya kontrol listeleri ---------- */
+
+  /* Word'den üretilen kontrol listesini işyerine madde madde ekler.
+     Aynı madde o işyerinde zaten açıksa atlanır; düğmeye ikinci kez basmak
+     kayıt çoğaltmaz. Durum eşlemesi: VAR→var, YOK→eksik, K/D→yok. */
+  ISG.depo.listeUygula = function (isyeriId, kod) {
+    if (typeof ISG.listeSablonBul !== 'function') { throw new Error('Hazır kontrol listesi kataloğu yüklü değil.'); }
+    var sablon = ISG.listeSablonBul(kod);
+    if (!sablon) { throw new Error('Hazır kontrol listesi bulunamadı: ' + kod); }
+
+    var veri = depo.al();
+    var isyeri = (veri.isyerleri || []).filter(function (kayit) { return kayit.id === isyeriId; })[0];
+    if (!isyeri) { throw new Error('Listenin ekleneceği işyeri bulunamadı.'); }
+
+    var kardesler = (veri.dosyalar || []).filter(function (dosya) { return dosya.isyeriId === isyeriId; });
+    var mevcut = {};
+    kardesler.forEach(function (dosya) { mevcut[ISG.listeAnahtar(dosya.madde)] = true; });
+    var no = kardesler.reduce(function (enBuyuk, dosya) { return Math.max(enBuyuk, Number(dosya.no) || 0); }, 0);
+
+    var eklenen = 0;
+    var atlanan = 0;
+    (sablon.bolumler || []).forEach(function (bolum) {
+      (bolum.maddeler || []).forEach(function (madde) {
+        var anahtar = ISG.listeAnahtar(madde.madde);
+        if (!anahtar || mevcut[anahtar]) { atlanan += 1; return; }
+        mevcut[anahtar] = true;
+        no += 1;
+        var aciklama = madde.dayanak ? 'Yasal dayanak: ' + madde.dayanak : '';
+        if (madde.isaret === 'KD') { aciklama = (aciklama ? aciklama + ' · ' : '') + 'Kapsam dışı (K/D)'; }
+        kaydetListede(veri.dosyalar, {
+          isyeriId: isyeriId,
+          no: no,
+          bolum: bolum.ad,
+          madde: madde.madde,
+          durum: ISG.listeDurumKod(madde.isaret),
+          sorumlu: '',
+          yenileme: '',
+          kontrolTarihi: madde.tarih || '',
+          aciklama: aciklama.slice(0, 240),
+          sablon: sablon.kod
+        }, 'd');
+        eklenen += 1;
+      });
+    });
+
+    depo.kaydet();
+    return {
+      isyeriId: isyeriId,
+      kod: sablon.kod,
+      eklenen: eklenen,
+      atlanan: atlanan,
+      toplam: eklenen + atlanan
+    };
+  };
+
   ISG.depo.planKaydet = function (kayit) {
     var veri = depo.al();
     kayit.sira = Number(kayit.sira) || 1;

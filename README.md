@@ -213,7 +213,7 @@ ve "Öncelikli işler" sayısı bu dağılımdan hesaplanır.
 
 ```text
 isg-takip-merkezi/
-├─ index.html                 # iskelet, SVG ikon sprite, 13 <dialog> formu
+├─ index.html                 # iskelet, SVG ikon sprite, 14 <dialog> formu
 ├─ 404.html                   # Pages için "sayfa bulunamadı" ekranı
 ├─ manifest.webmanifest       # PWA kimliği, tema rengi, simgeler
 ├─ .nojekyll                  # GitHub Pages Jekyll işlemesini kapatır
@@ -226,6 +226,7 @@ isg-takip-merkezi/
 │  │  └─ apple-touch-icon.png # iOS ana ekran
 │  └─ js/
 │     ├─ ornek-veri.js        # boş tohum (BOS_VERI), örnek/tanıtım verisi, katalog üretimi, mevzuat
+│     ├─ kontrol-listeleri.js # ÜRETİLMİŞ: işyeri bazlı hazır dosya kontrol listeleri (Word çıktısı)
 │     ├─ depo.js              # alan kuralları, localStorage, CRUD, görev motoru
 │     ├─ bicim.js             # tarih/rozet/CSV/sayfalama yardımcıları
 │     ├─ yetki.js             # oturum, roller, işyeri kapsamı, onay kuyruğu
@@ -237,8 +238,10 @@ isg-takip-merkezi/
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (451 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (471 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (27 kontrol)
+│  ├─ kontrol-listesi.js      # Word (.docx) kontrol listesini hazır şablona çevirir
+│  ├─ kontrol-listeleri/      # dönüştürülmüş işyeri listeleri (ASKI-1.json …)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
 ├─ package.json               # npm test / test:belge / ikon / yayin
@@ -362,7 +365,7 @@ Test:
 
 ```powershell
 npm install
-npm test                     # 451 kontrol + belge testi (27 kontrol), başarısızda çıkış kodu 1
+npm test                     # 471 kontrol + belge testi (27 kontrol), başarısızda çıkış kodu 1
 npm run test:belge           # yalnızca belge eki testi (27 kontrol)
 ```
 
@@ -480,6 +483,40 @@ dosyalarını indirir, **içerik özetini yerelle karşılaştırır**. Uyuşmaz
 varsa çıkış kodu 1'dir; panoda “yayınladım” demekle yetinilmez. Aynı betik
 `.github/workflows/kontrol.yml` içinde her `main` push'undan sonra çalışır ve
 Pages yeni sürümü servis etmezse derlemeyi kırmızıya çevirir.
+
+## 6.4. İşyeri Word kontrol listesini uygulamaya ekleme
+
+Her işyeri için Word olarak hazırlanan dosya kontrol listesi (ABB-OSGB-KL-001
+şablonu) iki adımda uygulamaya girer:
+
+```powershell
+# 1) Word listesini şablona çevir → tools/kontrol-listeleri/<KOD>.json + assets/js/kontrol-listeleri.js
+node tools/kontrol-listesi.js donustur "C:\...\ASKI-1 DOSYA KONTROL LISTESI.docx" ASKI-1
+
+# 2) Damgaları yenile, testi koştur, yayın paketini hazırla
+npm run surum
+npm test
+npm run yayin
+```
+
+Dönüştürücü Word'de şunları okur: `BÖLÜM n …` başlıkları,
+`NO | BELGE / KAYIT | YASAL DAYANAK • PERİYOT | VAR | YOK | K/D | KONTROL TARİHİ`
+tablosu (sütunlar başlık satırından bulunur, sıra değişebilir), dolu kutu (☒)
+işaretleri, işyeri/birim adı, SGK sicili, asıl işveren, kontrol ve sıradaki
+kontrol tarihi, genel değerlendirme notu ile kontrolü yapan uzman.
+
+Uygulamada **Dosya kontrolleri → Hazır kontrol listesi**: işyeri ve liste
+seçilir; önizleme "kaç madde eklenecek / kaçı zaten açık / kaçı eksik işaretli"
+bilgisini gösterir. Eklenen her madde `bölüm`, `durum` (VAR→Var, YOK→Eksik,
+K/D→Yok), `kontrol tarihi` ve `Yasal dayanak: …` açıklamasıyla açılır, kaydına
+`sablon: ASKI-1` etiketi yazılır. Aynı liste ikinci kez eklenirse maddeler
+çoğalmaz (Türkçe duyarlı metin anahtarıyla atlanır). Yönetici dışında kayıt
+yapan 142 tekil talep yerine **tek bir onay talebi** üretilecek şekilde yetki
+kuyruğuna `listeUygula` olarak girer.
+
+Yeni bir işyeri listesi geldiğinde tek gereken, komutu yeni bir `KOD` ile
+çalıştırmaktır: `tools/kontrol-listeleri/*.json` dosyalarının tamamı
+`assets/js/kontrol-listeleri.js` içine yeniden yazılır.
 
 ## 7. Yayınlama (GitHub Pages)
 
@@ -641,6 +678,35 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.12.0 — İşyerine özel hazır dosya kontrol listeleri (Word → uygulama)
+
+- **Word listesi artık uygulamaya tek tıkla ekleniyor.** Paylaşılan
+  `ASKİ-1 DOSYA KONTROL LİSTESİ.docx` (ABB-OSGB-KL-001) **13 bölüm / 142 madde**
+  olarak dönüştürüldü. Dosya kontrolleri sayfasındaki **Hazır kontrol listesi**
+  düğmesi işyeri + liste seçtirir, önizleme gösterir ve maddeleri tek seferde
+  açar.
+- **Word'den gelen bilgiler korunuyor.** Bölüm başlığı `bölüm` alanına, yasal
+  dayanak/periyot `Yasal dayanak: …` açıklamasına, kontrol tarihi `kontrol
+  tarihi` alanına yazılır; VAR→**Var**, YOK→**Eksik**, K/D→**Yok** durumuna
+  dönüşür (ASKİ-1: 30 var, 110 eksik, 2 kapsam dışı). Kayıtlar `sablon: ASKI-1`
+  etiketi taşır.
+- **Çoğaltma yok.** Aynı işyerinde aynı madde açıksa ikinci uygulama o maddeyi
+  atlar; `listeUygula` `{eklenen, atlanan, toplam}` döndürür.
+- **Yeni işyerleri için aynı yol:** `node tools/kontrol-listesi.js donustur
+  "<liste.docx>" <KOD>` → `tools/kontrol-listeleri/<KOD>.json` üretilir ve
+  `assets/js/kontrol-listeleri.js` tüm listelerle yeniden yazılır (sütunlar
+  başlıktan bulunur, ☒ işaretleri okunur, Türkçe başlık/karakter katlaması
+  yapılır).
+- **Yetki ve denetim:** işlem `listeUygula` adıyla yazma işlemlerine,
+  etiketlere ve sayfa eşlemesine kayıtlı; yönetici dışındaki roller tek bir
+  onay talebi açar, denetim izine tek satır düşer.
+- **Test kapsamı 451 → 471 kontrol** (şablon bütünlüğü, durum eşlemesi, işyeri
+  adı eşleşmesi, uçtan uca diyalog akışı, ikinci uygulamada çoğalmama, yanlış
+  kodun reddi, 14 diyalog) + belge testi 27 kontrol.
+- `package.json` sürümü **2.12.0**, yeni `npm run liste` komutu;
+  `depo.js`, `yetki.js`, `sayfalar-kayit.js`, `uygulama.js` ve yeni
+  `kontrol-listeleri.js` damgaları yeniden üretildi.
 
 ### 2.11.1 — İşyeri ekleme düzeltildi, form hataları artık sessiz kalmıyor
 

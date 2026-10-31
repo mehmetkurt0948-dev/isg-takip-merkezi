@@ -390,6 +390,86 @@ function bekle(ms) {
   await bekle(80);
   kontrol('Tümü sekmesi geri döndü', ISG.ui.dosyaSekme === 'tumu');
 
+  console.log('\n8b) Hazır dosya kontrol listeleri (Word şablonları)');
+  const listeSablon = ISG.listeSablonBul('ASKI-1');
+  const listeMadde = ISG.listeMaddeSayisi(listeSablon);
+  kontrol('ASKİ-1 hazır listesi yüklü', !!listeSablon, listeSablon ? listeSablon.kod : 'yok');
+  kontrol('Hazır liste 13 bölüm / 142 madde taşıyor',
+    !!listeSablon && listeSablon.bolumler.length === 13 && listeMadde === 142, String(listeMadde));
+  kontrol('Her maddenin metni ve geçerli durumu var',
+    !!listeSablon && listeSablon.bolumler.every((bolum) => bolum.maddeler.length > 0 &&
+      bolum.maddeler.every((madde) => madde.madde && ISG.DOSYA_DURUMLARI[ISG.listeDurumKod(madde.isaret)])));
+  kontrol('VAR / YOK / K-D işaretleri duruma dönüştü',
+    ISG.listeDurumKod('VAR') === 'var' && ISG.listeDurumKod('YOK') === 'eksik' &&
+    ISG.listeDurumKod('KD') === 'yok' && ISG.listeDurumKod('') === 'incelenmedi');
+  kontrol('Bölüm başlıkları listeye yazılıyor',
+    !!listeSablon && /BÖLÜM 1/.test(listeSablon.bolumler[0].ad), listeSablon ? listeSablon.bolumler[0].ad : '');
+  kontrol('İşyeri adı şablonu tanıyor',
+    ISG.listeEsleyenSablonlar({ ad: 'ASKİ-1' }).some((s) => s.kod === 'ASKI-1'));
+  kontrol('Farklı yazımda da eşleşiyor (Aski 1)',
+    ISG.listeEsleyenSablonlar({ ad: 'Aski 1 Şantiyesi' }).some((s) => s.kod === 'ASKI-1'));
+  kontrol('Başka işyeri şablonu önermiyor',
+    ISG.listeEsleyenSablonlar({ ad: 'Park ve Bahçeler' }).length === 0);
+
+  /* Uçtan uca: düğme → diyalog → 142 madde → ikinci denemede çoğalmıyor.
+     Test kendi işyerini açar ve sonunda anlık yedeğe döner. */
+  const listeOncesi = ISG.depo.al().dosyalar.length;
+  const anlikYedek = JSON.parse(JSON.stringify(ISG.depo.al()));
+  const testIsyeri = ISG.depo.isyeriKaydet({
+    ad: 'TEST LİSTE İŞYERİ', tehlikeSinifi: 'tehlikeli', calisanSayisi: 10
+  });
+
+  const listeDugme = doc.querySelector('[data-islem="dosya-liste"]');
+  kontrol('Dosya kontrollerinde hazır liste düğmesi var', !!listeDugme);
+  listeDugme.click();
+  await bekle(120);
+  kontrol('Hazır liste diyaloğu açılıyor', doc.getElementById('listeDiyalog').open === true);
+  kontrol('Diyalogda işyeri ve liste seçenekleri dolu',
+    doc.querySelectorAll('#listeIsyeri option').length > 1 &&
+    doc.querySelectorAll('#listeSablon option').length === 1,
+    doc.querySelectorAll('#listeIsyeri option').length + '/' + doc.querySelectorAll('#listeSablon option').length);
+
+  const listeForm = doc.getElementById('listeForm');
+  listeForm.elements.isyeriId.value = testIsyeri.id;
+  listeForm.elements.kod.value = 'ASKI-1';
+  listeForm.elements.isyeriId.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(60);
+  kontrol('Önizleme 142 maddeyi ve eklenecek sayıyı gösteriyor',
+    /142/.test(metin('#listeOnizleme')), metin('#listeOnizleme').slice(0, 90));
+
+  listeForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(200);
+  const eklenenler = ISG.depo.al().dosyalar.filter((d) => d.isyeriId === testIsyeri.id);
+  kontrol('Liste eklenince 142 kontrol maddesi açıldı',
+    ISG.depo.al().dosyalar.length === listeOncesi + 142 && eklenenler.length === 142,
+    String(ISG.depo.al().dosyalar.length - listeOncesi));
+  kontrol('Eklenen maddelerde bölüm, dayanak ve şablon kodu var',
+    eklenenler.every((d) => d.bolum && d.kontrolTarihi === '2026-08-24' && d.sablon === 'ASKI-1' &&
+      (/Yasal dayanak:/.test(d.aciklama) || d.aciklama === '')),
+    eklenenler.length ? eklenenler[0].bolum : 'kayıt yok');
+  kontrol('Eksik işaretleri "eksik" durumuna dönüştü',
+    eklenenler.filter((d) => d.durum === 'eksik').length === 110 &&
+    eklenenler.filter((d) => d.durum === 'var').length === 30,
+    'eksik=' + eklenenler.filter((d) => d.durum === 'eksik').length);
+  kontrol('Madde numaraları işyeri içinde sürüyor',
+    eklenenler.every((d) => Number(d.no) > 0) &&
+    new Set(eklenenler.map((d) => d.no)).size === eklenenler.length);
+
+  const ikinciUygulama = ISG.depo.listeUygula(testIsyeri.id, 'ASKI-1');
+  kontrol('İkinci uygulama kayıt çoğaltmıyor',
+    ikinciUygulama.eklenen === 0 && ikinciUygulama.atlanan === 142,
+    JSON.stringify(ikinciUygulama));
+  let bilinmeyenReddedildi = false;
+  try { ISG.depo.listeUygula(testIsyeri.id, 'OLMAYAN-LİSTE'); } catch (hata) { bilinmeyenReddedildi = true; }
+  kontrol('Olmayan liste kodu reddedildi', bilinmeyenReddedildi);
+
+  ISG.depo.geriYukle(anlikYedek);
+  await bekle(80);
+  kontrol('Test kayıtları geri alındı (liste temizliği)',
+    ISG.depo.al().dosyalar.length === listeOncesi &&
+    !ISG.depo.al().isyerleri.some((iy) => iy.id === testIsyeri.id),
+    String(ISG.depo.al().dosyalar.length));
+
   console.log('\n9) DÖF oluşturma');
   const tespitOncesi = ISG.depo.al().tespitler.length;
   doc.querySelector('[data-islem="dosya-dof"]').click();
@@ -873,7 +953,8 @@ function bekle(ms) {
   const kullanimlar = Array.from(doc.querySelectorAll('use[href]')).map((u) => u.getAttribute('href'));
   const eksikIkon = kullanimlar.filter((h) => !doc.querySelector(h));
   kontrol('SVG ikon referansları geçerli', eksikIkon.length === 0, eksikIkon.slice(0, 3).join(', '));
-  kontrol('Diyalog sayısı 13', doc.querySelectorAll('dialog').length === 13, String(doc.querySelectorAll('dialog').length));
+  kontrol('Diyalog sayısı 14', doc.querySelectorAll('dialog').length === 14, String(doc.querySelectorAll('dialog').length));
+  kontrol('Hazır kontrol listesi diyaloğu var', !!doc.getElementById('listeDiyalog'));
   kontrol('Bulut diyaloğu var', !!doc.getElementById('bulutDiyalog'));
   kontrol('Bulut başlık düğmesi var', doc.querySelectorAll('[data-islem="bulut-ayar"]').length === 1,
     String(doc.querySelectorAll('[data-islem="bulut-ayar"]').length));
