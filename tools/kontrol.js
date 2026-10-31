@@ -167,6 +167,44 @@ function bekle(ms) {
   await sayfaAc('#isyerleri');
   kontrol('Boş durumda işyeri eklemeye çağrılır', /İşyeri bulunamadı/.test(metin('#gorunum')),
     metin('#gorunum').slice(0, 120));
+  /* Boş sitede işyeri ekleme: diyalog -> kayıt -> kalıcılık -> kart.
+     "İşyeri eklenemiyor" şikâyetinin regresyon testi (bozuk kayıt yardımcısı). */
+  await sayfaAc('#isyerleri');
+  doc.querySelector('[data-islem="isyeri-yeni"]').click();
+  await bekle(120);
+  kontrol('Boş sitede işyeri diyaloğu açılıyor', doc.getElementById('isyeriDiyalog').open === true);
+  const bosIsyeriForm = doc.getElementById('isyeriForm');
+  bosIsyeriForm.elements.ad.value = 'Regresyon İşyeri';
+  bosIsyeriForm.elements.tehlikeSinifi.value = 'tehlikeli';
+  bosIsyeriForm.elements.calisanSayisi.value = '25';
+  bosIsyeriForm.elements.ana.checked = true;
+  bosIsyeriForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(160);
+  const eklenenIsyeri = ISG.depo.al().isyerleri.filter((i) => i.ad === 'Regresyon İşyeri')[0];
+  kontrol('İşyeri kaydı eklendi', !!eklenenIsyeri,
+    ISG.depo.al().isyerleri.map((i) => i.ad).join(', '));
+  kontrol('İşyeri kalıcı yazıldı',
+    JSON.parse(window.localStorage.getItem(ISG.depo.anahtar)).isyerleri.some((i) => i.ad === 'Regresyon İşyeri'));
+  kontrol('İşyeri kartı listelendi', doc.querySelectorAll('.isyeri-kart').length === 1,
+    String(doc.querySelectorAll('.isyeri-kart').length));
+  kontrol('İlk işyeri ana kurum oldu', !!(eklenenIsyeri && eklenenIsyeri.ana === true));
+  kontrol('Kayıt sonrası diyalog kapandı', doc.getElementById('isyeriDiyalog').open === false);
+  doc.querySelector('[data-islem="isyeri-duzenle"]').click();
+  await bekle(120);
+  bosIsyeriForm.elements.ad.value = 'Regresyon İşyeri (Düzenli)';
+  bosIsyeriForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(160);
+  kontrol('İşyeri düzenlemesi kaydedildi',
+    ISG.depo.al().isyerleri.length === 1 && ISG.depo.al().isyerleri[0].ad === 'Regresyon İşyeri (Düzenli)',
+    ISG.depo.al().isyerleri.map((i) => i.ad).join(', '));
+  doc.querySelector('[data-islem="isyeri-sil"]').click();
+  await bekle(120);
+  doc.getElementById('onayEvet').click();
+  await bekle(180);
+  kontrol('İşyeri silindi, boş duruma dönüldü', ISG.depo.al().isyerleri.length === 0,
+    String(ISG.depo.al().isyerleri.length));
+  await sayfaAc('#panel');
+
   await sayfaAc('#panel');
 
   /* Eski sürümlerde cihazda biriken örnek verinin temizliği (göç birim testi). */

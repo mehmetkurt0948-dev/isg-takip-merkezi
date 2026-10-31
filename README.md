@@ -237,7 +237,7 @@ isg-takip-merkezi/
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (443 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (451 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (27 kontrol)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
@@ -362,7 +362,7 @@ Test:
 
 ```powershell
 npm install
-npm test                     # 443 kontrol + belge testi (27 kontrol), başarısızda çıkış kodu 1
+npm test                     # 451 kontrol + belge testi (27 kontrol), başarısızda çıkış kodu 1
 npm run test:belge           # yalnızca belge eki testi (27 kontrol)
 ```
 
@@ -641,6 +641,22 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.11.1 — İşyeri ekleme düzeltildi, form hataları artık sessiz kalmıyor
+
+- **"İşyeri ekle" kaydetmiyordu.** `depo.isyeriKaydet()` var olmayan bir
+  yardımcıyı (`kaydetListeden`) çağırıyordu; kaydetme `ReferenceError` ile
+  yarıda kesiliyor, hiçbir uyarı çıkmadığı için düğme ölü görünüyordu. Doğru
+  yardımcı `kaydetListede` kullanılıyor; yeni kayıt, düzenleme ve silme akışı
+  birlikte çalışıyor. Bu hayalet çağrı 2.11.0 yayınıyla canlıya çıkmıştı.
+- **Form hataları ekrana yazılıyor.** Diyalog formlarında beklenmeyen bir hata
+  kaydı engellerse *"Kayıt yapılamadı: <sebep>"* uyarısı (`role="alert"`)
+  gösteriliyor ve hata konsola düşüyor; kullanıcı sebepsiz beklemiyor.
+- **Regresyon testi:** Boş sitede işyeri ekleme uçtan uca denetleniyor
+  (düğme → diyalog → kayıt → `localStorage` → kart → ana kurum → düzenle → sil);
+  test kapsamı **443 → 451 kontrol**.
+- `package.json` sürümü **2.11.1**; `depo.js` (`v=688c2e36`) ve `uygulama.js`
+  (`v=4fba4f5d`) varlık damgaları yeniden üretildi.
 
 ### 2.11.0 — Site boş açılıyor: demo veriler silindi, temizlik ve örnek veri düğmesi
 

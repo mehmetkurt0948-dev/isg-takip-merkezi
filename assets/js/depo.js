@@ -1148,7 +1148,7 @@
 
   ISG.depo.isyeriKaydet = function (kayit) {
     var veri = depo.al();
-    var sonuc = kaydetListeden(veri.isyerleri, kayit, 'iy');
+    var sonuc = kaydetListede(veri.isyerleri, kayit, 'iy');
     if (kayit.ana) {
       veri.isyerleri.forEach(function (isyeri) { if (isyeri.id !== sonuc.id) { isyeri.ana = false; } });
     }

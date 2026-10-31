@@ -2038,7 +2038,15 @@
     if (!form) { return; }
     form.addEventListener('submit', function (olay) {
       olay.preventDefault();
-      isleyici(form);
+      try {
+        isleyici(form);
+      } catch (hata) {
+        /* Kayıt olmazsa düğme ölü görünmesin: sebep ekranda ve konsolda yazılır. */
+        if (global.console && global.console.error) {
+          global.console.error('[form:' + formId + ']', hata);
+        }
+        B.bildir('Kayıt yapılamadı: ' + ((hata && hata.message) || 'beklenmeyen hata'), 'hata');
+      }
     });
   }
 
