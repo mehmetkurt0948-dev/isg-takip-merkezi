@@ -20,6 +20,9 @@
 
   var AYAR_ANAHTAR = 'isgtakip.bulut';
   var DURUM_ANAHTAR = 'isgtakip.bulut.durum';
+  /* Kullanıcı bulut bağlantısını elle kestiyse siteye gömülü kimlik (varsa)
+     açılışta otomatik bağlamak yerine bu tercih hatırlanır. */
+  var KAPALI_ANAHTAR = 'isgtakip.bulut.kapali';
   var TABLO = 'isg_veri';
   var VARSAYILAN_ARALIK = 20;
   var ZAMAN_ASIMI = 15000;
@@ -100,6 +103,43 @@
     return !!(durum.ayar && durum.ayar.url && durum.ayar.anahtar && durum.ayar.oda);
   }
 
+  /* ---------- Siteye gömülü kimlik (bulut-kimlik.js) ---------- */
+
+  /* Sitede hazır yapılandırma var mı? Doldurulmuş bir kimlik, hiçbir ayar
+     girmeyen her cihazda otomatik bağlantı sağlar. */
+  function kimlikOku() {
+    var ham = global.ISG_KIMLIK;
+    if (!ham) { return null; }
+    var url = temizUrl(ham.url);
+    var anahtar = String(ham.anahtar || '').trim();
+    var oda = temizOda(ham.oda);
+    if (!url || !anahtar || !oda) { return null; }
+    return {
+      url: url,
+      anahtar: anahtar,
+      oda: oda,
+      otomatik: ham.otomatik !== false,
+      aralik: Math.max(10, Math.min(300, Number(ham.aralik) || VARSAYILAN_ARALIK))
+    };
+  }
+
+  function kimlikKapaliMi() {
+    return !!oku(KAPALI_ANAHTAR);
+  }
+
+  /* Yerel ayar yoksa ve kullanıcı bağlantıyı elle kesmemişse siteye gömülü
+     kimlik varsayılan ayar olarak devreye girer. Kimlik yerelde saklanmaz:
+     site güncellenince yeni kimlik tüm cihazlarda geçerli olur. */
+  function kimlikUygula() {
+    if (durum.ayar || kimlikKapaliMi()) { return durum.ayar; }
+    var kimlik = kimlikOku();
+    if (kimlik) {
+      durum.ayar = kimlik;
+      durum.kimlikten = true;
+    }
+    return durum.ayar;
+  }
+
   function kaydetDurum() {
     yaz(DURUM_ANAHTAR, {
       yerelZaman: durum.yerelZaman,
@@ -139,8 +179,11 @@
     return {
       asama: 'hazir',
       metin: 'Bulut kayıt açık' + (saat ? ' · ' + saat : ''),
-      ayrinti: 'Oda: ' + ayar.oda + (durum.kirli ? ' · bekleyen değişiklik var' : ''),
-      hata: false
+      ayrinti: 'Oda: ' + ayar.oda +
+        (durum.kimlikten ? ' · site varsayılanı' : '') +
+        (durum.kirli ? ' · bekleyen değişiklik var' : ''),
+      hata: false,
+      kimlikten: !!durum.kimlikten
     };
   }
 
@@ -457,6 +500,13 @@
 
     yaz(AYAR_ANAHTAR, temiz);
     durum.ayar = temiz.url && temiz.anahtar && temiz.oda ? temiz : null;
+    durum.kimlikten = false;
+
+    if (durum.ayar) {
+      /* Elle bağlanan cihaz açılışta otomatik bağlanmayı reddetmiş olabilir;
+         kendi ayarını girdiğine göre bu tercih geçersizdir. */
+      sil(KAPALI_ANAHTAR);
+    }
 
     if (!durum.ayar) {
       asama('kapali');
@@ -505,7 +555,11 @@
   function kapat() {
     sil(AYAR_ANAHTAR);
     sil(DURUM_ANAHTAR);
+    /* Kullanıcı bağlantıyı elle kesti: siteye gömülü kimlik olsa bile
+       bir sonraki açılışta otomatik bağlanılmaz. */
+    yaz(KAPALI_ANAHTAR, true);
     durum.ayar = null;
+    durum.kimlikten = false;
     durum.kirli = false;
     durum.yerelZaman = '';
     durum.sonUzakZaman = '';
@@ -571,6 +625,11 @@
     } : null;
   }
 
+  /* Yerel ayar yoksa siteye gömülü kimlik devreye girer (elle kesilmediyse):
+     böylece doldurulmuş bir kimlik, siteyi açan her cihazda ayar gerektirmeden
+     otomatik eşitleme başlatır. */
+  kimlikUygula();
+
   var kayitliDurum = oku(DURUM_ANAHTAR);
   if (kayitliDurum) {
     durum.yerelZaman = String(kayitliDurum.yerelZaman || '');
@@ -592,6 +651,10 @@
     cek: cek,
     gonder: gonder,
     senkronla: senkronla,
+    /* Siteye gömülü kimlik (bulut-kimlik.js) arayüzü. */
+    kimlikUygula: kimlikUygula,
+    kimlikVarMi: function () { return !!kimlikOku(); },
+    kimlikKapaliMi: kimlikKapaliMi,
     sqlMetni: function () { return SQL; },
     tablo: TABLO
   };

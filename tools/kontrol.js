@@ -999,21 +999,25 @@ function bekle(ms) {
   window.localStorage.removeItem('isgtakip.bulut');
   window.localStorage.removeItem('isgtakip.bulut.durum');
 
-  /* Supabase yerine sahte uç nokta: istekler kaydedilir, yanıt taklit edilir. */
+  /* Supabase yerine sahte uç nokta: istekler kaydedilir, yanıt taklit edilir.
+     `fetchKur` ile herhangi bir testin mock'u bozması sonrası geri yüklenebilir. */
   const istekler = { adet: 0, yontem: '', adres: '', govde: null };
   let uzakSatir = null;
-  window.fetch = (adres, secenek) => {
-    const yontem = (secenek && secenek.method) || 'GET';
-    istekler.adet += 1;
-    istekler.yontem = yontem;
-    istekler.adres = String(adres);
-    if (yontem === 'POST') {
-      istekler.govde = JSON.parse(secenek.body);
-      return Promise.resolve({ ok: true, status: 201, text: () => Promise.resolve('') });
-    }
-    const govde = JSON.stringify(uzakSatir ? [uzakSatir] : []);
-    return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(govde) });
+  const fetchKur = () => {
+    window.fetch = (adres, secenek) => {
+      const yontem = (secenek && secenek.method) || 'GET';
+      istekler.adet += 1;
+      istekler.yontem = yontem;
+      istekler.adres = String(adres);
+      if (yontem === 'POST') {
+        istekler.govde = JSON.parse(secenek.body);
+        return Promise.resolve({ ok: true, status: 201, text: () => Promise.resolve('') });
+      }
+      const govde = JSON.stringify(uzakSatir ? [uzakSatir] : []);
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(govde) });
+    };
   };
+  fetchKur();
 
   doc.querySelector('[data-islem="bulut-ayar"]').click();
   await bekle(140);
@@ -1137,6 +1141,71 @@ function bekle(ms) {
     window.localStorage.getItem('isgtakip.bulut.durum') === null && !ISG.bulut.hazirMi());
   kontrol('Bağlantı kesilince yerel kayıt korunur', ISG.depo.al().personel.length > 0 &&
     /Yerel kayıt açık/.test(metin('#bulutDurumSatir')), metin('#bulutDurumSatir'));
+
+  console.log('\n21b) Siteye gömülü bulut kimliği (bulut-kimlik.js)');
+  const scriptSirasi = Array.from(doc.querySelectorAll('script[src]'))
+    .map((s) => s.getAttribute('src'));
+  const kimlikSirasi = scriptSirasi.findIndex((s) => s.indexOf('bulut-kimlik.js') !== -1);
+  const bulutSirasi = scriptSirasi.findIndex((s) => s.indexOf('bulut.js') !== -1);
+  kontrol('bulut-kimlik.js sayfada bulut.js öncesinde yüklenir',
+    kimlikSirasi !== -1 && bulutSirasi !== -1 && kimlikSirasi < bulutSirasi,
+    scriptSirasi.join(' | '));
+  kontrol('Kimlik notu öğesi yerinde ve boş şablonda gizli',
+    !!doc.getElementById('bulutKimlikNotu') && doc.getElementById('bulutKimlikNotu').hidden === true);
+  kontrol('Boş kimlik şablonu otomatik bağlantı yapmaz',
+    !ISG.bulut.kimlikVarMi() && !ISG.bulut.hazirMi());
+
+  /* Kimlik dosyası site yöneticisi tarafından doldurulmuş gibi simüle edilir:
+     yerel ayar olmayan bir cihaz açılışta otomatik bağlanmalı. */
+  window.localStorage.removeItem('isgtakip.bulut.kapali');
+  window.ISG_KIMLIK = {
+    url: 'https://kimlik.supabase.co',
+    anahtar: 'anon-kimlik-test-anahtari-0123456789',
+    oda: 'site-varsayilan',
+    otomatik: true,
+    aralik: 20
+  };
+  istekler.adet = 0; istekler.yontem = ''; istekler.govde = null; uzakSatir = null;
+  /* "Ağ yok" testi fetch'i bozmuştu: kayıt yapan mock geri yüklenir. */
+  fetchKur();
+  ISG.bulut.kimlikUygula();
+  kontrol('Doldurulmuş kimlik bağlantıyı hazırlar',
+    ISG.bulut.kimlikVarMi() && ISG.bulut.hazirMi());
+  kontrol('Kimlik yerel ayar olarak yazılmaz (site güncellenince yenisi geçer)',
+    window.localStorage.getItem('isgtakip.bulut') === null);
+  ISG.bulut.baslat();
+  await bekle(500);
+  kontrol('Kimlikle açılışta otomatik eşitleme yapılır',
+    istekler.yontem === 'POST' && istekler.govde[0].oda === 'site-varsayilan' &&
+    /kimlik\.supabase\.co\/rest\/v1\/isg_veri$/.test(istekler.adres),
+    istekler.yontem + ' ' + istekler.adres);
+  kontrol('Durum satırı site varsayılanı olduğunu gösterir',
+    /site varsayılanı/.test(metin('#bulutDurumSatir')), metin('#bulutDurumSatir'));
+
+  doc.querySelector('[data-islem="bulut-ayar"]').click();
+  await bekle(140);
+  kontrol('Bulut diyaloğunda kimlik notu görünür',
+    doc.getElementById('bulutKimlikNotu').hidden === false);
+  kontrol('Form alanları site kimliğiyle dolu gelir',
+    doc.getElementById('bulutUrl').value === 'https://kimlik.supabase.co' &&
+    doc.getElementById('bulutOda').value === 'site-varsayilan',
+    doc.getElementById('bulutUrl').value + ' / ' + doc.getElementById('bulutOda').value);
+  kontrol('Kimlikle bağlantıda kes/eşitle görünür',
+    doc.getElementById('bulutKes').hidden === false && doc.getElementById('bulutSimdi').hidden === false);
+  /* jsdom'da diyalog.close olmayabilir: uygulamanın kendi kapanış yolu izlenir. */
+  if (typeof bulutDiyalog.close === 'function') { bulutDiyalog.close(); }
+  else { bulutDiyalog.removeAttribute('open'); }
+
+  ISG.bulut.kapat();
+  kontrol('Elle kesilen cihazda kimlik de devre dışı kalır',
+    !ISG.bulut.hazirMi() && ISG.bulut.kimlikKapaliMi());
+  ISG.bulut.kimlikUygula();
+  kontrol('Kapalı işareti varken kimlik otomatik bağlamaz', !ISG.bulut.hazirMi());
+
+  window.localStorage.removeItem('isgtakip.bulut.kapali');
+  window.ISG_KIMLIK = null;
+  kontrol('Kimlik yoksa kimlikUygula boşuna bağlamaz',
+    !ISG.bulut.kimlikVarMi() && !ISG.bulut.hazirMi());
 
   console.log('\nSonuç: ' + gecen + ' geçti, ' + hata + ' başarısız');
   dom.window.close();

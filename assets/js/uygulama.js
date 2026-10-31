@@ -1828,6 +1828,7 @@
       sql: el('bulutSql'),
       kes: el('bulutKes'),
       simdi: el('bulutSimdi'),
+      kimlikNotu: el('bulutKimlikNotu'),
       form: el('bulutForm')
     };
   }
@@ -1835,6 +1836,11 @@
   function bulutDurumYaz(bilgi) {
     var a = bulutAlanlari();
     var acik = bulutVarMi() && ISG.bulut.hazirMi();
+    /* Siteye gömülü kimlik varsa kullanıcıya "ayar girmenize gerek yok"
+       bilgisi gösterilir; bağlantıyı elle kesmişse gizlenir. */
+    if (a.kimlikNotu && bulutVarMi() && typeof ISG.bulut.kimlikVarMi === 'function') {
+      a.kimlikNotu.hidden = !(ISG.bulut.kimlikVarMi() && !ISG.bulut.kimlikKapaliMi());
+    }
     if (a.sql && !a.sql.textContent && bulutVarMi()) {
       a.sql.textContent = ISG.bulut.sqlMetni();
     }
