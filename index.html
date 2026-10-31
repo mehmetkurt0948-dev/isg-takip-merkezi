@@ -470,6 +470,46 @@
     </form>
   </dialog>
 
+  <!-- UYGULANAN HAZIR LİSTEYİ SİL -->
+  <dialog class="diyalog" id="listeGeriAlDiyalog" aria-labelledby="listeGeriAlBaslik">
+    <form method="dialog" id="listeGeriAlForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">UYGULANAN KONTROL LİSTESİ</p>
+      <h2 id="listeGeriAlBaslik">Hazır listeyi tek seferde sil</h2>
+      <div class="form-izgara">
+        <label class="alan">
+          <span>İşyeri *</span>
+          <select name="isyeriId" id="listeGeriAlIsyeri" required></select>
+        </label>
+        <label class="alan">
+          <span>Silinecek liste *</span>
+          <select name="kod" id="listeGeriAlSablon" required></select>
+        </label>
+        <label class="alan">
+          <span>Silme kapsamı</span>
+          <select name="bolum" id="listeGeriAlBolum"></select>
+        </label>
+      </div>
+      <section class="belge-kutu" aria-labelledby="listeGeriAlOzetBaslik">
+        <div class="belge-ust">
+          <div>
+            <strong id="listeGeriAlOzetBaslik">Silinecek kayıtlar</strong>
+            <span class="hucre-alt">Elle eklenen maddeler silme kapsamına girmez.</span>
+          </div>
+        </div>
+        <div class="belge-liste" id="listeGeriAlOzet"></div>
+      </section>
+      <p class="form-uyari" id="listeGeriAlUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme tehlike-dugme">Listeyi sil</button>
+      </div>
+    </form>
+  </dialog>
+
+
   <!-- PLAN FAALİYETİ -->
   <dialog class="diyalog" id="planDiyalog" aria-labelledby="planBaslik">
     <form method="dialog" id="planForm" novalidate>
@@ -931,18 +971,18 @@
   <noscript><p class="noscript">Bu uygulama JavaScript gerektirir. Lütfen tarayıcınızda JavaScript'i etkinleştirin.</p></noscript>
 
   <script src="assets/js/ornek-veri.js?v=c10611b4"></script>
-  <script src="assets/js/kontrol-listeleri.js?v=ea68aa14"></script>
-  <script src="assets/js/depo.js?v=0af3ca81"></script>
+  <script src="assets/js/kontrol-listeleri.js?v=103f53c8"></script>
+  <script src="assets/js/depo.js?v=d1654c18"></script>
   <script src="assets/js/bicim.js?v=18930ff4"></script>
   <script src="assets/js/bulut-kimlik.js?v=c22d436d"></script>
   <script src="assets/js/bulut.js?v=69bb635d"></script>
-  <script src="assets/js/yetki.js?v=a5d22532"></script>
+  <script src="assets/js/yetki.js?v=8c865d85"></script>
   <script src="assets/js/excel.js?v=394d9d94"></script>
   <script src="assets/js/sayfalar.js?v=05e8a95d"></script>
-  <script src="assets/js/sayfalar-kayit.js?v=d219ceec"></script>
+  <script src="assets/js/sayfalar-kayit.js?v=536955ce"></script>
   <script src="assets/js/sayfalar-rapor.js?v=26cbda07"></script>
   <script src="assets/js/giris.js?v=8c76f809"></script>
-  <script src="assets/js/uygulama.js?v=fb0e0164"></script>
+  <script src="assets/js/uygulama.js?v=6277619a"></script>
 </body>
 </html>
 

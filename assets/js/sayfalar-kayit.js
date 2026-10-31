@@ -25,6 +25,11 @@
     if (UI.dosyaBolum) {
       liste = liste.filter(function (dosya) { return dosya.bolum === UI.dosyaBolum; });
     }
+    /* Hazır listeden üretilen maddeler tek hamlede listelenebilir/silinebilir. */
+    if (UI.dosyaSablon) {
+      liste = liste.filter(function (dosya) { return (dosya.sablon || '') === UI.dosyaSablon; });
+    }
+
     if (UI.dosyaTarih) {
       liste = liste.filter(function (dosya) {
         var kalan = ISG.gunFarki(dosya.yenileme);
@@ -45,8 +50,39 @@
     return say;
   }
 
-  /* Word'den üretilen hazır kontrol listesi varsa düğme görünür;
-     görüntüleyici rolü hiçbir zaman düğmeyi görmez. */
+  /* Bu bölüm: hazır listelerin özeti, kaynak filtresi ve silme düğmesi;
+     düğmeler görüntüleyici rolüne hiçbir zaman gösterilmez. */
+  /* Bu kapsama uygulanmış hazır listeler: kaynak filtresi ve tek hamlede
+     silme düğmesi bu özetten beslenir. */
+  function uygulananListeler(hesap) {
+    if (typeof ISG.listeUygulananOzeti !== 'function') { return []; }
+    return ISG.listeUygulananOzeti(ISG.kapsamda(hesap, UI.kapsam, 'dosyalar'));
+  }
+
+  /* Yanlış işyerine ya da yanlış bölüme eklenen liste tek tek silinmez;
+     düğme silme diyaloğunu açar. Görüntüleyici rolü düğmeyi görmez. */
+  function listeGeriAlDugmesi(uygulananlar) {
+    if (!uygulananlar || !uygulananlar.length) { return ''; }
+    if (ISG.yetki && !ISG.yetki.degistirebilir(UI.kapsam || '')) { return ''; }
+    var adet = uygulananlar.reduce(function (toplam, ozet) { return toplam + ozet.adet; }, 0);
+    return '<button type="button" class="dugme" data-islem="dosya-liste-geri-al" data-isyeri="' +
+      kacis(UI.kapsam || '') + '">' + B.ikon('i-trash') +
+      'Listeyi sil (' + B.sayi(adet) + ')</button>';
+  }
+
+  function kaynakFiltresi(uygulananlar) {
+    if (!uygulananlar || !uygulananlar.length) { return ''; }
+    return '<div class="filtre-cubugu"><label class="filtre-etiket" for="dosyaSablonSecim">Hazır liste kaynağı</label>' +
+      '<select id="dosyaSablonSecim" data-ui="dosyaSablon" aria-label="Hazır liste kaynağı filtresi">' +
+      '<option value="">Tüm kaynaklar</option>' +
+      uygulananlar.map(function (ozet) {
+        return '<option value="' + kacis(ozet.kod) + '"' + (UI.dosyaSablon === ozet.kod ? ' selected' : '') + '>' +
+          'Liste: ' + kacis(ozet.kod) + ' (' + B.sayi(ozet.adet) + ' madde)</option>';
+      }).join('') + '</select></div>';
+  }
+
+
+  /* Word'den üretilen hazır kontrol listesi varsa ekleme düğmesi görünür. */
   function listeDugmesi() {
     var sablonVar = typeof ISG.listeSablonBul === 'function' &&
       (ISG.KONTROL_LISTESI_SABLONLARI || []).length > 0;
@@ -99,11 +135,15 @@
     bolumler.sort(function (a, b) { return a.localeCompare(b, 'tr'); });
 
     var ozet = ISG.dosyaOzeti(ISG.kapsamda(hesap, UI.kapsam, 'dosyalar'));
+    var uygulananlar = uygulananListeler(hesap);
+
     var satirlar = dilim.map(dosyaSatiri).join('');
 
     return P.sayfaBaslik('DOSYA KONTROLLERİ', 'Dosya kontrolleri', 'İşyeri bazında kayıt ve durum takibi',
       '<button type="button" class="dugme" data-islem="dosya-csv">' + B.ikon('i-download') + 'Excel indir</button>' +
       listeDugmesi() +
+      listeGeriAlDugmesi(uygulananlar) +
+
       '<button type="button" class="dugme birincil" data-islem="dosya-yeni" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-plus') + 'Yeni madde ekle</button>') +
 
       P.kapsamSecici(hesap) +
@@ -134,6 +174,8 @@
             '<option value="tarihsiz"' + (UI.dosyaTarih === 'tarihsiz' ? ' selected' : '') + '>Tarih girilmemiş</option>' +
           '</select>' +
         '</div>' +
+          kaynakFiltresi(uygulananlar) +
+
         '<div class="sekme-satir">' +
           [['tumu', 'Tümü'], ['eksik', 'Eksik'], ['var', 'Var'], ['yok', 'Yok'], ['incelenmedi', 'İncelenmedi']].map(function (ikili) {
             return '<button type="button" class="sekme' + (sekme === ikili[0] ? ' aktif' : '') + '" data-islem="dosya-sekme" data-sekme="' + ikili[0] + '">' +

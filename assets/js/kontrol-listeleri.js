@@ -257,4 +257,40 @@
     return { toplam: toplam, mevcut: eslesen, yeni: toplam - eslesen, eksik: eksik };
   };
 
+  /* İşyerine uygulanmış hazır listelerin özeti: hangi şablondan kaç madde
+     üretilmiş, bölümlere nasıl dağılmış. "Listeyi geri al" ekranı bu özeti
+     kullanır; yanlış işyerine/bölüme eklenen liste tek tek sayılmaz. */
+  ISG.listeUygulananOzeti = function (dosyalar) {
+    var gruplar = Object.create(null);
+    var siralar = [];
+    (dosyalar || []).forEach(function (dosya) {
+      var kod = dosya && dosya.sablon;
+      if (!kod) { return; }
+      var ozet = gruplar[kod];
+      if (!ozet) {
+        ozet = gruplar[kod] = {
+          kod: kod,
+          ad: (ISG.listeSablonBul(kod) || {}).ad || kod,
+          adet: 0,
+          bolumler: Object.create(null),
+          bolumSirasi: []
+        };
+        gruplar[kod] = ozet;
+        siralar.push(ozet);
+      }
+      ozet.adet += 1;
+      var bolum = dosya.bolum || 'Bölüm belirtilmemiş';
+      if (!ozet.bolumler[bolum]) {
+        ozet.bolumler[bolum] = { ad: bolum, adet: 0 };
+        ozet.bolumSirasi.push(bolum);
+      }
+      ozet.bolumler[bolum].adet += 1;
+    });
+    siralar.forEach(function (ozet) {
+      ozet.bolumler = ozet.bolumSirasi.map(function (ad) { return ozet.bolumler[ad]; });
+      delete ozet.bolumSirasi;
+    });
+    return siralar;
+  };
+
   ISG.KONTROL_LISTESI_SABLONLARI = SABLONLAR;})(window);

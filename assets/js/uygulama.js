@@ -488,6 +488,115 @@
     listeOnizlemeGuncelle();
   }
 
+  /* ---------- Uygulanan hazır listeyi silme ---------- */
+
+  /* Silme diyaloğu yalnızca hazır şablondan üretilmiş kayıtları görür; elle
+     eklenen maddeler hiçbir zaman toplu silinmez. */
+  function listeUygulananlari(isyeriId) {
+    if (typeof ISG.listeUygulananOzeti !== 'function') { return []; }
+    var dosyalar = (veri().dosyalar || []).filter(function (dosya) {
+      return dosya.sablon && (!isyeriId || dosya.isyeriId === isyeriId);
+    });
+    return ISG.listeUygulananOzeti(dosyalar);
+  }
+
+  function listeGeriAlIsyerleri() {
+    var sayilar = {};
+    (veri().dosyalar || []).forEach(function (dosya) {
+      if (!dosya.sablon) { return; }
+      sayilar[dosya.isyeriId] = (sayilar[dosya.isyeriId] || 0) + 1;
+    });
+    return Object.keys(sayilar).map(function (isyeriId) {
+      return { id: isyeriId, adet: sayilar[isyeriId] };
+    });
+  }
+
+  function listeGeriAlKayitlar() {
+    var isyeriId = (el('listeGeriAlIsyeri') || {}).value || '';
+    var kod = (el('listeGeriAlSablon') || {}).value || '';
+    var bolum = (el('listeGeriAlBolum') || {}).value || '';
+    return (veri().dosyalar || []).filter(function (dosya) {
+      if (dosya.isyeriId !== isyeriId || dosya.sablon !== kod) { return false; }
+      return !bolum || dosya.bolum === bolum;
+    });
+  }
+
+  function listeGeriAlOzetGuncelle() {
+    var kutu = el('listeGeriAlOzet');
+    if (!kutu) { return; }
+    var kayitlar = listeGeriAlKayitlar();
+    if (!kayitlar.length) {
+      kutu.innerHTML = B.bosDurum('Silinecek kayıt yok',
+        'Bu seçimde hazır listeden üretilmiş madde bulunmuyor.', 'i-folder');
+      return;
+    }
+    var belge = kayitlar.reduce(function (toplam, dosya) { return toplam + D.belgeler(dosya.id).length; }, 0);
+    var bolumler = [];
+    var sayilar = {};
+    kayitlar.forEach(function (dosya) {
+      var ad = dosya.bolum || 'Bölüm belirtilmemiş';
+      if (!sayilar[ad]) { sayilar[ad] = 0; bolumler.push(ad); }
+      sayilar[ad] += 1;
+    });
+    kutu.innerHTML = '<p><strong>' + B.sayi(kayitlar.length) + '</strong> kontrol maddesi silinecek' +
+      (belge ? ' · <strong>' + B.sayi(belge) + '</strong> bağlı belge de kaldırılacak' : '') + '.</p>' +
+      '<p class="hucre-alt">' + bolumler.map(function (ad) {
+        return B.kacis(ad) + ' (' + B.sayi(sayilar[ad]) + ')';
+      }).join(' · ') + '</p>' +
+      '<p class="hucre-alt">Yalnızca hazır listeden üretilen maddeler silinir; elle eklenenler korunur. ' +
+      'Silme geri alınamaz.</p>';
+  }
+
+  function listeGeriAlBolumDoldur() {
+    var alan = el('listeGeriAlBolum');
+    if (!alan) { return; }
+    var onceki = alan.value;
+    var ozet = listeUygulananlari((el('listeGeriAlIsyeri') || {}).value).filter(function (kayit) {
+      return kayit.kod === (el('listeGeriAlSablon') || {}).value;
+    })[0];
+    var bolumler = (ozet && ozet.bolumler) || [];
+    alan.innerHTML = '<option value="">Tüm liste · ' + B.sayi((ozet && ozet.adet) || 0) + ' madde</option>' +
+      bolumler.map(function (bolum) {
+        return '<option value="' + B.kacis(bolum.ad) + '">' + B.kacis(bolum.ad) +
+          ' · ' + B.sayi(bolum.adet) + ' madde</option>';
+      }).join('');
+    var korunuyor = onceki && bolumler.some(function (bolum) { return bolum.ad === onceki; });
+    alan.value = korunuyor ? onceki : '';
+    listeGeriAlOzetGuncelle();
+  }
+
+  function listeGeriAlDoldur() {
+    var alan = el('listeGeriAlSablon');
+    if (!alan) { return; }
+    var ozetler = listeUygulananlari((el('listeGeriAlIsyeri') || {}).value);
+    alan.innerHTML = ozetler.map(function (ozet) {
+      return '<option value="' + B.kacis(ozet.kod) + '">' + B.kacis(ozet.kod) +
+        ' · ' + B.sayi(ozet.adet) + ' madde</option>';
+    }).join('');
+    listeGeriAlBolumDoldur();
+  }
+
+  function listeGeriAlAc(isyeriId) {
+    var form = el('listeGeriAlForm');
+    if (!form) { return; }
+    var isyerleri = listeGeriAlIsyerleri();
+    if (!isyerleri.length) {
+      B.bildir('Hazır listeden üretilmiş kayıt bulunmadı, silinecek liste yok.', 'uyari');
+      return;
+    }
+    form.reset();
+    uyariGoster('listeGeriAlUyari', '');
+    var hedef = isyeriId || UI.kapsam || '';
+    var secili = isyerleri.some(function (isyeri) { return isyeri.id === hedef; }) ? hedef : isyerleri[0].id;
+    el('listeGeriAlIsyeri').innerHTML = isyerleri.map(function (isyeri) {
+      return '<option value="' + B.kacis(isyeri.id) + '"' + (isyeri.id === secili ? ' selected' : '') + '>' +
+        B.kacis(ISG.isyeriAdi(veri(), isyeri.id)) + ' · ' + B.sayi(isyeri.adet) + ' madde</option>';
+    }).join('');
+    listeGeriAlDoldur();
+    diyalogAc(el('listeGeriAlDiyalog'), el('listeGeriAlIsyeri'));
+  }
+
+
   function listeAc(isyeriId) {
     var form = el('listeForm');
     if (!form) { return; }
@@ -1657,6 +1766,10 @@
       case 'dosya-csv':
         csvDosyalar();
         break;
+      case 'dosya-liste-geri-al':
+        listeGeriAlAc(isyeriId);
+        break;
+
       case 'dosya-liste':
         listeAc(isyeriId);
         break;
@@ -2221,6 +2334,31 @@
       ciz();
     });
 
+    formuBagla('listeGeriAlForm', function (form) {
+      var veriForm = formVerisi(form);
+      if (!veriForm.isyeriId || !veriForm.kod) { uyariGoster('listeGeriAlUyari', 'İşyeri ve liste seçilmeli.'); return; }
+      var sonuc = D.listeGeriAl(veriForm.isyeriId, veriForm.kod, veriForm.bolum || '');
+      diyalogKapat(el('listeGeriAlDiyalog'));
+      if (sonuc && sonuc.bekliyor) {
+        B.bildir('Listeyi silme talebi yönetici onayına gönderildi.', 'uyari');
+        ciz();
+        return;
+      }
+      if (!sonuc.silinen) { B.bildir('Seçimde silinecek hazır liste maddesi yok.', 'uyari'); return; }
+      if (UI.dosyaSablon === veriForm.kod) { UI.dosyaSablon = ''; }
+      UI.dosyaSayfa = 1;
+      B.bildir(sonuc.silinen + ' kontrol maddesi silindi.' +
+        (sonuc.belge ? ' ' + sonuc.belge + ' bağlı belge de kaldırıldı.' : '') +
+        (sonuc.bolum ? ' Yalnızca "' + sonuc.bolum + '" bölümü silindi.' : ''), 'basari');
+      ciz();
+    });
+
+    [['listeGeriAlIsyeri', listeGeriAlDoldur], ['listeGeriAlSablon', listeGeriAlBolumDoldur],
+      ['listeGeriAlBolum', listeGeriAlOzetGuncelle]].forEach(function (ikili) {
+      var alan = el(ikili[0]);
+      if (alan) { alan.addEventListener('change', ikili[1]); }
+    });
+
     formuBagla('listeForm', function (form) {
       var veriForm = formVerisi(form);
       if (!veriForm.isyeriId) { uyariGoster('listeUyari', 'İşyeri seçilmeli.'); return; }
@@ -2233,8 +2371,15 @@
         return;
       }
       UI.dosyaSekme = 'tumu';
+      /* Eklenen maddeler listenin sonuna yazılır; kaynak filtresi ve kapsam
+         olmasa kullanıcı 142 maddeyi ilk sayfada göremez. */
+      UI.kapsam = sonuc.isyeriId || UI.kapsam;
+      UI.dosyaBolum = '';
+      UI.dosyaSablon = sonuc.kod || '';
+
       UI.dosyaSayfa = 1;
-      B.bildir(sonuc.eklenen + ' kontrol maddesi eklendi.' +
+      B.bildir(sonuc.eklenen + ' kontrol maddesi eklendi ve listelendi.' +
+        (sonuc.eklenen ? ' Kaynak filtresini "Tüm kaynaklar" seçerseniz diğer maddeler de görünür.' : '') +
         (sonuc.atlanan ? ' ' + sonuc.atlanan + ' madde zaten açık olduğundan atlandı.' : ''),
         sonuc.eklenen ? 'basari' : 'uyari');
       ciz();

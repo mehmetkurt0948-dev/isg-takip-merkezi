@@ -1421,6 +1421,36 @@
     };
   };
 
+  /* Uygulanan hazır listeyi geri alır: o işyerinde şablondan üretilmiş maddeler
+     (varsa ekli belgeleriyle birlikte) silinir. bolumAdi verilirse yalnızca o
+     bölümün maddeleri düşer; yanlış bölüme eklenen liste tek tek silinmez.
+     Silme kaydı mezar taşına dönüştüğü için bulutta da kaldırılır. */
+  ISG.depo.listeGeriAl = function (isyeriId, kod, bolumAdi) {
+    if (!isyeriId || !kod) { throw new Error('Listeyi silmek için işyeri ve liste kodu gerekli.'); }
+    var veri = depo.al();
+    var silinecek = Object.create(null);
+    (veri.dosyalar || []).forEach(function (dosya) {
+      if (dosya.isyeriId !== isyeriId || dosya.sablon !== kod) { return; }
+      if (bolumAdi && dosya.bolum !== bolumAdi) { return; }
+      silinecek[dosya.id] = true;
+    });
+    var idler = Object.keys(silinecek);
+    if (!idler.length) {
+      return { isyeriId: isyeriId, kod: kod, bolum: bolumAdi || '', silinen: 0, belge: 0 };
+    }
+    var oncekiBelge = (veri.belgeler || []).length;
+    veri.dosyalar = (veri.dosyalar || []).filter(function (dosya) { return !silinecek[dosya.id]; });
+    veri.belgeler = (veri.belgeler || []).filter(function (belge) { return !silinecek[belge.dosyaId]; });
+    depo.kaydet();
+    return {
+      isyeriId: isyeriId,
+      kod: kod,
+      bolum: bolumAdi || '',
+      silinen: idler.length,
+      belge: oncekiBelge - (veri.belgeler || []).length
+    };
+  };
+
   ISG.depo.planKaydet = function (kayit) {
     var veri = depo.al();
     kayit.sira = Number(kayit.sira) || 1;
