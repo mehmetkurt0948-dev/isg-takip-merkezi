@@ -161,6 +161,16 @@
     document.body.classList.toggle('salt-okunur', !!(bilgi && bilgi.rol.id === 'goruntuleyici'));
     onayRozeti();
 
+    /* Örnek veri ve eski veri yedeği yalnızca yöneticiye açıktır; yedek düğmesi
+       bu cihazda gerçek bir yedek varsa görünür. */
+    var yoneticiMi = bilgi && bilgi.rol && bilgi.rol.id === 'yonetici';
+    var ornekDugme = el('ornekVeriDugme');
+    if (ornekDugme) { ornekDugme.hidden = !yoneticiMi; }
+    var eskiDugme = el('oncekiVeriDugme');
+    if (eskiDugme) {
+      eskiDugme.hidden = !(yoneticiMi && typeof D.temizlikYedegi === 'function' && D.temizlikYedegi());
+    }
+
     if (!sayfaIzinli(aktifSayfa(), bilgi && bilgi.rol)) {
       UI.kapsam = '';
       if (String(global.location.hash || '') !== '#panel') { global.location.hash = '#panel'; }
@@ -1509,12 +1519,16 @@
         kurumAc();
         break;
       case 'kurum-sil':
-        onayIste('Kurum silinsin mi?', 'Kurum adı ve tüm yerel kayıtlar örnek başlangıç verisine döndürülecek. Bu işlem geri alınamaz.', function () {
-          D.sifirla();
-          UI.kapsam = '';
-          B.bildir('Kurum verileri örnek başlangıca döndürüldü.', 'basari');
-          ciz();
-        }, 'Kurumu sil');
+        onayIste('Tüm veriler silinsin mi?',
+          'Kurum adı ve tüm kayıtlar silinecek; site boş olarak başlayacak. Kullanıcı hesapları korunur. ' +
+          'Bu işlem geri alınamaz, ancak üst bardaki "Yedekle" ile önce yedek alabilirsiniz.',
+          function () {
+            D.sifirla();
+            UI.kapsam = '';
+            girisSonrasi();
+            B.bildir('Tüm veriler silindi; site boş başladı.', 'basari');
+            ciz();
+          }, 'Verileri sil');
         break;
 
       /* Personel */
@@ -1779,6 +1793,27 @@
       case 'geri-yukle': {
         var girdi = el('yedekDosya');
         if (girdi) { girdi.click(); }
+        break;
+      }
+      /* Örnek (tanıtım) verisi: boş açılan siteye doldurmak içindir. */
+      case 'ornek-veri':
+        onayIste('Örnek veri yüklensin mi?',
+          'Tanıtım amaçlı 6 işyeri, 37 personel ve ilgili kayıtlar yüklenecek. ' +
+          'Aynı kayıtlar bulutta duruyorsa birleştirilir, yoksa diğer cihazlara da gönderilir. ' +
+          'Geri almak için İşyerleri → Kurumu sil.',
+          function () {
+            var yuklenen = D.ornekYukle();
+            UI.kapsam = '';
+            girisSonrasi();
+            B.bildir('Örnek veri yüklendi: ' + yuklenen.isyerleri.length + ' işyeri, ' +
+              yuklenen.personel.length + ' personel.', 'basari');
+          }, 'Örnek veriyi yükle');
+        break;
+      case 'onceki-veri': {
+        var onceki = typeof D.temizlikYedegi === 'function' ? D.temizlikYedegi() : '';
+        if (!onceki) { B.bildir('Bu cihazda saklanan eski veri yedeği yok.', 'hata'); break; }
+        B.dosyaIndir('isg-takip-temizlik-oncesi-' + B.bugunIso() + '.json', onceki, 'application/json', false);
+        B.bildir('Temizlik öncesi veri indirildi.', 'basari');
         break;
       }
       default:
@@ -2378,11 +2413,22 @@
   }
 
   /* Oturum açıldıktan sonra arayüzü hazırlar ve ilk çizimi yapar. */
+  var temizlikBildirildi = false;
+  function temizlikBildir() {
+    if (temizlikBildirildi || typeof D.temizlikBilgisi !== 'function') { return; }
+    var bilgi = D.temizlikBilgisi();
+    if (!bilgi) { return; }
+    temizlikBildirildi = true;
+    B.bildir('Örnek veriler temizlendi: ' + bilgi.adet + ' kayıt silindi. ' +
+      (bilgi.yedekVar ? 'Eski veriyi üst bardaki "Eski veri" düğmesiyle indirebilirsiniz.' : ''), 'bilgi');
+  }
+
   function girisSonrasi() {
     hazirla();
     kisileriDoldur();
     rolArayuzu();
     ciz();
+    temizlikBildir();
   }
 
   function baslat() {

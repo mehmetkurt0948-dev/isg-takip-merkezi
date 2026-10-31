@@ -128,6 +128,82 @@ function bekle(ms) {
   kontrol('Onay menüsü yöneticide görünür', doc.getElementById('menuOnaylar').hidden === false);
   kontrol('Kullanıcı alanı oturum sahibini gösterir', /Mehmet Kurt/.test(metin('#kullaniciAd')), metin('#kullaniciAd'));
 
+  console.log('\n0b) Boş açılış, örnek veri temizliği ve örnek veri yükleme');
+  const bos = ISG.depo.al();
+  const KAYIT_LISTELERI = ['egitimler', 'riskler', 'olaylar', 'dosyalar', 'belgeler', 'planlar',
+    'tespitler', 'riskEkipleri', 'acilPlanlar', 'davetler', 'mevzuat', 'talepler'];
+  const doluDolanlar = KAYIT_LISTELERI.filter((k) => (bos[k] || []).length > 0);
+  kontrol('Site boş açılıyor: işyeri yok', bos.isyerleri.length === 0, String(bos.isyerleri.length));
+  kontrol('Site boş açılıyor: personel yok', bos.personel.length === 0, String(bos.personel.length));
+  kontrol('Site boş açılıyor: tüm kayıt listeleri boş', doluDolanlar.length === 0, doluDolanlar.join(', '));
+  kontrol('Boş açılışta denetim izinde yalnızca oturum kayıtları var',
+    bos.denetim.length > 0 && bos.denetim.every((k) => k.tur === 'giris' || k.tur === 'cikis'),
+    bos.denetim.map((k) => k.tur).join(', '));
+  kontrol('Boş açılışta örnek (@ornek.com) hesap yok',
+    !bos.kullanicilar.some((k) => /@ornek\.com$/i.test(String(k.eposta || ''))),
+    bos.kullanicilar.map((k) => k.eposta).join(', '));
+  kontrol('Boş açılışta yönetici hesabı duruyor (giriş açık)',
+    !!ISG.depo.kullaniciEpostaBul('mehmetkurt0948@gmail.com'));
+  kontrol('Boş açılışta kurum adı boş', !bos.ayarlar.kurum, String(bos.ayarlar.kurum));
+  kontrol('Cihaz temizlik damgası yazıldı (göç bir kez koşar)',
+    Number(window.localStorage.getItem('isgtakip.temizlik')) === 1,
+    String(window.localStorage.getItem('isgtakip.temizlik')));
+  kontrol('Boş açılışta yedek yazılmadı', window.localStorage.getItem('isgtakip.oncekiVeri') === null);
+  kontrol('Örnek veri düğmesi yöneticiye görünür', doc.getElementById('ornekVeriDugme').hidden === false);
+  kontrol('Eski veri düğmesi yedek yokken gizli', doc.getElementById('oncekiVeriDugme').hidden === true);
+
+  /* Boş veriyle tüm ekranlar dolaşılır: boş durumlar hata metni üretmemeli. */
+  const bosSayfalar = ['panel', 'isyerleri', 'personel', 'dosyalar', 'plan', 'saha', 'rapor',
+    'istatistik', 'risk', 'acil', 'ekip', 'onaylar', 'mevzuat'];
+  for (const sayfa of bosSayfalar) {
+    await sayfaAc('#' + sayfa);
+    const icerik = metin('#gorunum');
+    kontrol('#' + sayfa + ' boş veriyle temiz render',
+      !/undefined|NaN|\[object Object\]/.test(icerik),
+      (icerik.match(/.{0,40}(undefined|NaN|\[object Object\]).{0,40}/) || [''])[0]);
+    kontrol('#' + sayfa + ' boş veriyle başlık veriyor', metin('.sayfa-baslik h1').length > 2,
+      metin('.sayfa-baslik h1'));
+  }
+  await sayfaAc('#isyerleri');
+  kontrol('Boş durumda işyeri eklemeye çağrılır', /İşyeri bulunamadı/.test(metin('#gorunum')),
+    metin('#gorunum').slice(0, 120));
+  await sayfaAc('#panel');
+
+  /* Eski sürümlerde cihazda biriken örnek verinin temizliği (göç birim testi). */
+  const demoda = ISG.ORNEK_VERI();
+  const temizlik = ISG.depo.demoTemizle(demoda);
+  kontrol('Örnek veri temizliği yüzlerce kaydı siliyor', temizlik.silinen > 600, String(temizlik.silinen));
+  kontrol('Temizlik sonrası kayıt listesi kalmıyor',
+    ['isyerleri', 'personel', 'egitimler', 'dosyalar', 'planlar', 'tespitler', 'mevzuat']
+      .every((k) => demoda[k].length === 0),
+    KAYIT_LISTELERI.concat(['isyerleri', 'personel']).filter((k) => (demoda[k] || []).length > 0).join(', '));
+  kontrol('Temizlik yönetici hesabını koruyor',
+    demoda.kullanicilar.length === 1 && demoda.kullanicilar[0].eposta === 'mehmetkurt0948@gmail.com',
+    demoda.kullanicilar.map((k) => k.eposta).join(', '));
+  kontrol('Temizlik mezar taşı bırakır (buluttan geri dönmez)',
+    Object.keys(demoda.senkron.silinen).length > 600, String(Object.keys(demoda.senkron.silinen).length));
+  kontrol('Temizlik silinen veriyi yedekte tutar',
+    temizlik.yedek.length > 1000 && JSON.parse(temizlik.yedek).isyerleri.length === 6);
+  kontrol('Temizlik kurum ayarlarına dokunmaz', demoda.ayarlar.kurum === 'Aydın Büyükşehir Belediyesi Personel A.Ş',
+    String(demoda.ayarlar.kurum));
+
+  /* Örnek veri artık yalnızca düğmeyle gelir: depo.ornekYukle() arka plan testi. */
+  const yuklenen = ISG.depo.ornekYukle();
+  ISG.ui.kapsam = '';
+  ISG.uygulama.girisSonrasi();
+  await bekle(160);
+  kontrol('Örnek veri yükleme 6 işyeri getiriyor', yuklenen.isyerleri.length === 6, String(yuklenen.isyerleri.length));
+  kontrol('Örnek veri yükleme 37 personel getiriyor', yuklenen.personel.length === 37, String(yuklenen.personel.length));
+  kontrol('Örnek veri örnek hesapları da getiriyor', yuklenen.kullanicilar.length === 3,
+    String(yuklenen.kullanicilar.length));
+  kontrol('Örnek veri kendi mezar taşlarını siler',
+    Object.keys(ISG.depo.al().senkron.silinen).length === 0,
+    String(Object.keys(ISG.depo.al().senkron.silinen).length));
+  kontrol('Örnek veri kalıcı yazıma geçer',
+    JSON.parse(window.localStorage.getItem(ISG.depo.anahtar)).isyerleri.length === 6);
+  kontrol('Örnek veri sonrası görev listesi dolar', doc.querySelectorAll('.gorev-satir').length > 0,
+    String(doc.querySelectorAll('.gorev-satir').length));
+
   console.log('\n1) Yükleme ve genel bakış');
   kontrol('ISG çekirdeği yüklendi', !!ISG && !!ISG.depo && !!ISG.sayfalar && !!ISG.uygulama);
 
@@ -796,10 +872,41 @@ function bekle(ms) {
   ISG.ui.kapsam = '';
   ISG.uygulama.ciz();
   await bekle(150);
-  kontrol('Veri sıfırlandı (37 personel)', ISG.depo.al().personel.length === 37, String(ISG.depo.al().personel.length));
+  kontrol('Veri sıfırlama boş veriye döndürüyor',
+    ISG.depo.al().isyerleri.length === 0 && ISG.depo.al().personel.length === 0,
+    ISG.depo.al().isyerleri.length + ' işyeri / ' + ISG.depo.al().personel.length + ' personel');
+  kontrol('Veri sıfırlama örnek veriyi geri getirmiyor',
+    ISG.depo.al().mevzuat.length === 0 && ISG.depo.al().dosyalar.length === 0);
+  kontrol('Veri sıfırlama hesapları koruyor',
+    ISG.depo.al().kullanicilar.some((k) => k.eposta === 'mehmetkurt0948@gmail.com'),
+    ISG.depo.al().kullanicilar.map((k) => k.eposta).join(', '));
+  kontrol('Sıfırlama silinen her kayıt için mezar taşı bırakıyor',
+    Object.keys(ISG.depo.al().senkron.silinen).length > 600,
+    String(Object.keys(ISG.depo.al().senkron.silinen).length));
   kontrol('Sıfırlama sonrası panel açık', metin('.sayfa-baslik h1') === 'Genel bakış');
 
-  console.log('\n18) Tüm ekranlarda metin ve ikon temizliği');
+  /* Örnek veri düğmesi uçtan uca: onay istenir, evet denince kayıtlar gelir. */
+  kontrol('Sıfırlama sonrası örnek veri düğmesi görünür',
+    doc.getElementById('ornekVeriDugme').hidden === false);
+  doc.querySelector('[data-islem="ornek-veri"]').click();
+  await bekle(80);
+  kontrol('Örnek veri yükleme onay istiyor', doc.getElementById('onayDiyalog').open === true &&
+    /Örnek veri/.test(metin('#onayBaslik')), metin('#onayBaslik'));
+  doc.getElementById('onayEvet').click();
+  await bekle(200);
+  kontrol('Örnek veri düğmesi kayıtları getirdi',
+    ISG.depo.al().isyerleri.length === 6 && ISG.depo.al().personel.length === 37,
+    ISG.depo.al().isyerleri.length + ' işyeri');
+  await sayfaAc('#isyerleri');
+  kontrol('Örnek veri sonrası kurum adı geldi', /Aydın Büyükşehir/.test(metin('.kurum-serit')),
+    metin('.kurum-serit'));
+  /* Ekran dolaşımı boş veriyle yapılacak: öncesinde yine boşlanıyor. */
+  ISG.depo.sifirla();
+  ISG.uygulama.ciz();
+  await bekle(120);
+  kontrol('İkinci sıfırlama da boş veri veriyor', ISG.depo.al().isyerleri.length === 0);
+
+  console.log('\n18) Tüm ekranlarda metin ve ikon temizliği (boş veriyle)');
   const tumSayfalar = ['panel', 'isyerleri', 'personel', 'dosyalar', 'plan', 'saha', 'rapor', 'istatistik', 'risk', 'acil', 'ekip', 'onaylar', 'mevzuat'];
   for (const sayfa of tumSayfalar) {
     await sayfaAc('#' + sayfa);
@@ -811,6 +918,14 @@ function bekle(ms) {
     const kirikIkon = sayfaIkonlari.filter((h) => !doc.querySelector(h));
     kontrol('#' + sayfa + ' ikonları eksiksiz', kirikIkon.length === 0, kirikIkon.join(', '));
   }
+
+  /* Bölüm 18 boş veriyle koşuldu; sonraki bölümler örnek veriyi kullanır. */
+  ISG.depo.ornekYukle();
+  ISG.ui.kapsam = '';
+  ISG.uygulama.girisSonrasi();
+  await bekle(150);
+  kontrol('Sonraki bölümler için örnek veri geri yüklendi',
+    ISG.depo.al().isyerleri.length === 6, String(ISG.depo.al().isyerleri.length));
 
   console.log('\n19) Yayın paketi (GitHub Pages)');
   const pubKok = kok;

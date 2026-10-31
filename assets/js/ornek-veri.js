@@ -1,5 +1,7 @@
-/* İSG Takip Merkezi — örnek tohum verisi ve kontrol maddesi kataloğu
-   Tüm tarihler bugüne göre üretilir; örnek veri her açıldığında güncel görünür. */
+/* İSG Takip Merkezi — boş başlangıç verisi, örnek (tanıtım) veri ve kontrol
+   maddesi kataloğu
+   Site ISG.BOS_VERI() ile boş açılır. ISG.ORNEK_VERI() yalnızca arayüzdeki
+   "Örnek veri yükle" düğmesiyle kullanılır; tüm tarihler bugüne göre üretilir. */
 (function (global) {
   'use strict';
 
@@ -287,18 +289,42 @@
   ISG.katalogMaddeleri = katalogMaddeleri;
   ISG.katalogUret = katalogUret;
 
-  /* ---------- Tohum veri ---------- */
+  /* ---------- Tohum veri ----------
+     SİTE BOŞ AÇILIR: yeni bir cihazda hiçbir işyeri, personel veya kayıt
+     yoktur. Başlangıçta yalnızca yönetici hesabı bulunur (aksi hâlde giriş
+     yapılamaz). Tanıtım amaçlı dolu veri kümesi ISG.ORNEK_VERI() içinde
+     durur ve arayüzde yalnızca "Örnek veri yükle" düğmesiyle çağrılır. */
 
-  /* ---------- Başlangıç kullanıcıları ----------
-     Kurulumun ilk açılışında tanımlı hesaplar. Yeni kullanıcılar yönetici
-     tarafından oluşturulan davet kodlarıyla katılır; şifreler "Şifremi
-     unuttum" akışıyla e-posta kodu doğrulanarak yenilenebilir. */
-  ISG.ORNEK_KULLANICILAR = function () {
-    return [
-      {
-        id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmetkurt0948@gmail.com', sifre: '1234',
-        rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [], aktif: true, sonGiris: ''
+  /* Tek gerçek hesap: site yöneticisi. Boş başlangıçta ve veri sıfırlandığında
+     bu hesap korunur, böylece giriş anahtarı hiçbir cihazda kaybolmaz. */
+  ISG.YONETICI_HESAP = function () {
+    return [{
+      id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmetkurt0948@gmail.com', sifre: '1234',
+      rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [], aktif: true, sonGiris: ''
+    }];
+  };
+
+  /* Boş başlangıç veri kümesi — yayındaki sitenin açıldığı hâl. */
+  ISG.BOS_VERI = function () {
+    return {
+      surum: 4,
+      olusturma: new Date().toISOString(),
+      ayarlar: {
+        kurum: '', kullanici: '', gorev: '', yillikCalismaSaati: 2250, sonMevzuatKontrolu: ''
       },
+      isyerleri: [], personel: [], egitimler: [], riskler: [], olaylar: [],
+      dosyalar: [], belgeler: [], planlar: [], tespitler: [],
+      riskEkipleri: [], acilPlanlar: [], davetler: [], mevzuat: [],
+      kullanicilar: ISG.YONETICI_HESAP(), talepler: [], denetim: [],
+      senkron: { kayit: {}, silinen: {}, ayarlar: '' }
+    };
+  };
+
+  /* Örnek hesaplar: yalnızca "Örnek veri yükle" ile gelen tanıtım hesapları.
+     Yeni kullanıcılar yöneticinin ürettiği davet kodlarıyla katılır; şifreler
+     "Şifremi unuttum" akışıyla e-posta kodu doğrulanarak yenilenebilir. */
+  ISG.ORNEK_KULLANICILAR = function () {
+    return ISG.YONETICI_HESAP().concat([
       {
         id: 'u2', adSoyad: 'Buse Şenol', eposta: 'buse.senol@ornek.com', sifre: '1234',
         rol: 'yetkili', gorev: 'B sınıfı İSG uzmanı', isyerleri: ['iy1', 'iy2'], aktif: true, sonGiris: ''
@@ -307,7 +333,7 @@
         id: 'u3', adSoyad: 'Selin Aydın', eposta: 'selin.aydin@ornek.com', sifre: '1234',
         rol: 'goruntuleyici', gorev: 'İdari işler sorumlusu', isyerleri: ['iy1'], aktif: true, sonGiris: ''
       }
-    ];
+    ]);
   };
 
   ISG.ORNEK_VERI = function () {

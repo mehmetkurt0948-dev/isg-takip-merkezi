@@ -65,6 +65,14 @@ function sunucuBaslat() {
   await girisYap('mehmetkurt0948@gmail.com', '1234');
   kontrol('Yönetici oturumu açıldı', !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yonetici');
 
+  /* Site boş açılır; belge akışı gerçekçi bir işyeri ve kontrol kataloğu
+     ister. Örnek veri artık yalnızca elle yükleniyor — test de aynı yolu izler. */
+  kontrol('Boş açılışta işyeri yok', D.al().isyerleri.length === 0, String(D.al().isyerleri.length));
+  ISG.depo.ornekYukle();
+  ISG.uygulama.girisSonrasi();
+  await new Promise((r) => setTimeout(r, 150));
+  kontrol('Örnek veri yükleme düğmesiz de çalışıyor', D.al().isyerleri.length === 6, String(D.al().isyerleri.length));
+
   const isyeriId = D.al().isyerleri[0].id;
 
   // 1) belgeKaydet / belgeler / belgeBul / belgeBoyutu

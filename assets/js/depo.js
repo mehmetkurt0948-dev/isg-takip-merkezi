@@ -7,6 +7,13 @@
   var ESKI_ANAHTARLAR = ['isgtakip.v3', 'isgtakip.v2'];
   var SURUM = 4;
 
+  /* Eski sürümler siteyi örnek kayıtlarla dolduruyordu. Bu damga, örneğin
+     verilerin cihazdan bir kez silindiğini tutar. Damga yalnızca cihazdadır:
+     bulutla paylaşılmaz, böylece yeni bir cihaz zaten temiz doğar. */
+  var TEMIZLIK_ANAHTAR = 'isgtakip.temizlik';
+  var TEMIZLIK_SURUM = 1;
+  var ONCEKI_VERI_ANAHTAR = 'isgtakip.oncekiVeri';
+
   /* ---------- Alan kuralları ---------- */
 
   ISG.RISK_SINIFLARI = {
@@ -676,12 +683,68 @@
     });
 
     var kullaniciVar = (veri.kullanicilar || []).length > 0;
-    if (!kullaniciVar && typeof ISG.ORNEK_KULLANICILAR === 'function') {
-      veri.kullanicilar = ISG.ORNEK_KULLANICILAR();
+    if (!kullaniciVar && typeof ISG.YONETICI_HESAP === 'function') {
+      /* Yönetici hesabı olmadan giriş yapılamaz: örnek hesaplar değil,
+         yalnızca gerçek yönetici hesabı eklenir. */
+      veri.kullanicilar = ISG.YONETICI_HESAP();
     }
 
     veri.surum = SURUM;
     return veri;
+  }
+
+  /* ---------- Örnek (tanıtım) verisi yardımcıları ---------- */
+
+  /* Örnek hesaplar @ornek.com adresini kullanır. Gerçek hesaplar ve yönetici
+     hiçbir temizlikte silinmez; aksi hâlde siteye giriş kapanabilir. */
+  function ornekHesapMi(kullanici) {
+    return /@ornek\.com$/i.test(String((kullanici && kullanici.eposta) || ''));
+  }
+
+  function korunanHesaplar(liste) {
+    var kalanlar = (liste || []).filter(function (kullanici) { return !ornekHesapMi(kullanici); });
+    return kalanlar.length ? kalanlar : (typeof ISG.YONETICI_HESAP === 'function' ? ISG.YONETICI_HESAP() : []);
+  }
+
+  /* Cihazda duran örnek veriyi bir kez siler: tüm kayıt listeleri boşaltılır,
+     kurum ayarları ve gerçek hesaplar korunur. Her silinen kayıt için mezar
+     taşı bırakıldığından kayıtlar buluttan geri dönmez. Silinmeden önceki
+     hâl geri dönebilmesi için cihazda yedekte tutulur. */
+  function demoTemizle(veri, simdi) {
+    if (!veri) { return { silinen: 0, yedek: '' }; }
+    veriTamamla(veri);
+    var zaman = simdi || new Date().toISOString();
+    var onceki = {};
+    var silinen = 0;
+
+    ESITLEME_ANAHTARLARI.forEach(function (anahtar) {
+      if (anahtar === 'kullanicilar') { return; }
+      var liste = veri[anahtar] || [];
+      if (!liste.length) { return; }
+      onceki[anahtar] = liste.slice();
+      silinen += liste.length;
+      liste.forEach(function (kayit) {
+        if (kayit && kayit.id) { veri.senkron.silinen[esitlemeKodu(anahtar, kayit.id)] = zaman; }
+      });
+      veri[anahtar] = [];
+    });
+
+    var hesaplar = veri.kullanicilar || [];
+    var kalanlar = hesaplar.filter(function (kullanici) { return !ornekHesapMi(kullanici); });
+    if (kalanlar.length !== hesaplar.length) {
+      onceki.kullanicilar = hesaplar.slice();
+      hesaplar.forEach(function (kullanici) {
+        if (ornekHesapMi(kullanici) && kullanici.id) {
+          veri.senkron.silinen[esitlemeKodu('kullanicilar', kullanici.id)] = zaman;
+        }
+      });
+      silinen += hesaplar.length - kalanlar.length;
+      veri.kullanicilar = kalanlar;
+    }
+
+    /* Yönetici hesabı koruma altında: hepsi silinmişse boş veri tamamlanır. */
+    veriTamamla(veri);
+    return { silinen: silinen, yedek: silinen ? JSON.stringify(onceki) : '' };
   }
 
   /* ---------- Kayıt bazlı eşitleme ---------- */
@@ -891,8 +954,16 @@
     }
   }
   if (okunanVeri) { depoDurumu.veri = veriTamamla(okunanVeri); }
-  if (!depoDurumu.veri) { depoDurumu.veri = veriTamamla(ISG.ORNEK_VERI()); }
+  if (!depoDurumu.veri) {
+    /* Site boş başlar: işyeri, personel ve kayıt yoktur. Yönetici hesabı
+       ISG.BOS_VERI() içindedir, giriş bu sayede açık kalır. */
+    depoDurumu.veri = veriTamamla(
+      typeof ISG.BOS_VERI === 'function' ? ISG.BOS_VERI() : {});
+  }
   temelAl(depoDurumu.veri);
+
+  /* Bu cihazda yapılan tek seferlik örnek veri temizliğinin özeti. */
+  var temizlikBilgisi = null;
 
   var depo = ISG.depo = {
     anahtar: ANAHTAR,
@@ -971,9 +1042,43 @@
       return veri;
     },
     sifirla: function () {
-      depoDurumu.veri = veriTamamla(ISG.ORNEK_VERI());
+      /* Örnek veriye değil, BOŞ veriye döndürür. Kurum kayıtları silinir;
+         gerçek kullanıcı hesapları korunur (giriş kapanmasın diye). */
+      var oncekiSenkron = depoDurumu.veri && depoDurumu.veri.senkron;
+      var yeni = veriTamamla(typeof ISG.BOS_VERI === 'function' ? ISG.BOS_VERI() : {});
+      yeni.kullanicilar = korunanHesaplar(depoDurumu.veri && depoDurumu.veri.kullanicilar);
+      /* Önceki silme mezar taşları unutulmaz: silinen kayıtlar buluttan
+         geri dönmemeli. */
+      if (oncekiSenkron && oncekiSenkron.silinen) {
+        Object.keys(oncekiSenkron.silinen).forEach(function (kod) {
+          if (!yeni.senkron.silinen[kod]) { yeni.senkron.silinen[kod] = oncekiSenkron.silinen[kod]; }
+        });
+      }
+      depoDurumu.veri = yeni;
       depo.kaydet();
       return depoDurumu.veri;
+    },
+    /* Tanıtım amaçlı örnek veri kümesini yükler (6 işyeri, 37 personel,
+       katalog, mevzuat). Kayıtlar bu cihazda yeni sayılır ve buluta yazılır;
+       önceki temizliğin mezar taşları bu kayıtlar için silinir. */
+    ornekYukle: function () {
+      var veri = veriTamamla(typeof ISG.ORNEK_VERI === 'function' ? ISG.ORNEK_VERI() : {});
+      ESITLEME_ANAHTARLARI.forEach(function (anahtar) {
+        (veri[anahtar] || []).forEach(function (kayit) {
+          if (kayit && kayit.id) { delete veri.senkron.silinen[esitlemeKodu(anahtar, kayit.id)]; }
+        });
+      });
+      depoDurumu.veri = veri;
+      depo.damgala();
+      return veri;
+    },
+    /* Bir veri kümesindeki örnek kayıtları temizler (birim testler ve göç için). */
+    demoTemizle: function (veri) { return demoTemizle(veri); },
+    /* Bu cihazda yapılan tek seferlik temizliğin özeti; yapılmadıysa null. */
+    temizlikBilgisi: function () { return temizlikBilgisi; },
+    /* Temizlikten önceki verinin cihazda tutulan yedeği (JSON metni). */
+    temizlikYedegi: function () {
+      try { return global.localStorage.getItem(ONCEKI_VERI_ANAHTAR) || ''; } catch (hata) { return ''; }
     },
     abone: function (fn) {
       if (typeof fn === 'function') { depoDurumu.dinleyiciler.push(fn); }
@@ -999,6 +1104,26 @@
   };
 
   if (tasindi) { depo.kaydet(); }
+
+  /* ---------- Tek seferlik örnek veri temizliği (2.11.0) ----------
+     Sürüm 2.10.0'a kadar site örnek kayıtlarla açılıyordu. Bu göç, cihazda
+     duran o kayıtları bir kez siler; silinen her kayıt mezar taşı aldığı için
+     buluttan geri gelmez. Silinmeden önceki hâl bu cihazda yedekte tutulur ve
+     arayüzden indirilebilir. Damga cihazda durduğundan yeni cihazlar zaten
+     boş veriyle doğar, örnek veri ise "Örnek veri yükle" ile geri getirilir. */
+  function temizlikDamgasiOku() {
+    try { return Number(global.localStorage.getItem(TEMIZLIK_ANAHTAR)) || 0; } catch (hata) { return 0; }
+  }
+  if (temizlikDamgasiOku() < TEMIZLIK_SURUM) {
+    var temizlik = demoTemizle(depoDurumu.veri);
+    if (temizlik.silinen > 0) {
+      try { global.localStorage.setItem(ONCEKI_VERI_ANAHTAR, temizlik.yedek); } catch (hata) { /* yer yoksa yedek tutulmaz */ }
+      /* Mezar taşları kalıcılaşır ve bulut eşitlemesiyle diğer cihazlara gider. */
+      depo.kaydet();
+      temizlikBilgisi = { adet: temizlik.silinen, yedekVar: true };
+    }
+    try { global.localStorage.setItem(TEMIZLIK_ANAHTAR, String(TEMIZLIK_SURUM)); } catch (hata) { /* bellek kapalıysa her açılışta denenir */ }
+  }
 
   /* ---------- Kayıt işlemleri ---------- */
 

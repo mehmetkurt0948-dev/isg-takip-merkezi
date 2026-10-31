@@ -194,20 +194,21 @@
       '<button type="button" class="dugme birincil" data-islem="isyeri-yeni">' + B.ikon('i-plus') + 'İşyeri ekle</button>') +
 
       '<details class="kurum-katlanabilir">' +
-        '<summary>Çalışılan kurum: ' + kacis(hesap.ayarlar.kurum) + ' · Kurum değiştir</summary>' +
-        '<p class="bolum-aciklama">Bu kurum altındaki işyerleri ve yetkili kullanıcı kapsamı örnek verilerle temsil edilir. Kurum adı değiştirildiğinde tüm ekranlardaki başlık güncellenir.</p>' +
+        '<summary>Çalışılan kurum: ' + (hesap.ayarlar.kurum ? kacis(hesap.ayarlar.kurum) : 'belirtilmedi') + ' · Kurum değiştir</summary>' +
+        '<p class="bolum-aciklama">Kurum adı değiştirildiğinde tüm ekranlardaki başlık güncellenir. ' +
+        'Site boş başlar; işyeri ve personel kayıtları buradan eklenir. "Tüm verileri sil" siteyi yeniden boş bırakır.</p>' +
         '<div class="satir-arac" style="margin-top:10px">' +
           '<button type="button" class="dugme ince" data-islem="kurum-duzenle">Kurum adını düzenle</button>' +
-          '<button type="button" class="dugme ince tehlike-dugme" data-islem="kurum-sil">Kurumu sil</button>' +
+          '<button type="button" class="dugme ince tehlike-dugme" data-islem="kurum-sil">Tüm verileri sil</button>' +
         '</div>' +
       '</details>' +
 
       '<div class="kurum-serit">' +
-        '<span>Kurum: <strong>' + kacis(hesap.ayarlar.kurum) + '</strong></span>' +
+        '<span>Kurum: <strong>' + (hesap.ayarlar.kurum ? kacis(hesap.ayarlar.kurum) : 'belirtilmedi — "Kurum adını düzenle" ile girin') + '</strong></span>' +
         '<span class="kurum-serit-sag">' +
           (anaKurum ? B.rozet('Ana kurum', 'bilgi') : '') +
           '<button type="button" class="dugme ince" data-islem="kurum-duzenle">Kurum adını düzenle</button>' +
-          '<button type="button" class="dugme ince tehlike-dugme" data-islem="kurum-sil">' + B.ikon('i-trash') + 'Kurumu sil</button>' +
+          '<button type="button" class="dugme ince tehlike-dugme" data-islem="kurum-sil">' + B.ikon('i-trash') + 'Tüm verileri sil</button>' +
         '</span>' +
       '</div>' +
 

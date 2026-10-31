@@ -20,7 +20,7 @@ kayıt tabloları.
 |---|---|
 | **Giriş** | Oturum katmanı: e-posta/şifre doğrulama, hatalı şifre uyarısı, davet kodu ile hesap açma, **6 haneli e-posta koduyla şifre sıfırlama**, oturumu tarayıcıda hatırlama, çıkışta onay |
 | **Genel bakış** | Tüm işyerlerinden türetilen görev motoru: geciken / bugün / yaklaşan / tarihsiz işler, öncelik sıralı liste, işyeri bazında durum tablosu |
-| **İşyerleri** | Kurum şeridi (ana kurum, ad değiştir, kurum sil), işyeri kartları (tehlike sınıfı, çalışan ve kontrol maddesi sayısı), işyeri CRUD |
+| **İşyerleri** | Kurum şeridi (ana kurum, ad değiştir, tüm verileri sil), işyeri kartları (tehlike sınıfı, çalışan ve kontrol maddesi sayısı), işyeri CRUD |
 | **Personel listesi** | İşyeri bazında bloklar, sicil/TC/meslek/departman/şube/kıdem/telefon/cinsiyet kolonları, arama, detay açma, eğitim kayıtları, gerçek **XLSX şablonu** ve XLSX/CSV içe-dışa aktarma, "listeyi temizle" |
 | **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma, **belge eki yükle / görüntüle / indir / kaldır** (belge başına ≤ 1 MB, `localStorage`) |
 | **Çalışma planı** | İlk yardımcı ihtiyaç/mevcut karşılaştırması, yıllık plan kartları, plan kalemi CRUD, tamamlandı işaretleme, plan KPI'ları |
@@ -49,13 +49,15 @@ sıfırlama, rol bazlı yetki ve onay akışı.
 | **Yetkili** | Yalnızca atandığı işyerleri | Talebe dönüşür, yönetici onayı gerekir | Görmez |
 | **Görüntüleyici** | Yalnızca atandığı işyerleri | Yok (`salt-okunur` gövde sınıfı) | Görmez |
 
-Başlangıç hesapları (şifre: `1234`):
+Site **boş açılır**; kayıtlı tek hesap yönetici hesabıdır (şifre: `1234`):
 
 | E-posta | Ad | Rol | İşyerleri |
 |---|---|---|---|
-| `mehmetkurt0948@gmail.com` | Mehmet Kurt | Yönetici | Tümü (6) |
-| `buse.senol@ornek.com` | Buse Şenol | Yetkili | `iy1`, `iy2` |
-| `selin.aydin@ornek.com` | Selin Aydın | Görüntüleyici | `iy1` |
+| `mehmetkurt0948@gmail.com` | Mehmet Kurt | Yönetici | Tümü (içi boşken tümü) |
+
+Örnek veri yüklendiğinde (`Örnek veri` düğmesi — bkz. [1.4](#14-boş-açılış-örnek-veri-ve-temizlik))
+ayrıca iki tanıtım hesabı gelir: `buse.senol@ornek.com` (Yetkili · `iy1`, `iy2`) ve
+`selin.aydin@ornek.com` (Görüntüleyici · `iy1`).
 
 > Giriş ekranında hazır hesap düğmesi yoktur; kullanıcı e-posta ve şifresini
 > kendisi yazar. Yanlış adres girilirse uyarı metni kayıtlı hesapların
@@ -152,6 +154,26 @@ Eşitleme kuralları:
 - **Bağlantıyı kes** yerel veriyi silmez; yalnızca bu cihazın buluta yazmayı
   bırakmasını sağlar.
 
+### 1.4. Boş açılış, örnek veri ve temizlik
+
+Sürüm 2.11.0 ile birlikte **yayınlanan site boş açılır**: işyeri, personel,
+eğitim, kontrol maddesi, plan, tespit, kaza ve mevzuat kaydı yoktur. Açılışta
+yalnızca yönetici hesabı ve kurum ayarları durur (hesap silinirse giriş
+yapılamayacağı için korunur).
+
+| Davranış | Ne olur? |
+|---|---|
+| Yeni cihaz açılışı | `ISG.BOS_VERI()` — 0 işyeri, 0 kayıt. Ekranlar boş durum mesajı gösterir. |
+| Eski sürümden kalan demo veri | İlk açılışta **bir kez** silinir (`isgtakip.temizlik` cihaz damgası). Silinen her kayıt için **mezar taşı** yazıldığından buluttan geri gelmez. |
+| Silinen verinin geri alınması | Temizlikten önceki hâl `isgtakip.oncekiVeri` anahtarında saklanır; üst bardaki **Eski veri** düğmesiyle JSON olarak indirilir. |
+| Tanıtım/deneme verisi | Üst bardaki **Örnek veri** düğmesi (yalnızca yönetici) `ISG.ORNEK_VERI()` kümesini yükler: 6 işyeri, 37 personel, katalog, plan, tespit, kaza, mevzuat ve iki örnek hesap. |
+| Tüm verileri silme | İşyerleri → **Tüm verileri sil** siteyi yeniden boşlatır; hesaplar korunur, silinen kayıtlar buluta da silinir. |
+
+Kod tarafında ayrım nettir: `ISG.BOS_VERI()` tohum verisi, `ISG.ORNEK_VERI()`
+ise yalnızca arayüz düğmesinin çağırdığı tanıtım kümesidir. Kontrol kataloğu
+(`ISG.katalogMaddeleri` / `ISG.katalogUret`) gerçek bir işyeri eklendiğinde yine
+otomatik üretilir — katalog demo veri değildir.
+
 ## 2. Görev motoru (Genel bakış'ın kalbi)
 
 Tek bir "iş" listesi, beş ayrı kaynaktan türetilir:
@@ -203,7 +225,7 @@ isg-takip-merkezi/
 │  │  ├─ ikon-512.png         # manifest / maskable
 │  │  └─ apple-touch-icon.png # iOS ana ekran
 │  └─ js/
-│     ├─ ornek-veri.js        # 6 işyeri, 37 personel, katalog üretimi, mevzuat
+│     ├─ ornek-veri.js        # boş tohum (BOS_VERI), örnek/tanıtım verisi, katalog üretimi, mevzuat
 │     ├─ depo.js              # alan kuralları, localStorage, CRUD, görev motoru
 │     ├─ bicim.js             # tarih/rozet/CSV/sayfalama yardımcıları
 │     ├─ yetki.js             # oturum, roller, işyeri kapsamı, onay kuyruğu
@@ -215,8 +237,8 @@ isg-takip-merkezi/
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (384 kontrol)
-│  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (25 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (443 kontrol)
+│  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (27 kontrol)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
 ├─ package.json               # npm test / test:belge / ikon / yayin
@@ -340,11 +362,13 @@ Test:
 
 ```powershell
 npm install
-npm test                     # 369 kontrol + belge testi, başarısızda çıkış kodu 1
-npm run test:belge           # yalnızca belge eki testi (25 kontrol)
+npm test                     # 443 kontrol + belge testi (27 kontrol), başarısızda çıkış kodu 1
+npm run test:belge           # yalnızca belge eki testi (27 kontrol)
 ```
 
-Test; yükleme, tohum veri, **giriş/oturum**, **rol ve işyeri kapsamı**,
+Test; yükleme, **boş açılış ve örnek veri temizliği** (0 kayıt, boş ekran
+dolaşımı, mezar taşı üretimi, `ornekYukle()` ve düğme akışı), **giriş/oturum**,
+**rol ve işyeri kapsamı**,
 **onay kuyruğu ve denetim izi**, iş kuralları, kapsam filtresi, personel CRUD,
 eğitim geçerliliği, dosya filtreleri ve sayfalama, DÖF oluşturma, plan
 tamamlama, saha, risk/acil kayıtları ve belge ekleri, istatistikler, rapor,
@@ -556,9 +580,10 @@ Notlar:
 
 ## 8. Bilinen sınırlar
 
-- Örnek veriler **gerçek kurum verisi değildir**; sayılar ve tarihler örnek
-  amaçlı üretilir. Sağlık verisi, TC kimlik no ve kişisel dosya içeriği bu
-  ortamda saklanmamalıdır.
+- Yayınlanan site boş açılır; **örnek veriler** yalnızca `Örnek veri` düğmesiyle
+  gelir ve **gerçek kurum verisi değildir** — sayılar ve tarihler örnek amaçlı
+  üretilir. Sağlık verisi, TC kimlik no ve kişisel dosya içeriği bu ortamda
+  saklanmamalıdır.
 - Veriler önce tarayıcının `localStorage` alanında tutulur; gizli sekmede veya
   depolama temizlendiğinde kaybolur. Cihazlar arası paylaşım için isteğe bağlı
   **Supabase** eşitlemesi vardır ([1.3](#13-cihazlar-arası-ortak-kayıt-supabase)),
@@ -616,6 +641,30 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.11.0 — Site boş açılıyor: demo veriler silindi, temizlik ve örnek veri düğmesi
+
+- **Yayındaki site artık boş başlıyor.** 2.10.0 ve öncesinde ilk açılış 6 işyeri,
+  37 personel, ~700 kontrol maddesi, plan/tespit/kaza/mevzuat kaydıyla doluydu.
+  Tohum veri `ISG.BOS_VERI()` oldu: 0 işyeri, 0 kayıt; yalnızca yönetici hesabı
+  ve kurum ayarları korunur (hesap kalmazsa giriş yapılamaz).
+- **Eski cihazlardaki demo veri kendiliğinden temizleniyor.** Açılışta bir kez
+  çalışan göç (`isgtakip.temizlik` damgası) örnek kayıtları siler; her silinen
+  kayıt için mezar taşı yazıldığından kayıtlar buluttan geri dönmez. Silinmeden
+  önceki hâl `isgtakip.oncekiVeri` anahtarında saklanır ve üst bardaki
+  **Eski veri** düğmesiyle indirilebilir.
+- **Örnek veri artık bir düğme.** Üst bardaki **Örnek veri** (yalnızca yönetici)
+  onay sonrası `ISG.ORNEK_VERI()` kümesini yükler (`depo.ornekYukle()`); kayıtlar
+  bu cihazda yeni sayılıp buluta yazılır ve kendi mezar taşları silinir.
+- **"Kurumu sil" → "Tüm verileri sil".** Onay metni doğru davranışı anlatıyor;
+  işlem örnek veriye değil boş veriye döndürüyor, hesapları ve önceki silme
+  mezar taşlarını koruyor.
+- Boş veriyle 13 ekranın tamamı test ediliyor: boş durum mesajları, kırık ikon
+  ve `undefined/NaN` üretmeyen render denetleniyor.
+- Test kapsamı **384 → 443 kontrol** (boş açılış, göç birim testi, mezar taşı,
+  örnek veri düğmesi uçtan uca, boş ekran dolaşımı) + belge testi
+  **25 → 27 kontrol** (boş açılış sonrası `ornekYukle()`).
+- `package.json` sürümü **2.11.0**; JS varlık damgaları yeniden üretildi.
 
 ### 2.10.0 — Bulut eşitlemesi kayıt bazına indi: birleştirme, silme yayılımı, döngü yok
 
