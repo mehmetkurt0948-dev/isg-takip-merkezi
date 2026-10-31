@@ -11,6 +11,12 @@ için tek seferlik yapılacak adımları anlatır. Kurulum bittiğinde:
 
 Toplam süre: yaklaşık 5 dakika.
 
+> ✅ **Kurulum tamamlandı (31.10.2026):** `isg-takip` projesi ayakta, tablo
+> `public.isg_veri` + RLS politikası çalışıyor ve kimlik
+> `assets/js/bulut-kimlik.js` dosyasına gömüldü. Aşağıdaki adımlar yalnızca
+> **yeni bir site/oda** kurulacağı zaman yeniden gerekir; günlük kullanımda
+> hiçbir şey yapmanıza gerek yoktur.
+
 ---
 
 ## 1) Supabase projesi oluşturma (yaklaşık 2 dk)
@@ -22,7 +28,8 @@ Toplam süre: yaklaşık 5 dakika.
    - **Name:** `isg-takip`
    - **Database Password:** boş bırakabilirsiniz (ücretsiz katmanda bu şifre
      siteye gömülmez, hiç kullanılmayacak).
-   - **Region:** `Central EU (Frankfurt)` — Türkiye'ye en yakın bölge.
+   - **Region:** Türkiye'ye yakın bir bölge — `Central EU (Frankfurt)` veya
+     `Nord Europe (Stockholm)`. (Bizim kurulumda `eu-north-1` / Stockholm seçildi.)
    - **Create new project** ile onaylayın; proje 1–2 dakikada hazır olur.
 
 ## 2) Tabloyu oluşturma (yaklaşık 1 dk)

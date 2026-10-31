@@ -215,7 +215,7 @@ isg-takip-merkezi/
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (369 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (384 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (25 kontrol)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
 │  └─ yayin-hazirla.js        # yayin/ klasörünü üretir

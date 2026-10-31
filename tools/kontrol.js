@@ -769,8 +769,13 @@ function bekle(ms) {
       .every((id) => !!doc.getElementById(id)));
   kontrol('Bulut SQL betiği dolduruldu',
     /create table if not exists public\.isg_veri/.test((doc.getElementById('bulutSql') || {}).textContent || ''));
-  kontrol('Bulut düğmeleri varsayılan kapalı',
-    doc.getElementById('bulutKes').hidden === true && doc.getElementById('bulutSimdi').hidden === true);
+  /* Yayınlanan kimlik (bulut-kimlik.js) dolu olduğu için site artık varsayılan
+     olarak buluta bağlıdır; düğmeler görünür gelir. Elle bağlantıyı kesen cihazda
+     gizlendiği 21b bölümünde doğrulanır. */
+  kontrol('Yayınlanan kimlikte bulut varsayılan açık, düğmeler görünür',
+    ISG.bulut.kimlikVarMi() === true &&
+    doc.getElementById('bulutKes').hidden === false &&
+    doc.getElementById('bulutSimdi').hidden === false);
   const varliklar = Array.from(doc.querySelectorAll('script[src], link[href]'))
     .map((e) => e.getAttribute('src') || e.getAttribute('href'));
   kontrol('Varlık yolları göreli', varliklar.every((y) => !/^\//.test(y)), varliklar.join(', '));
@@ -1150,10 +1155,21 @@ function bekle(ms) {
   kontrol('bulut-kimlik.js sayfada bulut.js öncesinde yüklenir',
     kimlikSirasi !== -1 && bulutSirasi !== -1 && kimlikSirasi < bulutSirasi,
     scriptSirasi.join(' | '));
-  kontrol('Kimlik notu öğesi yerinde ve boş şablonda gizli',
+  kontrol('Kimlik notu öğesi yerinde ve diyalog açılmadan gizli',
     !!doc.getElementById('bulutKimlikNotu') && doc.getElementById('bulutKimlikNotu').hidden === true);
-  kontrol('Boş kimlik şablonu otomatik bağlantı yapmaz',
-    !ISG.bulut.kimlikVarMi() && !ISG.bulut.hazirMi());
+  /* Kimlik artık boş şablon değil: yayınlanan site gerçek Supabase kimliğiyle
+     gelir. Alan biçimleri ve gizli anahtar sızıntısı burada denetlenir. */
+  const yayinKimlik = window.ISG_KIMLIK;
+  kontrol('Yayınlanan kimlik dolu (URL + anahtar + oda)',
+    !!yayinKimlik && /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(yayinKimlik.url) &&
+    String(yayinKimlik.anahtar).length > 40 &&
+    /^[a-z0-9][a-z0-9._-]{3,39}$/.test(String(yayinKimlik.oda)),
+    yayinKimlik ? yayinKimlik.url + ' / oda=' + yayinKimlik.oda : 'kimlik tanımsız');
+  kontrol('Kimlik gizli yönetim anahtarı taşımaz',
+    !!yayinKimlik && JSON.stringify(yayinKimlik).indexOf('service_role') === -1 &&
+    JSON.stringify(yayinKimlik).indexOf('sb_secret_') === -1);
+  kontrol('Dolu kimlik açılışta hazır sayılır',
+    ISG.bulut.kimlikVarMi() === true);
 
   /* Kimlik dosyası site yöneticisi tarafından doldurulmuş gibi simüle edilir:
      yerel ayar olmayan bir cihaz açılışta otomatik bağlanmalı. */

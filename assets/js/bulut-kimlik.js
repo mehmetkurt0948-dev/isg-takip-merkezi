@@ -21,15 +21,18 @@
 (function (global) {
   'use strict';
 
+  /* Kurulum tamamlandı (31.10.2026): supabase.com → "isg-takip" projesi,
+     bölge eu-north-1, tablo public.isg_veri + RLS politikası çalışır durumda.
+     Oda kodu değişirse tüm cihazlar ayrı bir veri kümesine geçmiş olur. */
   global.ISG_KIMLIK = {
     /* Supabase proje adresi: https://xxxx.supabase.co */
-    url: '',
+    url: 'https://liosxpgtdbtpharkirmt.supabase.co',
 
     /* Supabase → Project Settings → API → Project API keys → anon public */
-    anahtar: '',
+    anahtar: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpb3N4cGd0ZGJ0cGhhcmtpcm10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0MzkyNDMsImV4cCI6MjEwOTAxNTI0M30.OePeWzzAoYibEPX-CClWNFFYbDw2KrgUVyjAJ84gttM',
 
     /* Ortak oda kodu: aynı kodu kullanan cihazlar aynı kayıtları paylaşır. */
-    oda: '',
+    oda: 'gunes-erdem-mavi-karakoca',
 
     /* Değişiklikler otomatik gönderilsin ve yeni kayıtlar kontrol edilsin mi? */
     otomatik: true,
