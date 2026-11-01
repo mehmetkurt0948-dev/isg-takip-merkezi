@@ -611,6 +611,76 @@ faaliyet sayısı/yıl özetli kayıt düşer.
 aynı 17 sütunda `yillik-calisma-plani-YYYYMMDD.xlsx` adıyla yazar; indirilen dosya
 doldurulup geri yüklenebilir — test bu gidiş-dönüşü doğrular.
 
+## 6.5. Toplu personel yükleme (şablon → ön izleme → onay) ve Excel aktarımı
+
+Personel listesi bütün iş yerlerinde aynı standarttaydı; sürüm 2.16.0 ile bu
+standart **içe aktarmada da** tek kaynak haline geldi. Ayrıştırma, doğrulama,
+mükerrer ve kayıt kuralları arayüzden ayrılmadı (`assets/js/personel-toplu.js`,
+`ISG.personelToplu`) — aynı kuralları geliştirme aracı da (`tools/personel-aktar.js`)
+kullanır, böylece "arayüzde görünen" ile "veritabanına yazılan" birebir aynıdır.
+
+**Standart on bir sütun** (`ISG.personelToplu.SUTUNLAR` / `BASLIKLAR`):
+
+```
+Sicil No · Ad Soyad · T.C. Kimlik No · Mesleği · Departman · Grup Kodu Açıklama ·
+Şube · İşe Başlama Tarihi · Kıdem Tarihi · Cep Telefonu · Cinsiyet
+```
+
+| Düğme / alan | Ne yapar |
+| --- | --- |
+| **Örnek Excel şablonunu indir** | `Personel-Sablonu.xlsx` — `Personel` sayfası (başlıklar ilk satırda, örnek satır ikinci satırda, sütun genişlikleri ve tarih/metin ipuçları) + `Kılavuz` sayfası. Bütün kurum ve iş yerlerinde aynı dosya üretilir. |
+| **Excel'den toplu yükle** (kişi başına tek kayıt) | Tek personeli şablondaki alanlarla kaydeder. |
+| **Toplu personel yükle** | `ISG.excel` ile XLSX/CSV okunur (mobilde `input[type=file]` + yerel ayrıştırıcı), hedef iş yeri seçilir, **satır satır ön izleme** açılır, kullanıcı **"Kaydedilecekleri ekle"** dedikten sonra tek kalıcı yazımda eklenir. |
+| **Güncel listeyi XLSX indir** | Ekrandaki personeli on bir sütun + İşyeri + Durum ile yazar; indirilen dosya düzenlenip geri yüklenebilir. |
+
+Kurallar (`analizEt` → `uygula`):
+
+- **Mevcut kayıtlar korunur:** toplu yükleme yalnızca **yeni** kayıt ekler; hiçbir
+  kayıt güncellenmez veya silinmez. Aynı dosya tekrar yüklenirse tek kayıt bile
+  çıkmaz, satırlar **Mükerrer** olarak işaretlenir ve onay düğmesi kapanır.
+- **Mükerrer sırası:** önce **T.C. Kimlik No**, yoksa **Sicil No**, ikisi de boşsa
+  **Ad Soyad** (gerekçesiyle birlikte). Dosya içi yineleneler de mükerrer sayılır.
+- **İş yeri izolasyonu:** kayıtlar daima ekranda seçilen iş yerine yazılır;
+  dosyadaki "İşyeri" sütunu okunmaz. Aynı kimlik başka bir iş yerinde kayıtlıysa
+  **uyarı** verilir ama listeler ayrı tutulur. Yetkisiz kullanıcı akışında kayıt
+  doğrudan yazılmaz, onay kuyruğuna bekleyen talep düşer (`personelTopluEkle`
+  `yetki.js`-te yazma işlemi ve iş yeri ilk argümandır).
+- **Hatalı satır kaydedilmez:** Ad Soyad boş, TC 11 hane değil/0 ile başlıyor,
+  tarih tanınmıyor veya Cinsiyet bilinmiyorsa satır **Hatalı**dır; nedeni satır
+  numarasıyla ön izlemede yazar. Başarılı / mükerrer / hatalı sayıları ayrı yazılır.
+- **Kıdem Tarihi** personel düzenleme formunda da tutulur (`kidemTarihi`), böylece
+  şablondan gelen tarih sonraki düzenlemede sessizce silinmez.
+
+### 6.5.1. Geliştirme aracı: `tools/personel-aktar.js`
+
+Kurumdan gelen büyük personel listelerini (ör. ASKİ-1'in 1140 kişilik listesi)
+incelemek, **yedek alarak** hedef iş yerine aktarmak ve izolasyonu kanıtlamak için
+çalıştırma zamanı köprüsü — `tools/plan-aktar.js` ile aynı kalıp:
+
+```bash
+# 1) KURU DENEME (varsayılan): hiçbir yere yazmaz, raporlar + yükleme dosyası üretir
+node tools/personel-aktar.js "Aski - 1.xlsx" --isyeri="Aski - 1" --bulut \
+     --hazirla=ASKI-1-personel.xlsx --rapor=aktarim-raporu.txt
+
+# 2) SANDIK: demo veritabanında yazma denemesi + izolasyon/damga denetimi
+node tools/personel-aktar.js liste.xlsx --isyeri=iy5 --fixture
+
+# 3) GERÇEK AKTARIM: yedeği alır, deltasını yazar, bulutu yeniden okuyup doğrular
+node tools/personel-aktar.js "Aski - 1.xlsx" --isyeri="Aski - 1" --bulut --yaz
+```
+
+Güvenlik sırası araçta da aynıdır: `--isyeri` tek eşleşmeyle çözülür (belirsizse
+işlem reddedilir), bulut satırı **okunur okunmaz** `yedek-personel/isg-veri-<zaman>.json`
+yedeklenir, kayıt `ISG.depo.personelTopluEkle` üzerinden (arayüzle aynı yol) yazılır,
+yazmadan hemen önce satır yeniden okunur — eşzamanlı değişiklik varsa tam yığın yerine
+**yalnızca yeni kayıt deltası** taze yığına uygulanır. Rapor şunları kanıtlar: hedef
+iş yeri personel sayısı önce/sonra, **diğer iş yerlerinin personeli ve tüm diğer
+koleksiyonların bayt bayt aynı kaldığı**, değişen mevcut eşitleme damgası `0` ve
+silinen mezar taşı `0`. `--denetim-yok` verilmezse denetim izine
+"Toplu personel yükleme · N personel" kaydı düşer.
+
+
+
 ## 7. Yayınlama (GitHub Pages)
 
 Uygulama tamamen statiktir: sunucu tarafı, derleme adımı, veritabanı veya API
@@ -771,6 +841,38 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.16.0 — Toplu personel yükleme: Kıdem Tarihi korunuyor, tekil kimlik, ASKİ-1 aktarım aracı
+
+- **Personel formunda Kıdem Tarihi (`kidemTarihi`).** Standart şablon on birinci
+  sütun olarak Kıdem Tarihi’ni taşıyor ve liste bu değeri gösteriyordu, ancak
+  düzenleme formunda alan yoktu; personeli bir kez düzenleyen kullanıcı içe
+  aktarılan tarihi **sessizce kaybediyordu**. Form alanı eklendi (`index.html`),
+  `personelAc` alanı dolduruyor ve kayıtta geri yazıyor — regresyon testi dahil.
+- **Toplu yazımda tekil kimlik.** `ISG.yeniId()` yalnızca zaman damgası + 3 rastgele
+  karakter üretiyordu; aynı milisaniyedeki toplu kayıtlarda çakışma olasılığı
+  yüksekti (1140 satırlık gerçek listede 7 çakışma ölçüldü). Çakışan kimlikler bulut
+  eşitlemesinde kayıtların birbirini yutmasına, silmenin iki kaydı silmesine yol
+  açıyor. Üretece artan sayaç eklendi, `kaydetListede` liste içi çakışmayı reddediyor;
+  20.000 üretim ve 1140 kayıtlık toplu ekleme testleri benzersizliği doğruluyor.
+- **Yeni geliştirme aracı `tools/personel-aktar.js`.** Kurum listesini uygulamanın
+  kendi ayrıştırıcısıyla okur, hedef iş yerini kimlik/ad ile tekil olarak çözer,
+  satır satır doğrulayıp raporlar (hatalı, mükerrer, uyarılı, veri kalitesi dağılımı),
+  `--hazirla` ile arayüzden aynen yüklenebilir standart XLSX üretir. `--bulut` satırı
+  salt okunur okur ve **okuma anında yedek alır**; `--yaz` ile yazmadan önce satırı
+  yeniden okuyup eşzamanlı değişikliği denetler, gerekirse yalnızca yeni kayıt
+  deltasını uygular. Rapor, diğer iş yerlerinin personelinin ve tüm diğer
+  koleksiyonların değişmediğini, mevcut eşitleme damgalarının korunduğunu kanıtlar.
+- **ASKİ-1 personel listesi gerçek veride aktarıldı:** 4.202 satırlık kaynak dosyada
+  1.140 personel satırı, **0 mükerrer ve 0 hatalı** satır; 1.140 kayıt ASKİ-1’e
+  eklendi, Aypaş OSGB (13) ve ASKİ-2 (0) listelerine dokunulmadı.
+- **Belgeleme:** yeni **6.5** bölümü (şablon → ön izleme → onay kuralları ve
+  `tools/personel-aktar.js` kullanımı).
+- **Doğrulama:** `kontrol.js` 651 geçti / 0 başarısız (6 yeni kontrol),
+  `belge-test.js` 27 geçti / 0 başarısız; `package.json` sürümü **2.16.0**, JS varlık
+  damgaları (`depo.js`, `uygulama.js`) yeniden üretildi. ASKİ-1 aktarımı ayrı bir
+  salt okunur denetimle de doğrulandı: hedef dışı 13 personel **birebir aynı**,
+  diğer koleksiyonlar değişmedi, denetim izi 62 → 63.
 
 ### 2.15.0 — Yıllık çalışma planı: Excel şablonu, toplu yükleme, yıl filtresi, toplu silme
 

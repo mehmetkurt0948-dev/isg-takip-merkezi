@@ -12,3 +12,8 @@ yayin/
 out-*.txt
 out-*.js
 out-*.html
+out-*.log
+out-*.xlsx
+
+# Canli veri yedekleri (kisisel veri icerir, depoya ASLA girmez)
+yedek-personel/

@@ -1014,8 +1014,16 @@
 
   /* ---------- Kayıt işlemleri ---------- */
 
+  /* Kayıt kimliği: aynı milisaniyede üretilen toplu kayıtlarda çakışma
+     olmaması için zaman damgası + artan sayaç + rastgele eklenir. Çakışan
+     kimlikler bulut eşitlemesinde kayıtların birbirini yutmasına yol açar. */
+  var idSayaci = 0;
   ISG.yeniId = function (onek) {
-    return onek + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    idSayaci = (idSayaci + 1) % 46656;
+    var onlar = idSayaci.toString(36);
+    while (onlar.length < 3) { onlar = '0' + onlar; }
+    return String(onek || '') + Date.now().toString(36) + onlar +
+      Math.random().toString(36).slice(2, 6);
   };
 
   function kaydetListede(liste, kayit, onek) {
@@ -1025,6 +1033,12 @@
       if (index >= 0) { liste[index] = kayit; return kayit; }
     }
     kayit.id = kayit.id || ISG.yeniId(onek);
+    /* Liste içinde kimlik çakışması bırakılmaz (toplu yüklemede kritik). */
+    var cakisma = function () {
+      return liste.some(function (mevcut) { return mevcut !== kayit && mevcut.id === kayit.id; });
+    };
+    var deneme = 0;
+    while (cakisma() && deneme < 50) { kayit.id = ISG.yeniId(onek); deneme += 1; }
     liste.push(kayit);
     return kayit;
   }

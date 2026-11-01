@@ -356,6 +356,30 @@ function bekle(ms) {
   kontrol('Diyalog kapandı', doc.getElementById('personelDiyalog').open === false);
   kontrol('Liste yenilendi', /Test Kullanıcı/.test(metin('#gorunum')));
 
+  /* Kıdem Tarihi standart şablondan gelir; düzenleme formunda da tutulmalı ki
+     personeli sonra düzenleyen kullanıcı içe aktarılan tarihi sessizce yitirmesin. */
+  const kidemKisi = ISG.depo.al().personel.filter((p) => p.adSoyad === 'Test Kullanıcı')[0];
+  kidemKisi.kidemTarihi = '2015-03-10';
+  ISG.depo.kaydet();
+  ISG.ui.kapsam = '';
+  ISG.uygulama.ciz();
+  await bekle(90);
+  doc.querySelector('[data-islem="personel-duzenle"][data-id="' + kidemKisi.id + '"]').click();
+  await bekle(90);
+  kontrol('Düzenleme formunda Kıdem Tarihi alanı var ve dolu geliyor',
+    !!personelForm.elements.kidemTarihi && personelForm.elements.kidemTarihi.type === 'date' &&
+    personelForm.elements.kidemTarihi.value === '2015-03-10',
+    personelForm.elements.kidemTarihi ? personelForm.elements.kidemTarihi.value : 'alan yok');
+  kontrol('Personel satırı Kıdem Tarihi sütununu gösteriyor',
+    /10\.03\.2015/.test(metin('#gorunum')), metin('#gorunum').slice(0, 60));
+  personelForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(120);
+  const kidemSonra = ISG.depo.al().personel.filter((p) => p.id === kidemKisi.id)[0] || {};
+  kontrol('Formdan kayıt Kıdem Tarihi’ni koruyor', kidemSonra.kidemTarihi === '2015-03-10',
+    String(kidemSonra.kidemTarihi));
+  kidemKisi.kidemTarihi = '';
+  ISG.depo.kaydet();
+
   console.log('\n7) Eğitim kaydı ve geçerlilik');
   const testKisi = ISG.depo.al().personel.filter((p) => p.adSoyad === 'Test Kullanıcı')[0];
   ISG.ui.acikPersonel = testKisi.id;
@@ -1183,6 +1207,30 @@ function bekle(ms) {
   const buyukSonuc = Toplu.uygula(buyuk, { isyeriId: 'iy5' });
   kontrol('Yüzlerce satır tek işlemde ekleniyor', buyukSonuc.eklenen === 120 &&
     ISG.depo.al().personel.filter((p) => /^Toplu Ölçek /.test(p.adSoyad)).length === 120, String(buyukSonuc.eklenen));
+
+  /* Toplu yazımda kimlik çakışması olmamalı: çakışan kimlikler bulut
+     eşitlemesinde kayıtların birbirini yutar, silme iki kaydı birden siler. */
+  const topluIdler = ISG.depo.al().personel.filter((p) => /^Toplu Ölçek /.test(p.adSoyad)).map((p) => p.id);
+  kontrol('Toplu eklenen kayıtların kimlikleri benzersiz',
+    new Set(topluIdler).size === topluIdler.length && new Set(topluIdler).size > 0,
+    topluIdler.length + ' kayıt · ' + new Set(topluIdler).size + ' benzersiz kimlik');
+  const uretilenIdler = [];
+  for (let u = 0; u < 20000; u += 1) { uretilenIdler.push(ISG.yeniId('p')); }
+  kontrol('Kimlik üreteci kısa sürede aynı kimliği üretmiyor',
+    new Set(uretilenIdler).size === uretilenIdler.length,
+    uretilenIdler.length + ' üretim · ' + new Set(uretilenIdler).size + ' benzersiz');
+  const yiginKayitlar = [];
+  for (let y = 0; y < 1140; y += 1) {
+    yiginKayitlar.push({ isyeriId: 'iy5', sicil: 'BY' + y, adSoyad: 'Kimlik Yığın ' + y,
+      tc: String(90000000000 + y) });
+  }
+  const yigin = ISG.depo.personelTopluEkle('iy5', yiginKayitlar);
+  const yiginIdler = yigin.idler || [];
+  kontrol('Binde bir ölçekte (1140 personel) tekil kimlik üretiliyor',
+    yigin.eklenen === 1140 && new Set(yiginIdler).size === 1140,
+    yigin.eklenen + ' kayıt · ' + new Set(yiginIdler).size + ' benzersiz kimlik');
+  ISG.depo.al().personel = ISG.depo.al().personel.filter((p) => !/^Kimlik Yığın /.test(p.adSoyad));
+  ISG.depo.kaydet();
 
   /* Dosya seçme kutusuyla gerçek XLSX yüklemesi: kullanıcı şablonu doldurur, dosyayı
      seçer; sistem Kılavuz sayfasını atlayıp Personel sayfasını okur ve ön izlemeyi açar. */

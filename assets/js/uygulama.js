@@ -339,7 +339,7 @@
     el('personelBaslik').textContent = kayit ? 'Personeli düzenle' : 'Yeni personel';
 
     if (kayit) {
-      ['adSoyad', 'sicil', 'tc', 'meslek', 'departman', 'grupKodu', 'sube', 'iseBaslama', 'telefon', 'cinsiyet', 'durum'].forEach(function (alan) {
+      ['adSoyad', 'sicil', 'tc', 'meslek', 'departman', 'grupKodu', 'sube', 'iseBaslama', 'kidemTarihi', 'telefon', 'cinsiyet', 'durum'].forEach(function (alan) {
         if (form.elements[alan]) { form.elements[alan].value = kayit[alan] || ''; }
       });
     } else {
@@ -3054,6 +3054,7 @@
         grupKodu: veriForm.grupKodu || '',
         sube: veriForm.sube || '',
         iseBaslama: veriForm.iseBaslama || '',
+        kidemTarihi: veriForm.kidemTarihi || '',
         telefon: veriForm.telefon || '',
         cinsiyet: veriForm.cinsiyet || '',
         durum: veriForm.durum || 'aktif'
