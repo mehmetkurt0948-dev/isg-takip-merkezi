@@ -229,13 +229,64 @@
     return ozet;
   }
 
-  function planSatiri(plan) {
+  /* Ay şeridi: Ocak-Aralık, planlanmış aylar işaretli; içinde bulunulan ay vurgulu. */
+  function planAyCiplari(plan) {
+    var planliAylar = ISG.planAylari(plan);
+    var buAy = new Date().getMonth() + 1;
+    var hucreler = '';
+    for (var a = 1; a <= 12; a += 1) {
+      var planli = planliAylar.indexOf(a) > -1;
+      hucreler += '<span class="plan-hucre' + (planli ? ' planli' : '') +
+        (planli && a === buAy ? ' buay' : '') + '" title="' + kacis(B.AYLAR[a - 1]) + '">' +
+        kacis(B.AYLAR[a - 1].slice(0, 3)) + '</span>';
+    }
+    return '<div class="plan-aylar">' + hucreler + '</div>';
+  }
+
+  /* Ana başlık grupları: tek grup varsa başlık satırı basılmaz (liste sade kalır). */
+  function planGruplari(liste) {
+    var gruplar = [];
+    var indeks = {};
+    liste.forEach(function (plan) {
+      var ad = ISG.planAnaBaslik(plan);
+      if (typeof indeks[ad] === 'undefined') {
+        indeks[ad] = gruplar.length;
+        gruplar.push({ ad: ad, kayitlar: [] });
+      }
+      gruplar[indeks[ad]].kayitlar.push(plan);
+    });
+    return gruplar;
+  }
+
+  function planSirala(liste) {
+    return liste.slice().sort(function (a, b) {
+      var siraA = String(a.siraExcel || a.sira || '');
+      var siraB = String(b.siraExcel || b.sira || '');
+      var fark = siraA.localeCompare(siraB, 'tr', { numeric: true });
+      if (fark) { return fark; }
+      return String(a.faaliyet || '').localeCompare(String(b.faaliyet || ''), 'tr');
+    });
+  }
+
+  /* Yıl filtresi: 0 "tüm yıllar" demektir; yılı belirsiz kayıtlar yalnızca tüm görünümde gelir. */
+  function yilaGore(plan, yil) {
+    if (!yil) { return true; }
+    return ISG.planYil(plan) === Number(yil);
+  }
+
+  function planSatiri(plan, secim) {
     var durum = ISG.planDurumu(plan);
+    var secili = secim && secim[plan.id] ? ' checked' : '';
+    var altBilgi = [isyeriAdi(plan.isyeriId), ISG.planYil(plan) ? ISG.planYil(plan) + ' yılı' : '',
+      plan.aciklama || ''].filter(Boolean).join(' · ');
     return '<tr>' +
-      '<td class="sayi-sutun">' + kacis(plan.sira) + '</td>' +
+      '<td class="plan-sec-hucre"><input type="checkbox" data-plan-sec="' + kacis(plan.id) + '"' + secili +
+        ' aria-label="' + kacis(plan.faaliyet) + ' kaydını seç"></td>' +
+      '<td class="sayi-sutun">' + kacis(plan.siraExcel || plan.sira || '') + '</td>' +
       '<td><strong>' + kacis(plan.faaliyet) + '</strong>' +
-        '<span class="hucre-alt">' + kacis(isyeriAdi(plan.isyeriId)) + (plan.aciklama ? ' · ' + kacis(plan.aciklama) : '') + '</span></td>' +
+        '<span class="hucre-alt">' + kacis(altBilgi) + '</span></td>' +
       '<td>' + kacis(plan.sorumlu || '—') + '</td>' +
+      '<td class="plan-aylar-hucre">' + planAyCiplari(plan) + '</td>' +
       '<td class="sayi-sutun">' + (plan.takipTarihi ? B.tarih(plan.takipTarihi) : '—') +
         (plan.tamamlanmaTarihi ? '<span class="hucre-alt">Tamamlandı: ' + B.tarih(plan.tamamlanmaTarihi) + '</span>' : '') + '</td>' +
       '<td>' + B.rozet(durum.ad, durum.sinif) + '</td>' +
@@ -246,6 +297,33 @@
         '<button type="button" class="sil" data-islem="plan-sil" data-id="' + kacis(plan.id) + '">Sil</button>' +
       '</div></td>' +
     '</tr>';
+  }
+
+
+  /* Yıl seçimi: 'tumu' varsayılandır; yıllar kayıtlardan gelir. */
+  function planYilSecici(hesap) {
+    var yillar = ISG.planYillari(hesap, UI.kapsam);
+    var aktif = UI.planYili ? String(UI.planYili) : 'tumu';
+    var secenekler = '<option value="tumu"' + (aktif === 'tumu' ? ' selected' : '') + '>Tüm yıllar</option>' +
+      yillar.map(function (yil) {
+        return '<option value="' + yil + '"' + (aktif === String(yil) ? ' selected' : '') + '>' + yil + '</option>';
+      }).join('');
+    return '<label class="plan-yil-secim"><span class="filtre-etiket">Plan yılı</span>' +
+      '<select id="planYili" data-ui="planYili" aria-label="Plan yılı">' + secenekler + '</select></label>';
+  }
+
+  function planSecimCubugu(planlar, secim) {
+    var seciliSayi = planlar.filter(function (plan) { return !!secim[plan.id]; }).length;
+    var tumuSecili = planlar.length > 0 && seciliSayi === planlar.length;
+    var degistirebilir = !ISG.yetki || ISG.yetki.degistirebilir(UI.kapsam || '');
+    return '<div class="plan-secim-cubugu">' +
+      (degistirebilir ? '<label class="plan-tumu-sec"><input type="checkbox" data-plan-sec-tumu' +
+        (tumuSecili ? ' checked' : '') + ' aria-label="Tümünü seç"> <span>Tümünü seç</span></label>' : '') +
+      '<span class="filtre-etiket">' + B.sayi(seciliSayi) + ' kayıt seçili</span>' +
+      (degistirebilir ? '<button type="button" class="dugme kucuk tehlike-dugme" data-islem="plan-sec-sil"' +
+        (seciliSayi ? '' : ' disabled') + '>Seçilenleri sil</button>' : '') +
+      '<button type="button" class="dugme kucuk" data-islem="plan-csv">' + B.ikon('i-download') + 'CSV indir</button>' +
+    '</div>';
   }
 
   function ilkYardimKartlari(hesap, isyerleri) {
@@ -262,21 +340,27 @@
     }).join('') || '<p class="bolum-aciklama">İşyeri bulunmuyor.</p>';
   }
 
-  function yillikPlanKartlari(hesap, isyerleri) {
+  function yillikPlanKartlari(hesap, isyerleri, yil) {
     return isyerleri.map(function (isyeri) {
-      var kayitlar = ISG.kapsamda(hesap, isyeri.id, 'planlar').filter(function (plan) { return plan.durum !== 'planlanmadi'; }).slice(0, 6);
+      var kayitlar = planSirala(ISG.kapsamda(hesap, isyeri.id, 'planlar').filter(function (plan) {
+        return plan.durum !== 'planlanmadi' && yilaGore(plan, yil);
+      }));
+      var yilRozet = yil ? B.rozet(yil + ' yılı', 'notr') : B.rozet(kayitlar.length + ' faaliyet', 'notr');
       return '<div class="plan-kart">' +
         '<div class="plan-kart-ust"><h3>' + kacis(isyeri.ad) + '</h3>' +
           '<button type="button" class="dugme kucuk" data-islem="plan-yeni" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') + 'Faaliyet</button></div>' +
-        '<div class="plan-liste">' + (kayitlar.length ? kayitlar.map(function (plan) {
+        '<div class="plan-liste">' + (kayitlar.length ? kayitlar.slice(0, 8).map(function (plan) {
           var durum = ISG.planDurumu(plan);
+          var aylar = ISG.planAylari(plan).map(function (a) { return B.AYLAR[a - 1].slice(0, 3); }).join(', ');
+          var etiket = aylar || (plan.ay ? B.AYLAR[Number(plan.ay) - 1].slice(0, 3) : '—');
           return '<div class="plan-satir">' +
-            '<span class="plan-ay">' + (plan.ay ? B.AYLAR[Number(plan.ay) - 1].slice(0, 3) : '—') + '</span>' +
-            '<span class="plan-metin">' + kacis(plan.faaliyet) + '<small>' + kacis(plan.sorumlu || '') + ' · ' + B.tarih(plan.takipTarihi) + '</small></span>' +
+            '<span class="plan-ay">' + kacis(etiket) + '</span>' +
+            '<span class="plan-metin">' + kacis(plan.faaliyet) + '<small>' + kacis(plan.sorumlu || '') + (plan.takipTarihi ? ' · ' + B.tarih(plan.takipTarihi) : '') + '</small></span>' +
             '<span class="rozet ' + durum.sinif + '">' + kacis(durum.ad) + '</span>' +
           '</div>';
-        }).join('') : '<p class="bolum-aciklama">Bu işyeri için plan faaliyeti yok.</p>') + '</div>' +
-        '<div class="satir-arac">' + B.rozet(kayitlar.filter(function (p) { return p.durum === 'tamamlandi'; }).length + ' tamamlandı', 'bilgi') +
+        }).join('') : '<p class="bolum-aciklama">' + (yil ? yil + ' yılı için plan faaliyeti yok.' : 'Bu işyeri için plan faaliyeti yok.') + '</p>') + '</div>' +
+        '<div class="satir-arac">' + yilRozet +
+          B.rozet(kayitlar.filter(function (p) { return p.durum === 'tamamlandi'; }).length + ' tamamlandı', 'bilgi') +
           '<button type="button" class="akis sag-arac" data-islem="plan-yeni" data-isyeri="' + kacis(isyeri.id) + '">Faaliyet ekle →</button></div>' +
       '</div>';
     }).join('') || '<p class="bolum-aciklama">İşyeri bulunmuyor.</p>';
@@ -285,11 +369,30 @@
   SAYFALAR.plan = function () {
     var hesap = veri();
     var isyerleri = (hesap.isyerleri || []).filter(function (isyeri) { return !UI.kapsam || isyeri.id === UI.kapsam; });
-    var planlar = ISG.kapsamda(hesap, UI.kapsam, 'planlar');
+    var tumPlanlar = ISG.kapsamda(hesap, UI.kapsam, 'planlar');
+    var yillar = ISG.planYillari(hesap, UI.kapsam);
+    var seciliYil = UI.planYili && UI.planYili !== 'tumu' ? Number(UI.planYili) : 0;
+    if (seciliYil && yillar.indexOf(seciliYil) < 0) { seciliYil = 0; }
+    var planlar = planSirala(tumPlanlar.filter(function (plan) { return yilaGore(plan, seciliYil); }));
+    var yilsiz = seciliYil ? tumPlanlar.filter(function (plan) { return !ISG.planYil(plan); }).length : 0;
     var ozet = planOzet(planlar);
+    var secim = UI.planSecim || {};
+    var gruplar = planGruplari(planlar);
+    var tekGrup = gruplar.length <= 1;
+    var govde = '';
+    gruplar.forEach(function (grup) {
+      if (!tekGrup) {
+        govde += '<tr class="plan-grup"><td colspan="8"><strong>' + kacis(grup.ad) + '</strong>' +
+          '<span class="hucre-alt">' + B.sayi(grup.kayitlar.length) + ' faaliyet</span></td></tr>';
+      }
+      govde += grup.kayitlar.map(function (plan) { return planSatiri(plan, secim); }).join('');
+    });
 
     return P.sayfaBaslik('ÇALIŞMA PLANI', 'Çalışma planı', 'İşyeri bazında kayıt ve durum takibi',
-      '<button type="button" class="dugme" data-islem="plan-csv">' + B.ikon('i-download') + 'Excel indir</button>' +
+      '<button type="button" class="dugme" data-islem="plan-sablon">' + B.ikon('i-download') + 'Örnek Excel şablonunu indir</button>' +
+      '<button type="button" class="dugme" data-islem="plan-toplu-yukle" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-upload') + 'Excel\'den toplu yükle</button>' +
+      '<button type="button" class="dugme" data-islem="plan-excel">' + B.ikon('i-download') + 'Excel\'e aktar</button>' +
+      '<button type="button" class="dugme tehlike-dugme" data-islem="plan-toplu-sil" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-trash') + 'Toplu sil</button>' +
       '<button type="button" class="dugme birincil" data-islem="plan-yeni" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-plus') + 'Plan faaliyeti ekle</button>') +
       P.kapsamSecici(hesap) +
 
@@ -306,17 +409,26 @@
       '</div>' +
 
       '<section class="kart"><div class="kart-baslik"><div><h2>Yıllık çalışma planı</h2>' +
-        '<p>İşyeri bazında yıl içi faaliyet takvimi.</p></div></div>' +
-        '<div class="kart-ic"><div class="plan-izgara">' + yillikPlanKartlari(hesap, isyerleri) + '</div></div>' +
+        '<p>İşyeri bazında yıl içi faaliyet takvimi. Excel şablonunu doldurup toplu yükleyebilir, ' +
+        'seçtiğiniz yılın planını tek hamlede silebilirsiniz.</p></div></div>' +
+        '<div class="kart-ic"><div class="plan-izgara">' + yillikPlanKartlari(hesap, isyerleri, seciliYil) + '</div></div>' +
       '</section>' +
 
-      '<section class="kart"><div class="kart-baslik"><div><h2>Çalışma planı ve takip</h2>' +
-        '<p>Takip tarihi ve durum bilgisiyle plan kalemleri.</p></div>' +
-        '<div class="kart-arac"><span class="muted kucuk">' + B.sayi(planlar.length) + ' kayıt</span></div></div>' +
-        '<div class="tablo-kap"><table class="tablo-kucuk">' +
-          '<thead><tr><th>#</th><th>Faaliyet</th><th>Sorumlu</th><th>Tarih</th><th>Durum</th><th class="sag">İşlemler</th></tr></thead>' +
-          '<tbody>' + (planlar.length ? planlar.map(function (plan) { return planSatiri(plan); }).join('') :
-            '<tr><td colspan="6">' + B.bosDurum('Plan kalemi yok', 'Yeni bir faaliyet ekleyerek yıllık planı oluşturun.', 'i-plan') + '</td></tr>') + '</tbody>' +
+      '<section class="kart"><div class="kart-baslik"><div><h2>Çalışma planı ve takip' +
+        (seciliYil ? ' · ' + seciliYil : '') + '</h2>' +
+        '<p>Ana başlık altında gruplanan faaliyetler ve Ocak-Aralık planlama şeridi.</p></div>' +
+        '<div class="kart-arac">' + planYilSecici(hesap) +
+          '<span class="muted kucuk">' + B.sayi(planlar.length) + ' kayıt</span></div></div>' +
+        '<div class="filtre-cubugu" style="padding-top:0">' + planSecimCubugu(planlar, secim) +
+          (yilsiz ? '<span class="hucre-alt">' + yilsiz + ' kaydın yılı belirsiz; yalnızca "Tüm yıllar" görünümünde listelenir.</span>' : '') +
+        '</div>' +
+        '<div class="tablo-kap"><table class="tablo-kucuk plan-tablo">' +
+          '<thead><tr><th></th><th>#</th><th>Faaliyet</th><th>Sorumlu</th><th>Aylar</th>' +
+            '<th>Takip</th><th>Durum</th><th class="sag">İşlemler</th></tr></thead>' +
+          '<tbody id="planTablo">' + (govde ||
+            '<tr><td colspan="8">' + B.bosDurum('Plan kalemi yok',
+              seciliYil ? 'Bu yıl için plan kaydı bulunmuyor. Şablonu indirip toplu yükleyebilirsiniz.' :
+                'Yeni bir faaliyet ekleyerek yıllık planı oluşturun.', 'i-plan') + '</td></tr>') + '</tbody>' +
         '</table></div>' +
       '</section>';
   };

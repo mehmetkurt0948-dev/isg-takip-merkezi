@@ -14,7 +14,7 @@
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="assets/css/style.css?v=2a472ede">
+  <link rel="stylesheet" href="assets/css/style.css?v=75e0c935">
 </head>
 <body class="oturum-yok">
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -307,6 +307,39 @@
     </form>
   </dialog>
 
+  <!-- TOPLU PERSONEL YÜKLEME (Excel/CSV → ön izleme → onay) -->
+  <dialog class="diyalog" id="personelTopluDiyalog" aria-labelledby="personelTopluBaslik">
+    <form method="dialog" id="personelTopluForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">TOPLU PERSONEL YÜKLEME</p>
+      <h2 id="personelTopluBaslik">Personel listesini içe aktar</h2>
+      <div class="form-izgara">
+        <label class="alan genis">
+          <span>Kayıt yapılacak iş yeri *</span>
+          <select name="isyeriId" id="personelTopluIsyeri" required></select>
+        </label>
+      </div>
+      <p class="hucre-alt" id="personelTopluDosya">Dosya: —</p>
+      <div class="toplu-ozet" id="personelTopluOzet"></div>
+      <section class="belge-kutu" aria-labelledby="personelTopluOnizlemeBaslik">
+        <div class="belge-ust">
+          <div>
+            <strong id="personelTopluOnizlemeBaslik">Satır satır ön izleme</strong>
+            <span class="hucre-alt">Hatalı ve mükerrer satırlar kaydedilmez; nedeni satır numarasıyla yazılır.</span>
+          </div>
+        </div>
+        <div class="belge-liste toplu-onizleme" id="personelTopluOnizleme"></div>
+      </section>
+      <p class="form-uyari" id="personelTopluUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil" id="personelTopluKaydet">Kaydedilecekleri ekle</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- KULLANICI (yönetici tarafından manuel tanımlanır) -->
   <dialog class="diyalog" id="kullaniciDiyalog" aria-labelledby="kullaniciBaslik">
     <form method="dialog" id="kullaniciForm" novalidate>
@@ -565,6 +598,14 @@
           <select name="isyeriId" id="planIsyeri" required></select>
         </label>
         <label class="alan">
+          <span>Plan yılı</span>
+          <input type="number" name="yil" id="planYil" min="2000" max="2100" step="1" placeholder="2026">
+        </label>
+        <label class="alan">
+          <span>Ana başlık</span>
+          <input type="text" name="anaBaslik" maxlength="80" placeholder="Örn. Eğitimler, Acil Durumlar">
+        </label>
+        <label class="alan">
           <span>Sorumlu</span>
           <input type="text" name="sorumlu" maxlength="80">
         </label>
@@ -580,6 +621,10 @@
             <option value="planlanmadi">Planlanmadı</option>
           </select>
         </label>
+        <fieldset class="alan genis plan-ay-alani">
+          <legend>Planlanan aylar</legend>
+          <div class="plan-ay-secim" id="planAySecim"></div>
+        </fieldset>
         <label class="alan genis">
           <span>Açıklama</span>
           <textarea name="aciklama" rows="2" maxlength="240"></textarea>
@@ -589,6 +634,87 @@
       <div class="diyalog-eylem">
         <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
         <button type="submit" class="dugme birincil">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- YILLIK ÇALIŞMA PLANI: TOPLU YÜKLEME (Excel → ön izleme → onay) -->
+  <dialog class="diyalog" id="planTopluDiyalog" aria-labelledby="planTopluBaslik">
+    <form method="dialog" id="planTopluForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">YILLIK ÇALIŞMA PLANI - TOPLU YÜKLEME</p>
+      <h2 id="planTopluBaslik">Plan listesini içe aktar</h2>
+      <div class="form-izgara">
+        <label class="alan">
+          <span>Kayıt yapılacak iş yeri *</span>
+          <select name="isyeriId" id="planTopluIsyeri" required></select>
+        </label>
+        <label class="alan">
+          <span>Plan yılı *</span>
+          <input type="number" name="yil" id="planTopluYil" min="2000" max="2100" step="1" required>
+        </label>
+      </div>
+      <p class="hucre-alt" id="planTopluDosya">Dosya: —</p>
+      <div class="toplu-ozet" id="planTopluOzet"></div>
+      <section class="belge-kutu" aria-labelledby="planTopluOnizlemeBaslik">
+        <div class="belge-ust">
+          <div>
+            <strong id="planTopluOnizlemeBaslik">Satır satır ön izleme</strong>
+            <span class="hucre-alt">Bölüm başlıkları, tekrar eden tablo başlıkları ve imza alanları
+              faaliyet olarak kaydedilmez. Hatalı ve mükerrer satırlar kaydedilmez; nedeni satır
+              numarasıyla yazılır.</span>
+          </div>
+        </div>
+        <div class="belge-liste toplu-onizleme" id="planTopluOnizleme"></div>
+      </section>
+      <p class="form-uyari" id="planTopluUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil" id="planTopluKaydet">Kaydedilecekleri ekle</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- YILLIK ÇALIŞMA PLANI: TOPLU SİLME (yalnızca seçili iş yeri ve yıl) -->
+  <dialog class="diyalog" id="planTopluSilDiyalog" aria-labelledby="planTopluSilBaslik">
+    <form method="dialog" id="planTopluSilForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">YILLIK ÇALIŞMA PLANI - TOPLU SİLME</p>
+      <h2 id="planTopluSilBaslik">Plan kayıtlarını sil</h2>
+      <div class="form-izgara">
+        <label class="alan">
+          <span>İş yeri</span>
+          <select id="planSilIsyeri"></select>
+        </label>
+        <label class="alan">
+          <span>Yıl</span>
+          <select id="planSilYil"></select>
+        </label>
+      </div>
+      <fieldset class="alan genis">
+        <legend>Silme kapsamı</legend>
+        <label class="secenek">
+          <input type="radio" name="planSilKapsam" value="secilen" id="planSilKapsamSecilen">
+          <span>Tabloda seçtiğim faaliyetler (<b id="planSilSeciliSayi">0</b> kayıt)</span>
+        </label>
+        <label class="secenek">
+          <input type="radio" name="planSilKapsam" value="yil" id="planSilKapsamYil" checked>
+          <span>Seçili iş yerinin seçili yılındaki <b id="planSilYilSayi">0</b> kaydın tamamı</span>
+        </label>
+      </fieldset>
+      <p class="onay-uyari" id="planSilOzet">—</p>
+      <label class="secenek">
+        <input type="checkbox" id="planSilOnay">
+        <span>Bu işlemin geri alınamayacağını anladım.</span>
+      </label>
+      <p class="form-uyari" id="planSilUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme tehlike-dugme" id="planSilOnayla" disabled>Sil</button>
       </div>
     </form>
   </dialog>
@@ -1002,23 +1128,26 @@
   <datalist id="bolumler"></datalist>
   <datalist id="kisiler"></datalist>
   <input type="file" id="personelDosya" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
+  <input type="file" id="planDosyaGirdi" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
   <div class="bildirimler" id="bildirimler" aria-live="polite" aria-atomic="true"></div>
 
   <noscript><p class="noscript">Bu uygulama JavaScript gerektirir. Lütfen tarayıcınızda JavaScript'i etkinleştirin.</p></noscript>
 
   <script src="assets/js/varsayilan-veri.js?v=52b3672a"></script>
   <script src="assets/js/kontrol-listeleri.js?v=430de5a3"></script>
-  <script src="assets/js/depo.js?v=0ec98c70"></script>
+  <script src="assets/js/depo.js?v=c780223a"></script>
   <script src="assets/js/bicim.js?v=18930ff4"></script>
   <script src="assets/js/bulut-kimlik.js?v=c22d436d"></script>
   <script src="assets/js/bulut.js?v=69bb635d"></script>
-  <script src="assets/js/yetki.js?v=fead0ac8"></script>
+  <script src="assets/js/yetki.js?v=cc578e35"></script>
   <script src="assets/js/excel.js?v=394d9d94"></script>
-  <script src="assets/js/sayfalar.js?v=05e8a95d"></script>
-  <script src="assets/js/sayfalar-kayit.js?v=536955ce"></script>
+  <script src="assets/js/personel-toplu.js?v=c1da8dfb"></script>
+  <script src="assets/js/plan-toplu.js?v=0f07de95"></script>
+  <script src="assets/js/sayfalar.js?v=c543c84d"></script>
+  <script src="assets/js/sayfalar-kayit.js?v=e6d456c2"></script>
   <script src="assets/js/sayfalar-rapor.js?v=6c6e7e2f"></script>
   <script src="assets/js/giris.js?v=1b24e845"></script>
-  <script src="assets/js/uygulama.js?v=84019a37"></script>
+  <script src="assets/js/uygulama.js?v=955f8c21"></script>
 </body>
 </html>
 

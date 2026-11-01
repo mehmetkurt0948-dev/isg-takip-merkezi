@@ -1246,21 +1246,19 @@
 
   function personelExcel(sablon) {
     var hesap = veri();
-    var liste = hesap.personel.filter(function (kisi) { return !UI.kapsam || kisi.isyeriId === UI.kapsam; });
-    var satirlar;
     if (sablon) {
-      satirlar = [[
-        '1', 'Örnek Personel', '', 'Pres operatörü', 'Üretim', '', 'Merkez',
-        '2024-01-15', '', '05xx xxx xx xx', 'Erkek', (hesap.isyerleri[0] || {}).ad || '', 'Aktif', ''
-      ]];
-    } else {
-      satirlar = liste.map(function (kisi) {
-        var durum = ISG.kisiDurumu(kisi, hesap.egitimler);
-        return [kisi.sicil, kisi.adSoyad, kisi.tc, kisi.meslek, kisi.departman, kisi.grupKodu, kisi.sube,
-          kisi.iseBaslama, kisi.kidemTarihi || '', kisi.telefon, kisi.cinsiyet, ISG.isyeriAdi(hesap, kisi.isyeriId),
-          kisi.durum === 'aktif' ? 'Aktif' : 'Pasif', durum.gecerlilik || ''];
-      });
+      /* Standart şablon bütün kurum ve iş yerlerinde aynı sütun yapısını verir. */
+      ISG.personelToplu.sablonIndir('Personel-Sablonu.xlsx');
+      B.bildir('Örnek Excel şablonu (XLSX) indirildi. Doldurup "Toplu personel yükle" ile aktarın.', 'basari');
+      return;
     }
+    var liste = hesap.personel.filter(function (kisi) { return !UI.kapsam || kisi.isyeriId === UI.kapsam; });
+    var satirlar = liste.map(function (kisi) {
+      var durum = ISG.kisiDurumu(kisi, hesap.egitimler);
+      return [kisi.sicil, kisi.adSoyad, kisi.tc, kisi.meslek, kisi.departman, kisi.grupKodu, kisi.sube,
+        kisi.iseBaslama, kisi.kidemTarihi || '', kisi.telefon, kisi.cinsiyet, ISG.isyeriAdi(hesap, kisi.isyeriId),
+        kisi.durum === 'aktif' ? 'Aktif' : 'Pasif', durum.gecerlilik || ''];
+    });
 
     var sayfalar = [{
       ad: 'Personel',
@@ -1269,28 +1267,8 @@
       genislikler: PERSONEL_GENISLIKLERI
     }];
 
-    if (sablon) {
-      sayfalar.push({
-        ad: 'Kılavuz',
-        basliklar: ['Sütun', 'Açıklama', 'Kural'],
-        satirlar: [
-          ['Sicil No', 'Personel sicil numarası', 'Boş bırakılabilir; tekil olması önerilir'],
-          ['Adı Soyadı', 'Personelin adı ve soyadı', 'Zorunlu'],
-          ['TC Kimlik No', '11 haneli kimlik numarası', 'Boş ya da 11 hane'],
-          ['Mesleği / Departman', 'Görev ve birim bilgisi', 'Serbest metin'],
-          ['İşe Başlama / Kıdem Tarihi', 'YYYY-AA-GG ya da GG.AA.YYYY', 'Excel tarih hücresi de kabul edilir'],
-          ['İşyeri', 'Kayıtlı işyeri adı', 'Ad birebir eşleşmezse seçili kapsam kullanılır'],
-          ['Durum', 'Aktif / Pasif', 'Boşsa Aktif kabul edilir'],
-          ['Eğitim geçerliliği', 'Hesaplanan bitiş tarihi', 'Salt okunur; içe aktarmada kullanılmaz']
-        ],
-        genislikler: [24, 40, 46]
-      });
-    }
-
-    ISG.excel.indir(sablon ? 'personel-sablonu.xlsx' : tarihliAd('personel', 'xlsx'), sayfalar);
-    B.bildir(sablon
-      ? 'Boş personel şablonu (XLSX) indirildi. Doldurup "Excel içe aktar" ile yükleyin.'
-      : 'Personel listesi Excel (XLSX) olarak indirildi.', 'basari');
+    ISG.excel.indir(tarihliAd('personel', 'xlsx'), sayfalar);
+    B.bildir('Personel listesi Excel (XLSX) olarak indirildi.', 'basari');
   }
 
   function csvIsyerleri() {
@@ -1447,94 +1425,740 @@
     });
   }
 
-  function normalize(metin) {
-    return String(metin || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim();
+  /* ---------- Toplu personel yükleme (Excel/CSV → ön izleme → onay) ----------
+     Ham satırlar ISG.personelToplu ile doğrulanır; kayıt yalnızca kullanıcının
+     "Kaydedilecekleri ekle" onayından sonra ve TEK işyerine yapılır. Mevcut
+     personel kayıtları hiçbir zaman güncellenmez ya da silinmez. */
+
+  function personelTopluIsyerleri() {
+    var hesap = veri();
+    return (hesap.isyerleri || []).filter(function (isyeri) {
+      return !ISG.yetki || ISG.yetki.izin('ekle', isyeri.id);
+    });
   }
 
-  function personelSatirlariAktar(satirlar) {
-    if (!satirlar || satirlar.length < 2) {
-      B.bildir('Dosyada başlık ve en az bir veri satırı olmalı.', 'hata');
-      return 0;
-    }
-    var hesap = veri();
-    var baslikSatiri = 0;
-    for (var h = 0; h < Math.min(satirlar.length, 10); h += 1) {
-      var adlar = (satirlar[h] || []).map(normalize);
-      if (adlar.indexOf(normalize('Adı Soyadı')) >= 0 || adlar.indexOf(normalize('Ad Soyad')) >= 0) {
-        baslikSatiri = h;
-        break;
-      }
-    }
-    var basliklar = (satirlar[baslikSatiri] || []).map(normalize);
-    var indeks = {};
-    basliklar.forEach(function (baslik, i) { if (baslik) { indeks[baslik] = i; } });
-    var bul = function (satir, adlar) {
-      for (var i = 0; i < adlar.length; i += 1) {
-        var konum = indeks[normalize(adlar[i])];
-        if (typeof konum === 'number' && satir[konum]) { return String(satir[konum]).trim(); }
-      }
-      return '';
-    };
-    var tarih = function (satir, adlar) {
-      var ham = bul(satir, adlar);
-      return ISG.excel.tariheCevir(ham) || ham;
-    };
+  function personelTopluIsyeriBul(secili) {
+    var adaylar = personelTopluIsyerleri();
+    if (!adaylar.length) { return ''; }
+    var varMi = adaylar.some(function (isyeri) { return isyeri.id === secili; });
+    return varMi ? secili : ((UI.kapsam && adaylar.some(function (i) { return i.id === UI.kapsam; })) ?
+      UI.kapsam : adaylar[0].id);
+  }
 
-    var eklenen = 0;
-    for (var s = baslikSatiri + 1; s < satirlar.length; s += 1) {
-      var satir = satirlar[s] || [];
-      var adSoyad = bul(satir, ['Adı Soyadı', 'Ad Soyad']);
-      if (!adSoyad || normalize(adSoyad) === normalize('Adı Soyadı') || normalize(adSoyad) === normalize('Ad Soyad')) { continue; }
-      var isyeriAd = bul(satir, ['İşyeri']);
-      var isyeri = hesap.isyerleri.filter(function (i) { return normalize(i.ad) === normalize(isyeriAd); })[0];
-      if (!isyeri) { isyeri = ISG.isyeriBul(hesap, UI.kapsam) || hesap.isyerleri[0]; }
-      if (!isyeri) { continue; }
-      D.personelKaydet({
-        isyeriId: isyeri.id,
-        sicil: bul(satir, ['Sicil No', 'Sicil']),
-        adSoyad: adSoyad,
-        tc: bul(satir, ['TC Kimlik No', 'TC No']),
-        meslek: bul(satir, ['Mesleği', 'Meslek']),
-        departman: bul(satir, ['Departman', 'Birim']),
-        grupKodu: bul(satir, ['Grup Kodu Açıklama', 'Grup Kodu']),
-        sube: bul(satir, ['Şube']),
-        iseBaslama: tarih(satir, ['İşe Başlama', 'İşe Giriş']),
-        kidemTarihi: tarih(satir, ['Kıdem Tarihi']),
-        telefon: bul(satir, ['Cep Telefonu', 'Telefon']),
-        cinsiyet: bul(satir, ['Cinsiyet']),
-        durum: normalize(bul(satir, ['Durum'])) === 'pasif' ? 'pasif' : 'aktif'
-      });
-      eklenen += 1;
-    }
-    B.bildir(eklenen + ' personel kaydı içe aktarıldı.', eklenen ? 'basari' : 'uyari');
+  /* Analiz seçenekleri yalnızca kullanıcının görebildiği personelden kurulur:
+     yetki kapsamındaki işyerleri "mevcut", diğerleri yalnızca uyarı kaynağıdır. */
+  function personelTopluSecenekler(isyeriId) {
+    var hesap = veri();
+    var hedef = isyeriId || '';
+    return {
+      isyeriId: hedef,
+      mevcut: (hesap.personel || []).filter(function (kisi) { return kisi.isyeriId === hedef; }),
+      digerIsyerleri: (hesap.personel || []).filter(function (kisi) { return kisi.isyeriId !== hedef; })
+    };
+  }
+
+  function personelTopluSonucMetni(sonuc) {
+    var parcalar = [];
+    if (sonuc.eklenen) { parcalar.push(sonuc.eklenen + ' personel eklendi'); }
+    if (sonuc.bekleyen) { parcalar.push(sonuc.bekleyen + ' kayıt yönetici onayına gönderildi'); }
+    if (sonuc.mukerrer) { parcalar.push(sonuc.mukerrer + ' mükerrer satır atlandı'); }
+    if (sonuc.hatali) { parcalar.push(sonuc.hatali + ' hatalı satır kaydedilmedi'); }
+    if (!parcalar.length) { return 'Kaydedilecek yeni personel bulunamadı.'; }
+    return parcalar.join(' · ') + '.';
+  }
+
+  /* Diyaloğu kullanmadan içe aktarma (testler ve toplu işlemler için):
+     aynı doğrulama ve mükerrer kuralları geçerlidir. Dönen: eklenen kayıt sayısı. */
+  function personelSatirlariAktar(satirlar, isyeriId) {
+    var hedef = personelTopluIsyeriBul(isyeriId || UI.personelTopluHedef || UI.kapsam);
+    var secenekler = personelTopluSecenekler(hedef);
+    var analiz = ISG.personelToplu.analizEt(satirlar, secenekler);
+    if (analiz.hata) { B.bildir(analiz.hata, 'hata'); return 0; }
+    var sonuc = ISG.personelToplu.uygula(analiz, secenekler);
+    B.bildir(personelTopluSonucMetni(sonuc), sonuc.eklenen || sonuc.bekleyen ? 'basari' : 'uyari');
     ciz();
-    return eklenen;
+    return sonuc.eklenen;
   }
 
   function personelIceAktar(metin) {
     return personelSatirlariAktar(csvSatirlari(metin));
   }
 
-  function personelDosyaOku(dosya) {
+  /* Çok sayfalı iş kitabında personelin olduğu sayfayı seç: başlık satırı
+     bulunan ilk sayfa, bulunamazsa ilk sayfa kullanılır. */
+  function personelSayfaSec(sayfalar) {
+    var liste = sayfalar || [];
+    for (var i = 0; i < liste.length; i += 1) {
+      var satirlar = (liste[i] && liste[i].satirlar) || [];
+      if (ISG.personelToplu.baslikBul(satirlar)) { return satirlar; }
+    }
+    return (liste[0] && liste[0].satirlar) || [];
+  }
+
+  function personelDosyaOku(dosya, isyeriId) {
     if (!dosya) { return; }
+    var hedef = personelTopluIsyeriBul(isyeriId || UI.personelTopluHedef || UI.kapsam);
+    if (!hedef) {
+      B.bildir('Personel yüklemek için önce iş yeri ekleyin.', 'hata');
+      return;
+    }
+    UI.personelTopluHedef = hedef;
     if (/\.xlsx$/i.test(dosya.name || '')) {
       ISG.excel.oku(dosya).then(function (sayfalar) {
-        var sayfa = (sayfalar || [])[0];
-        if (!sayfa || !sayfa.satirlar.length) {
+        var satirlar = personelSayfaSec(sayfalar);
+        if (!satirlar.length) {
           B.bildir('Excel dosyasında veri bulunamadı.', 'hata');
           return;
         }
-        personelSatirlariAktar(sayfa.satirlar);
+        personelTopluOnizle(satirlar, dosya.name || 'personel.xlsx', hedef);
       }).catch(function (hata) {
         B.bildir('Excel dosyası okunamadı: ' + hata.message, 'hata');
       });
       return;
     }
     var okuyucu = new FileReader();
-    okuyucu.onload = function () { personelIceAktar(String(okuyucu.result || '')); };
+    okuyucu.onload = function () {
+      personelTopluOnizle(csvSatirlari(String(okuyucu.result || '')), dosya.name || 'personel.csv', hedef);
+    };
     okuyucu.onerror = function () { B.bildir('Dosya okunamadı.', 'hata'); };
     okuyucu.readAsText(dosya, 'utf-8');
   }
+
+  /* Dosya seçildi: doğrulamayı çalıştır, ön izleme diyaloğunu aç. */
+  function personelTopluOnizle(satirlar, dosyaAdi, isyeriId) {
+    var adaylar = personelTopluIsyerleri();
+    if (!adaylar.length) {
+      B.bildir('Bu işlemi yapmak için iş yeri kayıt yetkiniz yok.', 'hata');
+      return;
+    }
+    var hedef = personelTopluIsyeriBul(isyeriId || UI.personelTopluHedef || UI.kapsam);
+    UI.personelToplu = { satirlar: satirlar, dosyaAdi: dosyaAdi || '', isyeriId: hedef };
+    UI.personelToplu.analiz = ISG.personelToplu.analizEt(satirlar, personelTopluSecenekler(hedef));
+    var alan = el('personelTopluIsyeri');
+    if (alan) {
+      alan.innerHTML = B.secenekler(adaylar.map(function (isyeri) {
+        return { deger: isyeri.id, metin: isyeri.ad };
+      }), hedef);
+    }
+    uyariGoster('personelTopluUyari', UI.personelToplu.analiz.hata || '');
+    personelTopluDiyalogCiz();
+    diyalogAc(el('personelTopluDiyalog'), el('personelTopluKaydet'));
+  }
+
+  /* İşyeri değiştirilince mükerrer kontrolü o işyerinin listesine göre yeniden
+     çalışır; sayımlar ve satır durumları tazelenir. */
+  function personelTopluIsyeriDegisti() {
+    var durum = UI.personelToplu;
+    var alan = el('personelTopluIsyeri');
+    if (!durum || !alan) { return; }
+    durum.isyeriId = alan.value;
+    durum.analiz = ISG.personelToplu.analizEt(durum.satirlar, personelTopluSecenekler(durum.isyeriId));
+    uyariGoster('personelTopluUyari', durum.analiz.hata || '');
+    personelTopluDiyalogCiz();
+  }
+
+  function topluSayi(etiket, deger, sinif) {
+    return '<div class="toplu-sayi ' + (sinif || '') + '"><span>' + B.kacis(etiket) + '</span><b>' +
+      B.sayi(deger) + '</b></div>';
+  }
+
+  var TOPLU_DURUM_AD = {
+    hazir: 'Kaydedilecek',
+    mukerrer: 'Mükerrer — atlanacak',
+    hata: 'Hatalı — kaydedilmeyecek',
+    ornek: 'Örnek satır — atlanır'
+  };
+
+  function topluSatirHtml(satir) {
+    var kisi = satir.onizlemeKayit || satir.ham || {};
+    var sinif = satir.durum === 'hata' ? ' hata' :
+      (satir.durum === 'mukerrer' ? ' mukerrer' : (satir.durum === 'hazir' ? ' hazir' : ''));
+    var kunye = [kisi.sicil ? 'Sicil ' + kisi.sicil : '', kisi.tc ? 'TC ' + kisi.tc : '',
+      kisi.departman || '', kisi.meslek || ''].filter(Boolean).join(' · ');
+    var nedenler = (satir.nedenler || []).concat(satir.uyarilar || []);
+    return '<div class="toplu-satir' + sinif + '">' +
+      '<span class="toplu-no">Satır ' + satir.satirNo + '</span>' +
+      '<span class="toplu-icerik">' +
+        '<span class="toplu-ad">' + B.kacis(kisi.adSoyad || '(Ad Soyad boş)') + '</span>' +
+        (kunye ? ' <span class="toplu-detay">' + B.kacis(kunye) + '</span>' : '') +
+        '<span class="toplu-neden"><strong class="toplu-baslik">' +
+          B.kacis(TOPLU_DURUM_AD[satir.durum] || satir.durum) + '</strong>' +
+          (nedenler.length ? B.kacis(' — ' + nedenler.join(' · ')) : '') + '</span>' +
+      '</span></div>';
+  }
+
+  function personelTopluDiyalogCiz() {
+    var durum = UI.personelToplu;
+    var ozet = el('personelTopluOzet');
+    var onizleme = el('personelTopluOnizleme');
+    var dugme = el('personelTopluKaydet');
+    var dosyaSatiri = el('personelTopluDosya');
+    if (!durum || !durum.analiz || !ozet || !onizleme) { return; }
+    var a = durum.analiz;
+    var oturum = ISG.yetki && typeof ISG.yetki.oturum === 'function' ? ISG.yetki.oturum() : null;
+    var onayaGider = !!(oturum && !ISG.yetki.rolTanimi(oturum.rol).dogrudanYazar);
+
+    if (dosyaSatiri) {
+      var isyeri = ISG.isyeriBul(veri(), durum.isyeriId);
+      dosyaSatiri.textContent = 'Dosya: ' + (durum.dosyaAdi || '—') +
+        (isyeri ? ' · Kaydedileceği iş yeri: ' + isyeri.ad : '');
+    }
+    ozet.innerHTML =
+      topluSayi('Dosya satırı', a.ozet.dosyaSatir, '') +
+      topluSayi('Kaydedilecek', a.ozet.hazir, 'iyi') +
+      topluSayi('Mükerrer', a.ozet.mukerrer, 'uyari') +
+      topluSayi('Hatalı', a.ozet.hatali, a.ozet.hatali ? 'kotu' : '') +
+      topluSayi('Boş / örnek', a.ozet.bos + a.ozet.ornek, '');
+
+    var liste = ISG.personelToplu.onizlemeSatirlari(a, 150);
+    onizleme.innerHTML =
+      (a.uyarilar.length ? '<p class="toplu-not">' + B.kacis(a.uyarilar.join(' ')) + '</p>' : '') +
+      (liste.goruntulenecek.length ? liste.goruntulenecek.map(topluSatirHtml).join('') :
+        '<p class="belge-bos">' + B.kacis(a.hata || 'Ön izlenecek satır yok.') + '</p>') +
+      (liste.toplam > liste.goruntulenecek.length ?
+        '<p class="toplu-not">' + B.sayi(liste.toplam - liste.goruntulenecek.length) +
+        ' satır liste dışında kaldı; sayımlar tüm dosya için doğrudur.</p>' : '');
+
+    if (dugme) {
+      dugme.disabled = !!a.hata || a.ozet.hazir === 0;
+      dugme.textContent = onayaGider ? 'Onaya gönder' : 'Kaydedilecekleri ekle';
+    }
+  }
+
+  /* Kullanıcı onayı: yalnızca burada yazılır. */
+  function personelTopluKaydetIsle() {
+    var durum = UI.personelToplu;
+    if (!durum || !durum.analiz) { return; }
+    if (ISG.yetki && !ISG.yetki.izin('ekle', durum.isyeriId)) {
+      uyariGoster('personelTopluUyari', 'Bu iş yerine personel yükleme yetkiniz yok.');
+      return;
+    }
+    if (durum.analiz.hata) {
+      uyariGoster('personelTopluUyari', durum.analiz.hata);
+      return;
+    }
+    if (!durum.analiz.ozet.hazir) {
+      uyariGoster('personelTopluUyari',
+        'Kaydedilecek satır yok. Hatalı ve mükerrer satırları dosyada düzeltip yeniden yükleyin.');
+      return;
+    }
+    var hedef = durum.isyeriId;
+    var sonuc = ISG.personelToplu.uygula(durum.analiz, personelTopluSecenekler(hedef));
+    uyariGoster('personelTopluUyari', '');
+    UI.personelToplu = null;
+    diyalogKapat(el('personelTopluDiyalog'));
+    /* Yüklenen liste hemen görünsün: kapsam hedef işyerine çevrilir. */
+    if (sonuc.eklenen || sonuc.bekleyen) {
+      UI.kapsam = hedef;
+      UI.personelArama = '';
+      UI.acikPersonel = '';
+    }
+    B.bildir(personelTopluSonucMetni(sonuc), sonuc.eklenen || sonuc.bekleyen ? 'basari' : 'uyari');
+    ciz();
+  }
+
+
+  /* ---------- Yıllık çalışma planı: toplu yükleme (Excel/CSV → ön izleme → onay)
+     Ham satırlar ISG.planToplu ile doğrulanır; dosyadaki "İşyeri" sütunu okunmaz,
+     kayıtlar daima ekranda seçilen işyerine ve yıla yazılır. Mevcut plan kayıtları
+     güncellenmez veya silinmez; mükerrer ve hatalı satırlar kaydedilmez. */
+
+  function planTopluIsyerleri(eylem) {
+    var hesap = veri();
+    return (hesap.isyerleri || []).filter(function (isyeri) {
+      return !ISG.yetki || ISG.yetki.izin(eylem || 'ekle', isyeri.id);
+    });
+  }
+
+  function planIsyeriBul(adaylar, secili) {
+    if (!adaylar.length) { return ''; }
+    if (adaylar.some(function (isyeri) { return isyeri.id === secili; })) { return secili; }
+    if (UI.kapsam && adaylar.some(function (isyeri) { return isyeri.id === UI.kapsam; })) { return UI.kapsam; }
+    return adaylar[0].id;
+  }
+
+  /* Mükerrer denetimi yalnızca hedef işyerinin ve hedef yılın kayıtlarına yapılır. */
+  function planTopluSecenekler(isyeriId, yil) {
+    var hesap = veri();
+    var hedef = isyeriId || '';
+    return {
+      isyeriId: hedef,
+      yil: Number(yil) || 0,
+      mevcut: (hesap.planlar || []).filter(function (plan) { return plan.isyeriId === hedef; })
+    };
+  }
+
+  function planTopluSonucMetni(sonuc) {
+    var parcalar = [];
+    if (sonuc.eklenen) { parcalar.push(sonuc.eklenen + ' plan faaliyeti eklendi'); }
+    if (sonuc.bekleyen) { parcalar.push(sonuc.bekleyen + ' kayıt yönetici onayına gönderildi'); }
+    if (sonuc.mukerrer) { parcalar.push(sonuc.mukerrer + ' mükerrer satır atlandı'); }
+    if (sonuc.hatali) { parcalar.push(sonuc.hatali + ' hatalı satır kaydedilmedi'); }
+    if (!parcalar.length) { return 'Kaydedilecek plan faaliyeti bulunamadı.'; }
+    return parcalar.join(' · ') + '.';
+  }
+
+  function planAyEtiketi(aylar) {
+    return (aylar || []).map(function (ay) {
+      return (B.AYLAR[Number(ay) - 1] || '').slice(0, 3);
+    }).filter(Boolean).join(', ');
+  }
+
+  /* Çok sayfalı iş kitabında plan sayfasını seç: tablo başlığı
+     (Sıra No · Ana Başlık · Çalışma Konusu · ...) bulunan ilk sayfa kullanılır. */
+  function planSayfaSec(sayfalar) {
+    var liste = sayfalar || [];
+    for (var i = 0; i < liste.length; i += 1) {
+      var satirlar = (liste[i] && liste[i].satirlar) || [];
+      for (var j = 0; j < satirlar.length; j += 1) {
+        if (ISG.planToplu.haritaBul(satirlar[j], satirlar[j + 1])) { return satirlar; }
+      }
+    }
+    return (liste[0] && liste[0].satirlar) || [];
+  }
+
+  /* Plan yılı: elle seçilen yıl, yoksa dosya başlığındaki yıl, yoksa ekrandaki
+     yıl, o da yoksa içinde bulunulan yıl. Mükerrer denetimi bu yıla göre yapılır. */
+  function planTopluYilBul(satirlar, yil) {
+    var istenen = Number(yil) || 0;
+    if (istenen >= 1990) { return istenen; }
+    var dosyaYili = ISG.planToplu.yilBul(satirlar) || 0;
+    if (dosyaYili >= 1990) { return dosyaYili; }
+    var ekrandaki = Number(UI.planYili) || 0;
+    if (ekrandaki >= 1990) { return ekrandaki; }
+    return new Date().getFullYear();
+  }
+
+  function planDosyaOku(dosya, isyeriId) {
+    if (!dosya) { return; }
+    var adaylar = planTopluIsyerleri();
+    if (!adaylar.length) {
+      B.bildir('Plan yüklemek için iş yeri kayıt yetkiniz yok.', 'hata');
+      return;
+    }
+    var hedef = planIsyeriBul(adaylar, isyeriId || UI.planTopluHedef || UI.kapsam);
+    UI.planTopluHedef = hedef;
+    if (/\.xlsx$/i.test(dosya.name || '')) {
+      ISG.excel.oku(dosya).then(function (sayfalar) {
+        var satirlar = planSayfaSec(sayfalar);
+        if (!satirlar.length) {
+          B.bildir('Excel dosyasında veri bulunamadı.', 'hata');
+          return;
+        }
+        planTopluOnizle(satirlar, dosya.name || 'plan.xlsx', hedef);
+      }).catch(function (hata) {
+        B.bildir('Excel dosyası okunamadı: ' + hata.message, 'hata');
+      });
+      return;
+    }
+    var okuyucu = new FileReader();
+    okuyucu.onload = function () {
+      planTopluOnizle(csvSatirlari(String(okuyucu.result || '')), dosya.name || 'plan.csv', hedef);
+    };
+    okuyucu.onerror = function () { B.bildir('Dosya okunamadı.', 'hata'); };
+    okuyucu.readAsText(dosya, 'utf-8');
+  }
+
+  /* Dosya seçildi: ayrıştırma + doğrulama koşar, ön izleme diyaloğunu açar.
+     Satırlar burada KAYDEDİLMEZ; yazım yalnızca planTopluKaydetIsle ile olur. */
+  function planTopluOnizle(satirlar, dosyaAdi, isyeriId, yil) {
+    var adaylar = planTopluIsyerleri();
+    if (!adaylar.length) {
+      B.bildir('Plan yüklemek için iş yeri kayıt yetkiniz yok.', 'hata');
+      return;
+    }
+    var hedef = planIsyeriBul(adaylar, isyeriId || UI.planTopluHedef || UI.kapsam);
+    var planYili = planTopluYilBul(satirlar, yil);
+    UI.planToplu = { satirlar: satirlar, dosyaAdi: dosyaAdi || '', isyeriId: hedef, yil: planYili };
+    UI.planToplu.analiz = ISG.planToplu.analizEt(satirlar, planTopluSecenekler(hedef, planYili));
+    var alan = el('planTopluIsyeri');
+    if (alan) {
+      alan.innerHTML = B.secenekler(adaylar.map(function (isyeri) {
+        return { deger: isyeri.id, metin: isyeri.ad };
+      }), hedef);
+    }
+    var yilAlani = el('planTopluYil');
+    if (yilAlani) { yilAlani.value = planYili ? String(planYili) : ''; }
+    uyariGoster('planTopluUyari', UI.planToplu.analiz.hata || '');
+    planTopluDiyalogCiz();
+    diyalogAc(el('planTopluDiyalog'), el('planTopluKaydet'));
+  }
+
+  /* İş yeri veya yıl değişince mükerrer denetimi yeniden çalışır. */
+  function planTopluDegisti() {
+    var durum = UI.planToplu;
+    var alan = el('planTopluIsyeri');
+    var yilAlani = el('planTopluYil');
+    if (!durum || !alan) { return; }
+    durum.isyeriId = alan.value || durum.isyeriId;
+    if (yilAlani && yilAlani.value) {
+      var yil = Number(yilAlani.value) || 0;
+      durum.yil = yil >= 1990 ? yil : durum.yil;
+      yilAlani.value = String(durum.yil);
+    }
+    durum.analiz = ISG.planToplu.analizEt(durum.satirlar, planTopluSecenekler(durum.isyeriId, durum.yil));
+    uyariGoster('planTopluUyari', durum.analiz.hata || '');
+    planTopluDiyalogCiz();
+  }
+
+  var PLAN_TOPLU_DURUM_AD = {
+    hazir: 'Kaydedilecek',
+    mukerrer: 'Mükerrer — atlanacak',
+    hata: 'Hatalı — kaydedilmeyecek',
+    ornek: 'Örnek satır — atlanır',
+    bolum: 'Ana başlık satırı — faaliyet değil',
+    baslik: 'Tablo / ay başlığı — faaliyet değil',
+    imza: 'İmza ve doküman bilgisi — faaliyet değil'
+  };
+
+  function planTopluSatirHtml(satir) {
+    var sinif = satir.durum === 'hata' ? ' hata' :
+      (satir.durum === 'mukerrer' ? ' mukerrer' : (satir.durum === 'hazir' ? ' hazir' : ''));
+    var kayit = satir.kayit || {};
+    var kunye = [
+      kayit.siraExcel ? 'Sıra ' + kayit.siraExcel : '',
+      kayit.anaBaslik || '',
+      kayit.sorumlu ? 'Sorumlu: ' + kayit.sorumlu : '',
+      kayit.aylar && kayit.aylar.length ? planAyEtiketi(kayit.aylar) : ''
+    ].filter(Boolean).join(' · ');
+    var nedenler = (satir.nedenler || []).concat(satir.uyarilar || []);
+    return '<div class="toplu-satir' + sinif + '">' +
+      '<span class="toplu-no">Satır ' + satir.satirNo + '</span>' +
+      '<span class="toplu-icerik">' +
+        '<span class="toplu-ad">' + B.kacis(satir.faaliyet || '(Çalışma Konusu boş)') + '</span>' +
+        (kunye ? ' <span class="toplu-detay">' + B.kacis(kunye) + '</span>' : '') +
+        '<span class="toplu-neden"><strong class="toplu-baslik">' +
+          B.kacis(PLAN_TOPLU_DURUM_AD[satir.durum] || satir.durum) + '</strong>' +
+          (nedenler.length ? B.kacis(' — ' + nedenler.join(' · ')) : '') + '</span>' +
+      '</span></div>';
+  }
+
+  function planTopluDiyalogCiz() {
+    var durum = UI.planToplu;
+    var ozet = el('planTopluOzet');
+    var onizleme = el('planTopluOnizleme');
+    var dugme = el('planTopluKaydet');
+    var dosyaSatiri = el('planTopluDosya');
+    if (!durum || !durum.analiz || !ozet || !onizleme) { return; }
+    var a = durum.analiz;
+    var oturum = ISG.yetki && typeof ISG.yetki.oturum === 'function' ? ISG.yetki.oturum() : null;
+    var onayaGider = !!(oturum && !ISG.yetki.rolTanimi(oturum.rol).dogrudanYazar);
+    var ayiklanan = a.ozet.bolum + a.ozet.baslik + a.ozet.imza + a.ozet.ornek;
+
+    if (dosyaSatiri) {
+      var isyeri = ISG.isyeriBul(veri(), durum.isyeriId);
+      dosyaSatiri.textContent = 'Dosya: ' + (durum.dosyaAdi || '—') +
+        (isyeri ? ' · Kaydedileceği iş yeri: ' + isyeri.ad : '') +
+        ' · Plan yılı: ' + (durum.yil || '—');
+    }
+    ozet.innerHTML =
+      topluSayi('Dosya satırı', a.ozet.dosyaSatir, '') +
+      topluSayi('Kaydedilecek', a.ozet.hazir, 'iyi') +
+      topluSayi('Mükerrer', a.ozet.mukerrer, 'uyari') +
+      topluSayi('Hatalı', a.ozet.hatali, a.ozet.hatali ? 'kotu' : '') +
+      topluSayi('Başlık / imza', ayiklanan, '');
+
+    var liste = ISG.planToplu.onizlemeSatirlari(a, 150);
+    onizleme.innerHTML =
+      (a.uyarilar.length ? '<p class="toplu-not">' + B.kacis(a.uyarilar.join(' ')) + '</p>' : '') +
+      (liste.goruntulenecek.length ? liste.goruntulenecek.map(planTopluSatirHtml).join('') :
+        '<p class="belge-bos">' + B.kacis(a.hata || 'Ön izlenecek satır yok.') + '</p>') +
+      (liste.toplam > liste.goruntulenecek.length ?
+        '<p class="toplu-not">' + B.sayi(liste.toplam - liste.goruntulenecek.length) +
+        ' satır liste dışında kaldı; sayımlar tüm dosya için doğrudur.</p>' : '');
+
+    if (dugme) {
+      dugme.disabled = !!a.hata || a.ozet.hazir === 0;
+      dugme.textContent = onayaGider ? 'Onaya gönder' : 'Kaydedilecekleri ekle';
+    }
+  }
+
+  /* Kullanıcı onayı: plan kayıtları yalnızca burada depoya yazılır. */
+  function planTopluKaydetIsle() {
+    var durum = UI.planToplu;
+    if (!durum || !durum.analiz) { return; }
+    if (ISG.yetki && !ISG.yetki.izin('ekle', durum.isyeriId)) {
+      uyariGoster('planTopluUyari', 'Bu iş yerine plan yükleme yetkiniz yok.');
+      return;
+    }
+    if (durum.analiz.hata) {
+      uyariGoster('planTopluUyari', durum.analiz.hata);
+      return;
+    }
+    if (!durum.analiz.ozet.hazir) {
+      uyariGoster('planTopluUyari',
+        'Kaydedilecek faaliyet yok. Mükerrer ve hatalı satırları dosyada düzeltip yeniden yükleyin.');
+      return;
+    }
+    var hedef = durum.isyeriId;
+    var sonuc;
+    try {
+      sonuc = ISG.planToplu.uygula(durum.analiz, planTopluSecenekler(hedef, durum.yil));
+    } catch (hata) {
+      uyariGoster('planTopluUyari', hata.message || 'Plan kayıtları yazılamadı.');
+      return;
+    }
+    uyariGoster('planTopluUyari', '');
+    UI.planToplu = null;
+    diyalogKapat(el('planTopluDiyalog'));
+    /* Yüklenen plan hemen görünsün: kapsam ve yıl görünümü hedefe çevrilir. */
+    if (sonuc.eklenen || sonuc.bekleyen) {
+      UI.kapsam = hedef;
+      UI.planYili = sonuc.yil ? String(sonuc.yil) : 'tumu';
+      UI.planSecim = {};
+    }
+    B.bildir(planTopluSonucMetni(sonuc), sonuc.eklenen || sonuc.bekleyen ? 'basari' : 'uyari');
+    ciz();
+  }
+
+  function planSablon() {
+    try {
+      ISG.planToplu.sablonIndir('Yillik-Calisma-Plani-Sablonu.xlsx');
+      B.bildir('Plan şablonu (XLSX) indirildi. Doldurup "Excel\'den toplu yükle" ile aktarın.', 'basari');
+    } catch (hata) {
+      B.bildir(hata.message || 'Şablon oluşturulamadı.', 'hata');
+    }
+  }
+
+  /* Görünen planları şablon biçiminde dışa aktarır: dosya doldurulup geri yüklenir. */
+  function planExcel() {
+    var hesap = veri();
+    var yil = UI.planYili && UI.planYili !== 'tumu' ? Number(UI.planYili) : 0;
+    var liste = ISG.kapsamda(hesap, UI.kapsam, 'planlar').filter(function (plan) {
+      return !yil || ISG.planYil(plan) === yil;
+    });
+    if (!liste.length) {
+      B.bildir('Dışa aktarılacak plan faaliyeti yok.', 'uyari');
+      return;
+    }
+    try {
+      ISG.planToplu.disaAktar(tarihliAd('yillik-calisma-plani', 'xlsx'), liste, { yil: yil });
+    } catch (hata) {
+      B.bildir(hata.message || 'Excel dosyası oluşturulamadı.', 'hata');
+      return;
+    }
+    B.bildir(B.sayi(liste.length) + ' plan faaliyeti Excel olarak indirildi.', 'basari');
+  }
+
+  /* ---------- Yıllık çalışma planı: seçim ve toplu silme
+     Silme iki kapsamda yapılır: tabloda seçilen faaliyetler ya da seçili işyerinin
+     seçili yılındaki kayıtların tamamı. İşyeri filtresi ISG.depo.planTopluSil içinde
+     ZORUNLUDUR; başka iş yerlerinin kayıtlarına hiçbir koşulda dokunulmaz. */
+
+  function planSeciliIdler() {
+    var secim = UI.planSecim || {};
+    return Object.keys(secim).filter(function (id) { return !!secim[id]; });
+  }
+
+  function planSeciliPlanlar() {
+    var secili = {};
+    planSeciliIdler().forEach(function (id) { secili[String(id)] = true; });
+    return (veri().planlar || []).filter(function (plan) { return secili[String(plan.id)]; });
+  }
+
+  /* Seçili kayıtlar işyeri bazında TEK yazımla silinir (rol onayı desteklenir). */
+  function planKayitSil(kayitlar) {
+    var gruplar = {};
+    kayitlar.forEach(function (plan) {
+      if (!plan || !plan.isyeriId) { return; }
+      gruplar[plan.isyeriId] = gruplar[plan.isyeriId] || [];
+      gruplar[plan.isyeriId].push(String(plan.id));
+    });
+    var silinen = 0, bekleyen = false, hata = '';
+    Object.keys(gruplar).forEach(function (isyeriId) {
+      try {
+        var sonuc = ISG.depo.planTopluSil({ isyeriId: isyeriId, idler: gruplar[isyeriId] });
+        if (sonuc && sonuc.bekliyor) { bekleyen = true; }
+        else { silinen += (sonuc && sonuc.silinen) || 0; }
+      } catch (e) { hata = e.message; }
+    });
+    if (bekleyen) { return 'Silme talebi yönetici onayına gönderildi.'; }
+    if (hata && !silinen) { throw new Error(hata); }
+    return B.sayi(silinen) + ' plan faaliyeti silindi.';
+  }
+
+  /* Tablodaki onay kutuları: tek satır veya "Tümünü seç". */
+  function planSecimDegisti(olay) {
+    var kutu = olay.target;
+    if (!kutu || !kutu.getAttribute) { return; }
+    var tekId = kutu.getAttribute('data-plan-sec');
+    var tumu = kutu.hasAttribute && kutu.hasAttribute('data-plan-sec-tumu');
+    if (!tekId && !tumu) { return; }
+    UI.planSecim = UI.planSecim || {};
+    if (tekId) {
+      if (kutu.checked) { UI.planSecim[tekId] = true; }
+      else { delete UI.planSecim[tekId]; }
+    } else {
+      var gorunen = document.querySelectorAll('[data-plan-sec]');
+      Array.prototype.forEach.call(gorunen, function (secenek) {
+        var id = secenek.getAttribute('data-plan-sec');
+        if (!id) { return; }
+        if (kutu.checked) { UI.planSecim[id] = true; }
+        else { delete UI.planSecim[id]; }
+      });
+    }
+    ciz();
+  }
+
+  function planSilKapsamDeger() {
+    var secilen = el('planSilKapsamSecilen');
+    if (secilen && secilen.checked && !secilen.disabled) { return 'secilen'; }
+    return 'yil';
+  }
+
+  function planSilHedefleri(durum, kapsam) {
+    var kayitlar = (veri().planlar || []).filter(function (plan) {
+      return plan.isyeriId === durum.isyeriId;
+    });
+    if (kapsam === 'secilen') {
+      var secili = {};
+      planSeciliIdler().forEach(function (id) { secili[String(id)] = true; });
+      return kayitlar.filter(function (plan) { return secili[String(plan.id)]; });
+    }
+    var yil = Number(durum.yil) || 0;
+    return kayitlar.filter(function (plan) { return ISG.planYil(plan) === yil; });
+  }
+
+  function planSilYilDoldur(alan, isyeriId, seciliYil) {
+    if (!alan) { return; }
+    var yillar = ISG.planYillari(veri(), isyeriId);
+    if (!yillar.length) { yillar = [Number(seciliYil) || new Date().getFullYear()]; }
+    if (Number(seciliYil) && yillar.indexOf(Number(seciliYil)) < 0) {
+      yillar.push(Number(seciliYil));
+      yillar.sort(function (a, b) { return b - a; });
+    }
+    alan.innerHTML = B.secenekler(yillar.map(function (yil) {
+      return { deger: String(yil), metin: String(yil) };
+    }), String(seciliYil || yillar[0]));
+  }
+
+  /* "Toplu sil" diyaloğu: işyeri + yıl ya da tablo seçimi, açık onay istenir. */
+  function planTopluSilAc(isyeriId) {
+    var adaylar = planTopluIsyerleri('sil');
+    if (!adaylar.length) {
+      B.bildir('Plan kaydı silmek için yetkiniz yok.', 'hata');
+      return;
+    }
+    var hedef = planIsyeriBul(adaylar, isyeriId || UI.kapsam);
+    var yillar = ISG.planYillari(veri(), hedef);
+    var istenen = Number(UI.planYili) || 0;
+    var yil = yillar.indexOf(istenen) > -1 ? istenen : (yillar[0] || new Date().getFullYear());
+    UI.planSil = { isyeriId: hedef, yil: yil };
+    var isyeriAlani = el('planSilIsyeri');
+    if (isyeriAlani) {
+      isyeriAlani.innerHTML = B.secenekler(adaylar.map(function (isyeri) {
+        return { deger: isyeri.id, metin: isyeri.ad };
+      }), hedef);
+    }
+    planSilYilDoldur(el('planSilYil'), hedef, yil);
+    var onayKutusu = el('planSilOnay');
+    if (onayKutusu) { onayKutusu.checked = false; }
+    var secimVar = planSilHedefleri(UI.planSil, 'secilen').length > 0;
+    var secilenRadyo = el('planSilKapsamSecilen');
+    var yilRadyo = el('planSilKapsamYil');
+    if (secilenRadyo) { secilenRadyo.disabled = !secimVar; secilenRadyo.checked = secimVar; }
+    if (yilRadyo) { yilRadyo.checked = !secimVar; }
+    uyariGoster('planSilUyari', '');
+    planSilOzetGuncelle();
+    diyalogAc(el('planTopluSilDiyalog'), el('planSilOnay'));
+  }
+
+  /* Sayımlar, kapsam ve onay düğmesi her değişiklikte tazelenir. */
+  function planSilOzetGuncelle() {
+    var durum = UI.planSil;
+    var ozetKutu = el('planSilOzet');
+    if (!durum || !ozetKutu) { return; }
+    var hesap = veri();
+    var isyeri = ISG.isyeriBul(hesap, durum.isyeriId);
+    var kayitlar = (hesap.planlar || []).filter(function (plan) { return plan.isyeriId === durum.isyeriId; });
+    var secimSayi = planSilHedefleri(durum, 'secilen').length;
+    var yilSayi = planSilHedefleri(durum, 'yil').length;
+    var secilenRadyo = el('planSilKapsamSecilen');
+    if (secilenRadyo) {
+      secilenRadyo.disabled = secimSayi === 0;
+      if (secimSayi === 0 && secilenRadyo.checked) {
+        var yilRadyo = el('planSilKapsamYil');
+        if (yilRadyo) { yilRadyo.checked = true; }
+      }
+    }
+    var sayiAlani = el('planSilSeciliSayi');
+    if (sayiAlani) { sayiAlani.textContent = B.sayi(secimSayi); }
+    var yilSayiAlani = el('planSilYilSayi');
+    if (yilSayiAlani) { yilSayiAlani.textContent = B.sayi(yilSayi); }
+
+    var kapsam = planSilKapsamDeger();
+    var hedefler = planSilHedefleri(durum, kapsam);
+    ozetKutu.textContent = (isyeri ? isyeri.ad : 'Seçili iş yeri') + ' · ' +
+      (kapsam === 'secilen' ? B.sayi(secimSayi) + ' seçili kayıt'
+        : durum.yil + ' yılındaki ' + B.sayi(yilSayi) + ' kayıt') +
+      ' silinecek · İş yerinde kalan: ' + B.sayi(kayitlar.length - hedefler.length) + ' kayıt.';
+    var onay = el('planSilOnay');
+    var dugme = el('planSilOnayla');
+    if (dugme) { dugme.disabled = !(onay && onay.checked) || hedefler.length === 0; }
+  }
+
+  /* Silme diyaloğundaki işyeri / yıl seçimleri kapsamı baştan kurar. */
+  function planSilAlanDegisti() {
+    var durum = UI.planSil;
+    if (!durum) { return; }
+    var isyeriAlani = el('planSilIsyeri');
+    var yilAlani = el('planSilYil');
+    if (isyeriAlani && isyeriAlani.value && isyeriAlani.value !== durum.isyeriId) {
+      durum.isyeriId = isyeriAlani.value;
+      var yillar = ISG.planYillari(veri(), durum.isyeriId);
+      durum.yil = yillar[0] || new Date().getFullYear();
+      planSilYilDoldur(yilAlani, durum.isyeriId, durum.yil);
+    }
+    if (yilAlani && yilAlani.value) { durum.yil = Number(yilAlani.value) || durum.yil; }
+    uyariGoster('planSilUyari', '');
+    planSilOzetGuncelle();
+  }
+
+  /* Kullanıcı onayı: silme yalnızca burada ve seçili kapsamda yapılır. */
+  function planTopluSilIsle() {
+    var durum = UI.planSil;
+    if (!durum) { return; }
+    if (ISG.yetki && !ISG.yetki.izin('sil', durum.isyeriId)) {
+      uyariGoster('planSilUyari', 'Bu iş yerinin plan kayıtlarını silme yetkiniz yok.');
+      return;
+    }
+    var kapsam = planSilKapsamDeger();
+    var hedefler = planSilHedefleri(durum, kapsam);
+    if (!hedefler.length) {
+      uyariGoster('planSilUyari', 'Silinecek kayıt bulunamadı. İş yerini ve yılı denetleyin.');
+      return;
+    }
+    var onay = el('planSilOnay');
+    if (!onay || !onay.checked) {
+      uyariGoster('planSilUyari', 'Silmeyi onaylamanız gerekiyor.');
+      return;
+    }
+    var mesaj;
+    try {
+      if (kapsam === 'secilen') {
+        mesaj = planKayitSil(hedefler);
+      } else {
+        var sonuc = ISG.depo.planTopluSil({ isyeriId: durum.isyeriId, yil: Number(durum.yil) || 0 });
+        mesaj = sonuc && sonuc.bekliyor
+          ? 'Silme talebi yönetici onayına gönderildi.'
+          : B.sayi((sonuc && sonuc.silinen) || 0) + ' plan faaliyeti silindi · Kalan: ' +
+            B.sayi((sonuc && sonuc.kalan) || 0) + ' kayıt.';
+      }
+    } catch (hata) {
+      uyariGoster('planSilUyari', hata.message || 'Kayıtlar silinemedi.');
+      return;
+    }
+    UI.planSil = null;
+    UI.planSecim = {};
+    diyalogKapat(el('planTopluSilDiyalog'));
+    B.bildir(mesaj, 'basari');
+    ciz();
+  }
+
+
+
+
+
 
   /* ---------- Tıklama işlemleri ---------- */
 
@@ -1572,7 +2196,13 @@
   function tiklamaIslemi(olay) {
     var kapat = olay.target.closest('[data-kapat]');
     if (kapat) {
-      diyalogKapat(kapat.closest('dialog'));
+      var kapanan = kapat.closest('dialog');
+      /* Ön izleme yarıda bırakılıp kapatılırsa yarım analiz bellekte tutulmaz;
+         kullanıcı düğüme bir daha basınca taze dosya ister. */
+      if (kapanan && kapanan.id === 'personelTopluDiyalog') { UI.personelToplu = null; }
+      if (kapanan && kapanan.id === 'planTopluDiyalog') { UI.planToplu = null; }
+      if (kapanan && kapanan.id === 'planTopluSilDiyalog') { UI.planSil = null; }
+      diyalogKapat(kapanan);
       return;
     }
 
@@ -1740,7 +2370,10 @@
       case 'personel-sablon':
         personelExcel(true);
         break;
+      case 'personel-toplu-aktar':
       case 'personel-ice-aktar': {
+        /* Hedef işyeri düğmenin data-isyeri değerinden, yoksa seçimden gelir. */
+        UI.personelTopluHedef = isyeriId || UI.kapsam || '';
         var dosyaGirdi = el('personelDosya');
         if (dosyaGirdi) { dosyaGirdi.click(); }
         break;
@@ -1836,6 +2469,36 @@
       case 'plan-csv':
         csvPlan();
         break;
+      case 'plan-sablon':
+        planSablon();
+        break;
+      case 'plan-excel':
+        planExcel();
+        break;
+      case 'plan-toplu-yukle': {
+        /* Hedef işyeri düğmenin data-isyeri değerinden, yoksa seçimden gelir. */
+        UI.planTopluHedef = isyeriId || UI.kapsam || '';
+        var planDosyaGirdi = el('planDosyaGirdi');
+        if (planDosyaGirdi) { planDosyaGirdi.click(); }
+        break;
+      }
+      case 'plan-toplu-sil':
+        planTopluSilAc(isyeriId || UI.kapsam || '');
+        break;
+      case 'plan-sec-sil': {
+        var seciliPlanlar = planSeciliPlanlar();
+        if (!seciliPlanlar.length) { B.bildir('Önce silinecek faaliyetleri seçin.', 'uyari'); break; }
+        onayIste('Seçilen plan faaliyetleri silinsin mi?',
+          B.sayi(seciliPlanlar.length) + ' kayıt kalıcı olarak silinecek.', function () {
+            var mesaj;
+            try { mesaj = planKayitSil(seciliPlanlar); }
+            catch (hata) { B.bildir(hata.message || 'Kayıtlar silinemedi.', 'hata'); return; }
+            UI.planSecim = {};
+            B.bildir(mesaj, 'basari');
+            ciz();
+          }, 'Seçilenleri sil');
+        break;
+      }
       case 'plan-yeni':
         planAc('', isyeriId);
         break;
@@ -2501,6 +3164,35 @@
       alan.addEventListener('change', alanId === 'listeIsyeri' ? listeIsyeriDegisti : listeOnizlemeGuncelle);
     });
 
+    /* TOPLU PERSONEL YÜKLEME: kayıt yalnızca bu onaydan sonra yapılır. */
+    formuBagla('personelTopluForm', function () {
+      personelTopluKaydetIsle();
+    });
+    var topluIsyeriAlani = el('personelTopluIsyeri');
+    if (topluIsyeriAlani) { topluIsyeriAlani.addEventListener('change', personelTopluIsyeriDegisti); }
+
+    /* TOPLU PLAN YÜKLEME: faaliyetler yalnızca bu onaydan sonra yazılır. */
+    formuBagla('planTopluForm', function () {
+      planTopluKaydetIsle();
+    });
+    ['planTopluIsyeri', 'planTopluYil'].forEach(function (alanId) {
+      var alan = el(alanId);
+      if (alan) { alan.addEventListener('change', planTopluDegisti); }
+    });
+
+    /* TOPLU PLAN SİLME: işyeri + yıl (ya da tablo seçimi) ve açık onay. */
+    formuBagla('planTopluSilForm', function () {
+      planTopluSilIsle();
+    });
+    ['planSilIsyeri', 'planSilYil'].forEach(function (alanId) {
+      var alan = el(alanId);
+      if (alan) { alan.addEventListener('change', planSilAlanDegisti); }
+    });
+    ['planSilKapsamSecilen', 'planSilKapsamYil', 'planSilOnay'].forEach(function (alanId) {
+      var alan = el(alanId);
+      if (alan) { alan.addEventListener('change', planSilOzetGuncelle); }
+    });
+
     formuBagla('planForm', function (form) {
       var veriForm = formVerisi(form);
       if (!veriForm.faaliyet) { uyariGoster('planUyari', 'Faaliyet adı zorunlu.'); return; }
@@ -2679,6 +3371,16 @@
       });
     }
 
+    var planGirdi = el('planDosyaGirdi');
+    if (planGirdi) {
+      planGirdi.addEventListener('change', function () {
+        var secilen = this.files && this.files[0];
+        if (!secilen) { return; }
+        planDosyaOku(secilen);
+        this.value = '';
+      });
+    }
+
     var riskForm = el('riskEkipForm');
     if (riskForm && riskForm.elements.sonDegerlendirme) {
       riskForm.elements.sonDegerlendirme.addEventListener('change', function () {
@@ -2725,6 +3427,9 @@
     bulutBagla();
 
     document.addEventListener('click', tiklamaIslemi);
+    /* Plan tablosundaki seçim kutuları her çizimde yeniden üretildiği için
+       olay belgeden yakalanır. */
+    document.addEventListener('change', planSecimDegisti);
 
     var onay = el('onayEvet');
     if (onay) {
@@ -2776,7 +3481,22 @@
     baslat: baslat,
     girisSonrasi: girisSonrasi,
     personelIceAktar: personelIceAktar,
-    personelSatirlariAktar: personelSatirlariAktar
+    personelSatirlariAktar: personelSatirlariAktar,
+    /* Toplu personel yükleme akışı (ön izleme + onay). */
+    personelTopluOnizle: personelTopluOnizle,
+    personelTopluKaydetIsle: personelTopluKaydetIsle,
+    personelTopluDurum: function () { return UI.personelToplu; },
+    personelTopluDiyalogCiz: personelTopluDiyalogCiz,
+    /* Yıllık çalışma planı toplu akışları (ön izleme + onay + toplu silme). */
+    planTopluOnizle: planTopluOnizle,
+    planTopluKaydetIsle: planTopluKaydetIsle,
+    planTopluDiyalogCiz: planTopluDiyalogCiz,
+    planTopluDurum: function () { return UI.planToplu; },
+    planTopluSilAc: planTopluSilAc,
+    planTopluSilIsle: planTopluSilIsle,
+    planTopluSilDurum: function () { return UI.planSil; },
+    planExcel: planExcel,
+    planSablon: planSablon
   };
 
   if (document.readyState === 'loading') {

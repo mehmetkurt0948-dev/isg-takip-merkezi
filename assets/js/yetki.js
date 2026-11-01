@@ -215,13 +215,13 @@
   };
 
   var YAZMA_ISLEMLERI = [
-    'personelKaydet', 'personelSil', 'personelTemizle',
+    'personelKaydet', 'personelSil', 'personelTemizle', 'personelTopluEkle',
     'egitimKaydet', 'egitimSil',
     'riskKaydet', 'riskSil',
     'olayKaydet', 'olaySil',
     'dosyaKaydet', 'dosyaSil', 'dosyaDurumToplu', 'listeUygula', 'listeGeriAl',
     'belgeKaydet', 'belgeSil',
-    'planKaydet', 'planSil', 'planDurumDegistir',
+    'planKaydet', 'planSil', 'planDurumDegistir', 'planTopluEkle', 'planTopluSil',
     'tespitKaydet', 'tespitSil', 'tespitDurumDegistir',
     'riskEkipKaydet', 'acilPlanKaydet', 'riskEkipUyeEkle', 'riskEkipUyeSil',
     'acilEkipEkle', 'acilEkipSil'
@@ -229,6 +229,7 @@
 
   var ETIKETLER = {
     personelKaydet: 'Personel kaydı', personelSil: 'Personel kaydı silme', personelTemizle: 'Personel listesi temizliği',
+    personelTopluEkle: 'Toplu personel yükleme',
     egitimKaydet: 'Eğitim kaydı', egitimSil: 'Eğitim kaydı silme',
     riskKaydet: 'Risk kaydı', riskSil: 'Risk kaydı silme',
     olayKaydet: 'Olay / iş kazası bildirimi', olaySil: 'Olay kaydı silme',
@@ -237,6 +238,7 @@
     listeGeriAl: 'Hazır dosya kontrol listesini silme',
     belgeKaydet: 'Belge yükleme', belgeSil: 'Belge silme',
     planKaydet: 'Çalışma planı maddesi', planSil: 'Plan maddesi silme', planDurumDegistir: 'Plan durumu',
+    planTopluEkle: 'Çalışma planı toplu yükleme', planTopluSil: 'Çalışma planı toplu silme',
     tespitKaydet: 'Saha tespiti', tespitSil: 'Tespit silme', tespitDurumDegistir: 'Tespit durumu',
     riskEkipKaydet: 'Risk değerlendirme ekibi', acilPlanKaydet: 'Acil durum planı',
     riskEkipUyeEkle: 'Risk ekibi üyesi', riskEkipUyeSil: 'Risk ekibi üyesi silme',
@@ -248,17 +250,21 @@
 
   var SAYFA_ESLEME = {
     personelKaydet: 'personel', personelSil: 'personel', personelTemizle: 'personel',
+    personelTopluEkle: 'personel',
     egitimKaydet: 'personel', egitimSil: 'personel',
     riskKaydet: 'risk', riskSil: 'risk', riskEkipKaydet: 'risk', riskEkipUyeEkle: 'risk', riskEkipUyeSil: 'risk',
     olayKaydet: 'saha', olaySil: 'saha', tespitKaydet: 'saha', tespitSil: 'saha', tespitDurumDegistir: 'saha',
     dosyaKaydet: 'dosyalar', dosyaSil: 'dosyalar', dosyaDurumToplu: 'dosyalar', listeUygula: 'dosyalar', listeGeriAl: 'dosyalar',
     belgeKaydet: 'dosyalar', belgeSil: 'dosyalar',
     planKaydet: 'plan', planSil: 'plan', planDurumDegistir: 'plan',
+    planTopluEkle: 'plan', planTopluSil: 'plan',
     acilPlanKaydet: 'acil', acilEkipEkle: 'acil', acilEkipSil: 'acil'
   };
 
   var ISYERI_ILK_ARG = {
-    personelTemizle: 1, dosyaDurumToplu: 1, listeUygula: 1, listeGeriAl: 1, riskEkipKaydet: 1, acilPlanKaydet: 1,
+    personelTemizle: 1, personelTopluEkle: 1, dosyaDurumToplu: 1, listeUygula: 1, listeGeriAl: 1,
+    planTopluEkle: 1,
+    riskEkipKaydet: 1, acilPlanKaydet: 1,
     riskEkipUyeEkle: 1, riskEkipUyeSil: 1, acilEkipEkle: 1, acilEkipSil: 1
   };
 
@@ -330,6 +336,20 @@
 
   function ozetUret(ad, args) {
     var etiket = ETIKETLER[ad] || 'Değişiklik';
+    /* Toplu personelde ilk argüman işyeri kimliği, ikincisi kayıt listesidir. */
+    if (ad === 'personelTopluEkle') {
+      return etiket + ' · ' + ((args[1] || []).length) + ' personel';
+    }
+    if (ad === 'planTopluEkle') {
+      var ilkKayit = (args[1] || [])[0] || {};
+      return etiket + ' · ' + ((args[1] || []).length) + ' faaliyet' +
+        (ilkKayit.yil ? ' · ' + ilkKayit.yil + ' yılı' : '');
+    }
+    if (ad === 'planTopluSil') {
+      var filtre = args[0] || {};
+      return etiket + ' · ' + (filtre.yil ? filtre.yil + ' yılı' : 'seçili kayıtlar') +
+        (filtre.idler && filtre.idler.length ? ' · ' + filtre.idler.length + ' kayıt' : '');
+    }
     var ilk = args[0];
     if (Array.isArray(ilk)) { return etiket + ' · ' + ilk.length + ' kayıt'; }
     if (ilk && typeof ilk === 'object') {

@@ -296,6 +296,9 @@
         '<div class="personel-arac-sol">' +
           '<button type="button" class="dugme ince" data-islem="personel-liste" data-id="' + kacis(isyeri.id) + '">' + (kapali ? 'Listeyi göster' : 'Listeyi gizle') + '</button>' +
           '<button type="button" class="dugme ince birincil" data-islem="personel-yeni" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') + 'Personel ekle</button>' +
+          '<button type="button" class="dugme ince" data-islem="personel-toplu-aktar" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-upload') + 'Toplu personel yükle</button>' +
+          '<button type="button" class="dugme ince" data-islem="personel-sablon">' + B.ikon('i-download') + 'Örnek Excel şablonunu indir</button>' +
+
           '<button type="button" class="dugme ince tehlike-dugme" data-islem="personel-temizle" data-id="' + kacis(isyeri.id) + '">Bu işyerinin listesini temizle</button>' +
         '</div>' +
         '<div class="arama personel-arama">' + B.ikon('i-search') +
@@ -323,13 +326,14 @@
     var bloklar = isyerleri.map(function (isyeri) { return personelBloku(isyeri, hesap); }).join('');
 
     return sayfaBaslik('PERSONEL', 'Personel listesi', 'İşyeri bazında kayıt ve durum takibi',
-      '<button type="button" class="dugme" data-islem="personel-sablon">' + B.ikon('i-download') + 'Excel şablonu indir (XLSX)</button>' +
+      '<button type="button" class="dugme" data-islem="personel-sablon">' + B.ikon('i-download') + 'Örnek Excel şablonunu indir</button>' +
       '<button type="button" class="dugme" data-islem="personel-csv">' + B.ikon('i-download') + 'Güncel listeyi XLSX indir</button>' +
-      '<button type="button" class="dugme" data-islem="personel-ice-aktar">' + B.ikon('i-upload') + 'Excel/CSV içe aktar</button>' +
+      '<button type="button" class="dugme" data-islem="personel-toplu-aktar" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-upload') + 'Toplu personel yükle (Excel)</button>' +
       '<button type="button" class="dugme birincil" data-islem="personel-yeni" data-isyeri="' + kacis(UI.kapsam || '') + '">' + B.ikon('i-plus') + 'Personel ekle</button>') +
 
       '<div class="kart"><div class="kart-baslik" style="border-bottom:0">' +
-        '<div><h2>Güncel personel listesi</h2><p>Personeli işyeri bazında izleyin; XLSX şablonunu doldurup yükleyin ya da elle ekleyin.</p></div>' +
+        '<div><h2>Güncel personel listesi</h2><p>Personeli işyeri bazında izleyin; standart XLSX şablonunu doldurup "Toplu personel yükle" ile aktarın. ' +
+        'Ön izleme, mükerrer ve hatalı satır denetimi yüklemeden önce yapılır; mevcut kayıtlar korunur.</p></div>' +
         '<div class="kart-arac">' + kapsamSecici(hesap) + '</div>' +
       '</div></div>' +
 

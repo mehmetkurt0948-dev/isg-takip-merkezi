@@ -964,8 +964,744 @@ function bekle(ms) {
 
   await sayfaAc('#personel');
   kontrol('XLSX şablon düğmesi var', !!doc.querySelector('[data-islem="personel-sablon"]'));
+  kontrol('Örnek Excel şablonu düğmesi metinde görünüyor', /Örnek Excel şablonunu indir/.test(metin('#gorunum')));
+  kontrol('Toplu personel yükleme düğmesi var', !!doc.querySelector('[data-islem="personel-toplu-aktar"]') &&
+    /Toplu personel yükle/.test(metin('#gorunum')));
   kontrol('Dosya girişi XLSX kabul ediyor', /\.xlsx/.test(doc.getElementById('personelDosya').getAttribute('accept') || ''));
-  kontrol('Personel sayfası Excel/CSV içe aktarma sunuyor', /Excel\/CSV içe aktar/.test(metin('#gorunum')));
+
+  console.log('\n12e) Toplu personel yükleme: şablon, ön izleme, mükerrer, izolasyon');
+  const Toplu = ISG.personelToplu;
+  const SABLON_BASLIK = ['Sicil No', 'Ad Soyad', 'T.C. Kimlik No', 'Mesleği', 'Departman',
+    'Grup Kodu Açıklama', 'Şube', 'İşe Başlama Tarihi', 'Kıdem Tarihi', 'Cep Telefonu', 'Cinsiyet'];
+  kontrol('Toplu personel modülü yüklendi', !!Toplu && typeof Toplu.analizEt === 'function' && typeof Toplu.uygula === 'function');
+  kontrol('Standart şablon 11 sütun ve istenen sırada',
+    JSON.stringify(Toplu.BASLIKLAR) === JSON.stringify(SABLON_BASLIK), Toplu.BASLIKLAR.join(' | '));
+  const sablonSayfalar = Toplu.sablonSayfalar();
+  kontrol('Şablon Personel ve Kılavuz sayfaları taşıyor',
+    sablonSayfalar.length === 2 && sablonSayfalar[0].ad === 'Personel' && sablonSayfalar[1].ad === 'Kılavuz',
+    sablonSayfalar.map((s) => s.ad).join(', '));
+  const sablonBayt = ISG.excel.xlsxYaz(sablonSayfalar);
+  kontrol('Şablon XLSX olarak üretiliyor', sablonBayt[0] === 0x50 && sablonBayt[1] === 0x4B);
+  const sablonGeri = await ISG.excel.oku(sablonBayt);
+  kontrol('Şablon geri okunuyor, başlıklar ilk satırda',
+    JSON.stringify((sablonGeri[0].satirlar[0] || []).map((h) => String(h).trim())) === JSON.stringify(SABLON_BASLIK),
+    JSON.stringify(sablonGeri[0].satirlar[0]));
+  kontrol('Şablonda örnek personel satırı ve kılavuz satırları var',
+    String(sablonGeri[0].satirlar[1][1]).trim() === 'Örnek Personel' && sablonGeri[1].satirlar.length >= 11,
+    String(sablonGeri[1].satirlar.length));
+  kontrol('Kılavuz tarih ve mükerrer kuralını anlatıyor',
+    /YYYY-AA-GG/.test(JSON.stringify(sablonGeri[1].satirlar)) && /Mükerrer/.test(JSON.stringify(sablonGeri[1].satirlar)));
+  kontrol('Başlık bulunamayan dosya anlaşılır hata veriyor',
+    /Başlık satırı bulunamadı/.test(Toplu.analizEt([['A', 'B'], ['1', '2']], { mevcut: [] }).hata));
+
+  /* "Örnek Excel şablonunu indir" düğmesi gerçek XLSX dosyasını indirmeli.
+     İndirme katmanı (bicim.dosyaIndirBayt) yakalanır: ad, MIME türü ve baytlar denenir. */
+  const indirmeler = [];
+  const gercekIndirme = ISG.bicim.dosyaIndirBayt;
+  ISG.bicim.dosyaIndirBayt = function (dosyaAdi, baytlar, tip) {
+    indirmeler.push({ ad: dosyaAdi, baytlar: baytlar, tip: tip });
+  };
+  try {
+    doc.querySelector('[data-islem="personel-sablon"]').click();
+    await bekle(120);
+  } finally {
+    ISG.bicim.dosyaIndirBayt = gercekIndirme;
+  }
+  const sablonIndirme = indirmeler[0] || null;
+  kontrol('Örnek Excel şablonu düğmesi indirme başlatıyor', indirmeler.length === 1, String(indirmeler.length));
+  kontrol('Şablon Personel-Sablonu.xlsx adıyla indiriliyor',
+    /^Personel-Sablonu\.xlsx$/i.test(sablonIndirme ? sablonIndirme.ad : ''), sablonIndirme ? sablonIndirme.ad : '-');
+  kontrol('Şablon XLSX MIME türüyle veriliyor',
+    /spreadsheetml\.sheet/.test(sablonIndirme ? sablonIndirme.tip : ''), sablonIndirme ? sablonIndirme.tip : '-');
+  kontrol('İndirilen şablon XLSX (ZIP) baytları taşıyor',
+    !!sablonIndirme && sablonIndirme.baytlar[0] === 0x50 && sablonIndirme.baytlar[1] === 0x4B &&
+    sablonIndirme.baytlar.length > 2000, sablonIndirme ? String(sablonIndirme.baytlar.length) : '-');
+  const indirilenGeri = sablonIndirme ? await ISG.excel.oku(sablonIndirme.baytlar) : null;
+  kontrol('İndirilen şablon Excel ile açılıp okunabiliyor',
+    !!indirilenGeri && indirilenGeri.length === 2 && String(indirilenGeri[0].satirlar[1][1]).trim() === 'Örnek Personel',
+    indirilenGeri ? indirilenGeri.map((s) => s.ad).join(', ') : 'okunamadı');
+  const indirilenAnaliz = indirilenGeri ?
+    Toplu.analizEt(indirilenGeri[0].satirlar, { mevcut: [], digerIsyerleri: [] }) : { ozet: {}, hata: '' };
+  kontrol('Boş şablon yüklendiğinde örnek satır tanınıp anlaşılır uyarı veriliyor',
+    indirilenAnaliz.ozet.ornek === 1 && /kaydedilecek veri satırı yok/.test(indirilenAnaliz.hata),
+    JSON.stringify(indirilenAnaliz.ozet) + ' / ' + indirilenAnaliz.hata);
+  /* Şablon başlıkları ile ayrıştırıcı eşanlamlıları aynı kalmalı: biri değişir ve
+     diğeri unutulursa kullanıcı "sütun dosyada yok" uyarısıyla karşılaşır. */
+  kontrol('Şablonun on bir başlığı da alanlara eşleniyor',
+    Object.keys(indirilenAnaliz.haritalar).length === 11 && indirilenAnaliz.eksikSutunlar.length === 0,
+    JSON.stringify(indirilenAnaliz.haritalar) + ' / ' + indirilenAnaliz.eksikSutunlar.join(', '));
+  kontrol('Şablon indirme bildirimi kullanıcıya verildi',
+    /şablon/i.test(metin('#bildirimler')), metin('#bildirimler').slice(0, 90));
+
+  /* ASKİ-1 (iy5) hedefli karışık dosya: geçerli, mükerrer, hatalı, boş ve örnek satırlar. */
+  const topluHesap = ISG.depo.al();
+  const iy5Mevcut = topluHesap.personel.filter((p) => p.isyeriId === 'iy5');
+  const digerMevcut = topluHesap.personel.filter((p) => p.isyeriId !== 'iy5');
+  const iy5Once = iy5Mevcut.length;
+  const toplamOnce = topluHesap.personel.length;
+  const mevcutSicil = iy5Mevcut[0].sicil;
+  const mevcutAd = iy5Mevcut[0].adSoyad;
+  const karisik = [
+    SABLON_BASLIK.slice(),
+    ['9001', 'Topluk Test Bir', '11111111110', 'Teknisyen', 'Bakım', '9112.11', 'ASKİ 1',
+      '15.01.2024', '01.02.2024', '05551112233', 'E'],
+    ['9002', 'Topluk Test İki', '', '', '', '', '', '45306', '', '', 'K'],
+    ['9003', 'Topluk Test Üç', '222222', '', '', '', '', '31.12.2023', '', '', 'Erkek'],
+    [],
+    [mevcutSicil, 'Yeniden Gelen Kişi', '33333333330', '', '', '', '', '', '', '', ''],
+    ['', mevcutAd, '', '', '', '', '', '', '', '', ''],
+    ['9001', 'Aynı TC Tekrar', '11111111110', '', '', '', '', '', '', '', ''],
+    ['12345', 'Örnek Personel', '12345678901', 'Pres operatörü', 'Üretim', '9112.11', 'Merkez',
+      '2024-01-15', '2024-01-15', '0555 123 45 67', 'Erkek']
+  ];
+  const analiz = Toplu.analizEt(karisik, { mevcut: iy5Mevcut, digerIsyerleri: digerMevcut });
+  kontrol('Satır durumları ayrıştırıldı',
+    analiz.ozet.hazir === 2 && analiz.ozet.mukerrer === 3 && analiz.ozet.hatali === 1 &&
+    analiz.ozet.bos === 1 && analiz.ozet.ornek === 1 && analiz.ozet.dosyaSatir === 8,
+    JSON.stringify(analiz.ozet));
+  kontrol('Şablonun örnek satırı otomatik atlanıyor',
+    analiz.satirlar.some((s) => s.durum === 'ornek' && s.ham.adSoyad === 'Örnek Personel'));
+  const hataliSatir = analiz.satirlar.filter((s) => s.durum === 'hata')[0];
+  kontrol('Hatalı satır satır numarası ve gerekçeyle raporlanıyor',
+    hataliSatir.satirNo === 4 && /11 hane/.test(hataliSatir.nedenler.join(' ')),
+    JSON.stringify(hataliSatir && hataliSatir.nedenler));
+  const mukerrerler = analiz.satirlar.filter((s) => s.durum === 'mukerrer');
+  kontrol('Mükerrer sicil kaydı yakalandı',
+    mukerrerler.some((s) => /Sicil No ile kayıtlı/.test(s.nedenler.join(' '))),
+    mukerrerler.map((s) => s.nedenler.join(' ')).join(' || '));
+  kontrol('Dosya içi aynı T.C. Kimlik No mükerrer sayıldı',
+    mukerrerler.some((s) => /birden fazla satırda/.test(s.nedenler.join(' '))));
+  kontrol('Sicil ve TC boşken ad soyad mükerrer denetimi çalışıyor',
+    mukerrerler.some((s) => /Ad Soyad kayıtlı/.test(s.nedenler.join(' '))));
+  const hazirlar = analiz.satirlar.filter((s) => s.durum === 'hazir');
+  kontrol('GG.AA.YYYY ve Kıdem Tarihi ISOya çevrildi',
+    hazirlar[0].kayit.iseBaslama === '2024-01-15' && hazirlar[0].kayit.kidemTarihi === '2024-02-01',
+    hazirlar[0].kayit.iseBaslama + ' / ' + hazirlar[0].kayit.kidemTarihi);
+  kontrol('Excel seri numarası tarih olarak okundu', hazirlar[1].kayit.iseBaslama === '2024-01-15',
+    hazirlar[1].kayit.iseBaslama);
+  kontrol('Cinsiyet kısaltmaları ve telefon normalize edildi',
+    hazirlar[0].kayit.cinsiyet === 'Erkek' && hazirlar[0].kayit.telefon === '05551112233' &&
+    hazirlar[1].kayit.cinsiyet === 'Kadın');
+  kontrol('Kaydedilmeyecek satırlar için kayıt üretilmedi',
+    analiz.satirlar.filter((s) => s.durum !== 'hazir').every((s) => s.kayit === null));
+  kontrol('Eksik sütun uyarısı veriliyor', analiz.uyarilar.join(' ').length > 0 || analiz.eksikSutunlar.length === 0,
+    analiz.eksikSutunlar.join(', '));
+  const farkliIsyeri = Toplu.analizEt([
+    SABLON_BASLIK.slice(),
+    ['9101', 'Başka Kurumdan', '11111111110', '', '', '', '', '', '', '', '']
+  ], {
+    mevcut: [],
+    digerIsyerleri: [{ id: 'px', isyeriId: 'iy6', adSoyad: 'Başka Kurum Kişisi', sicil: '5', tc: '11111111110' }]
+  });
+  kontrol('Aynı TC başka iş yerindeyse uyarı üretiliyor (kayıt engellenmiyor)',
+    farkliIsyeri.ozet.hazir === 1 && /başka bir iş yerinde/.test((farkliIsyeri.satirlar[0].uyarilar || []).join(' ')),
+    JSON.stringify(farkliIsyeri.satirlar[0].uyarilar));
+  const isyeriSutunlu = Toplu.analizEt([
+    ['Sicil No', 'Ad Soyad', 'İşyeri', 'Durum'],
+    ['9201', 'İşyeri Sütunlu', 'Aypaş', 'Pasif']
+  ], { mevcut: [], digerIsyerleri: [] });
+  kontrol('Dosyadaki İşyeri sütunu yok sayılıp uyarı veriliyor',
+    /İşyeri" sütunu yok sayılıyor/.test(isyeriSutunlu.uyarilar.join(' ')) && isyeriSutunlu.ozet.hazir === 1 &&
+    isyeriSutunlu.satirlar[0].onizlemeKayit.durum === 'pasif', isyeriSutunlu.uyarilar.join(' '));
+
+  /* Arayüz akışı: dosya içeriği → ön izleme diyaloğu → kullanıcı onayı → kayıt. */
+  ISG.uygulama.personelTopluOnizle(karisik, 'toplu-personel-test.xlsx', 'iy5');
+  await bekle(140);
+  const topluDiyalog = doc.getElementById('personelTopluDiyalog');
+  kontrol('Ön izleme diyaloğu açıldı', topluDiyalog.open === true);
+  kontrol('İşyeri seçici altı iş yerini getiriyor', doc.querySelectorAll('#personelTopluIsyeri option').length === 6,
+    String(doc.querySelectorAll('#personelTopluIsyeri option').length));
+  kontrol('Seçili işyeri ASKİ-1', doc.getElementById('personelTopluIsyeri').value === 'iy5',
+    doc.getElementById('personelTopluIsyeri').value);
+  kontrol('Özet kutuları beş sayım basıyor', doc.querySelectorAll('#personelTopluOzet .toplu-sayi').length === 5,
+    String(doc.querySelectorAll('#personelTopluOzet .toplu-sayi').length));
+  kontrol('Ön izlemede satır bazlı gerekçeler görünüyor',
+    /11 hane/.test(metin('#personelTopluOnizleme')) && /Mükerrer/.test(metin('#personelTopluOnizleme')));
+  kontrol('Dosya adı ve hedef işyeri yazılıyor',
+    /toplu-personel-test\.xlsx/.test(metin('#personelTopluDosya')) && /ASKİ-1/.test(metin('#personelTopluDosya')),
+    metin('#personelTopluDosya'));
+  kontrol('Onay düğmesi etkin ve metni kayıt içeriyor',
+    doc.getElementById('personelTopluKaydet').disabled === false &&
+    /Kaydedilecekleri ekle/.test(doc.getElementById('personelTopluKaydet').textContent));
+  kontrol('Onay öncesi kayıt yapılmadı', ISG.depo.al().personel.length === toplamOnce,
+    String(ISG.depo.al().personel.length));
+
+  /* İşyeri değiştirilince mükerrer denetimi o işyerinin listesine göre tazelenir. */
+  doc.getElementById('personelTopluIsyeri').value = 'iy6';
+  doc.getElementById('personelTopluIsyeri').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(90);
+  kontrol('İşyeri değişince sayımlar yeniden hesaplandı',
+    ISG.uygulama.personelTopluDurum().analiz.ozet.mukerrer === 1 &&
+    ISG.uygulama.personelTopluDurum().analiz.ozet.hazir === 4,
+    JSON.stringify(ISG.uygulama.personelTopluDurum().analiz.ozet));
+  doc.getElementById('personelTopluIsyeri').value = 'iy5';
+  doc.getElementById('personelTopluIsyeri').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(90);
+
+  doc.getElementById('personelTopluForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(220);
+  const iy5Sonra = ISG.depo.al().personel.filter((p) => p.isyeriId === 'iy5');
+  kontrol('Yalnızca geçerli satırlar kaydedildi', iy5Sonra.length === iy5Once + 2, iy5Once + ' -> ' + iy5Sonra.length);
+  kontrol('Mükerrer ve hatalı satırlar kaydedilmedi',
+    !ISG.depo.al().personel.some((p) => p.adSoyad === 'Yeniden Gelen Kişi') &&
+    !ISG.depo.al().personel.some((p) => p.sicil === '9003') &&
+    !ISG.depo.al().personel.some((p) => p.adSoyad === 'Örnek Personel'));
+  kontrol('Mevcut ASKİ-1 personeli silinmedi veya değişmedi',
+    iy5Mevcut.every((kisi) => ISG.depo.al().personel.some((p) =>
+      p.id === kisi.id && p.adSoyad === kisi.adSoyad && p.isyeriId === 'iy5')));
+  kontrol('Diğer iş yerlerinin kayıtlarına dokunulmadı',
+    ISG.depo.al().personel.length - iy5Sonra.length === toplamOnce - iy5Once,
+    String(ISG.depo.al().personel.length - iy5Sonra.length));
+  kontrol('Yüklenen personelin alanları doğru', (function () {
+    const kisi = iy5Sonra.filter((p) => p.sicil === '9001')[0];
+    return !!kisi && kisi.tc === '11111111110' && kisi.iseBaslama === '2024-01-15' &&
+      kisi.kidemTarihi === '2024-02-01' && kisi.cinsiyet === 'Erkek' && kisi.durum === 'aktif';
+  })(), JSON.stringify(iy5Sonra.filter((p) => p.sicil === '9001')[0]));
+  kontrol('Kayıt kalıcı yazıma geçti',
+    JSON.parse(window.localStorage.getItem(ISG.depo.anahtar)).personel.some((p) => p.sicil === '9001'));
+  kontrol('Onay sonrası diyalog kapandı', topluDiyalog.open === false);
+  kontrol('Kapsam yüklenen iş yerine çevrildi', ISG.ui.kapsam === 'iy5', String(ISG.ui.kapsam));
+  kontrol('Yüklenen personel listede görünüyor', /Topluk Test Bir/.test(metin('#gorunum')));
+  kontrol('Denetim izinde toplu yükleme kaydı var',
+    ISG.yetki.denetimListe().some((k) => k.islem === 'personelTopluEkle'));
+
+  /* Aynı dosya yeniden yüklenirse yeni kayıt çıkmaz, hepsi mükerrer sayılır. */
+  const tekrarYukleme = Toplu.analizEt(karisik, {
+    mevcut: ISG.depo.al().personel.filter((p) => p.isyeriId === 'iy5'),
+    digerIsyerleri: ISG.depo.al().personel.filter((p) => p.isyeriId !== 'iy5')
+  });
+  kontrol('Tekrar yükülemede yeni kayıt çıkmıyor', tekrarYukleme.ozet.hazir === 0 && tekrarYukleme.ozet.mukerrer === 5,
+    JSON.stringify(tekrarYukleme.ozet));
+
+  /* Büyük liste tek kalıcı yazımla eklenir. */
+  const buyukSatirlar = [SABLON_BASLIK.slice()];
+  for (let b = 0; b < 120; b += 1) {
+    buyukSatirlar.push([String(7000 + b), 'Toplu Ölçek ' + b, String(40000000000 + b), 'Operatör', 'Üretim',
+      '', 'ASKİ 1', '2024-03-01', '', '', 'E']);
+  }
+  const buyuk = Toplu.analizEt(buyukSatirlar, { mevcut: [], digerIsyerleri: [] });
+  const buyukSonuc = Toplu.uygula(buyuk, { isyeriId: 'iy5' });
+  kontrol('Yüzlerce satır tek işlemde ekleniyor', buyukSonuc.eklenen === 120 &&
+    ISG.depo.al().personel.filter((p) => /^Toplu Ölçek /.test(p.adSoyad)).length === 120, String(buyukSonuc.eklenen));
+
+  /* Dosya seçme kutusuyla gerçek XLSX yüklemesi: kullanıcı şablonu doldurur, dosyayı
+     seçer; sistem Kılavuz sayfasını atlayıp Personel sayfasını okur ve ön izlemeyi açar. */
+  const girisSayfalar = [{
+    ad: 'Personel',
+    basliklar: SABLON_BASLIK.slice(),
+    satirlar: [
+      ['9301', 'Dosya Girişi Bir', '55555555550', 'Elektrik teknisyeni', 'Bakım', 'G-101', 'Merkez',
+        '10.02.2024', '2020-01-01', '0555 444 33 22', 'E'],
+      ['9302', 'Dosya Girişi İki', '55555555551', 'Büro görevlisi', 'İnsan Kaynakları', '', '',
+        '2024-02-11', '', '', 'Kadın'],
+      ['9303', 'Dosya Girişi Üç', '12345', 'Teknisyen', '', '', '', 'mart 2024', '', '', 'X']
+    ]
+  }, {
+    ad: 'Kılavuz',
+    basliklar: SABLON_BASLIK.slice(0, 3),
+    satirlar: [['Zorunlu', 'Zorunlu', 'Zorunlu'], ['Boş bırakılmaz', 'Boş bırakılmaz', '11 hane']]
+  }];
+  const girisSatirlari = [SABLON_BASLIK.slice()].concat(girisSayfalar[0].satirlar);
+  const girisDosyasi = new window.File([ISG.excel.xlsxYaz(girisSayfalar)], 'Personel-Yukleme.xlsx',
+    { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const girisKutusu = doc.getElementById('personelDosya');
+  Object.defineProperty(girisKutusu, 'files', { configurable: true, value: [girisDosyasi] });
+  girisKutusu.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(400);
+  const girisDurum = ISG.uygulama.personelTopluDurum();
+  kontrol('Dosya seçilince ön izleme kendiliğinden açıldı',
+    topluDiyalog.open === true && !!girisDurum, topluDiyalog.open + ' / ' + !!girisDurum);
+  kontrol('Seçilen Excel dosyasının adı ön izlemede yazıyor',
+    /Personel-Yukleme\.xlsx/.test(metin('#personelTopluDosya')), metin('#personelTopluDosya'));
+  kontrol('Kılavuz sayfası yok sayılıp Personel sayfası okundu',
+    !!girisDurum && girisDurum.analiz.ozet.dosyaSatir === 3 && girisDurum.analiz.ozet.hazir === 2 &&
+    girisDurum.analiz.ozet.hatali === 1, girisDurum ? JSON.stringify(girisDurum.analiz.ozet) : '-');
+  kontrol('Hatalı satırın gerekçesi ön izlemede gösteriliyor',
+    /11 hane/.test(metin('#personelTopluOnizleme')) && /tanınmadı/.test(metin('#personelTopluOnizleme')),
+    metin('#personelTopluOnizleme').slice(0, 120));
+  kontrol('Okunan dosya girişi temiz bırakıldı', girisKutusu.value === '', String(girisKutusu.value));
+  delete girisKutusu.files;
+
+  const girisOnce = ISG.depo.al().personel.length;
+  doc.getElementById('personelTopluKaydet').click();
+  await bekle(170);
+  const girisKayitlari = ISG.depo.al().personel.filter((p) => /^Dosya Girişi /.test(p.adSoyad));
+  kontrol('Ön izleme onayı yalnız geçerli satırları kaydediyor',
+    ISG.depo.al().personel.length === girisOnce + 2 && girisKayitlari.length === 2, String(girisKayitlari.length));
+  const girisBir = girisKayitlari.filter((p) => p.adSoyad === 'Dosya Girişi Bir')[0] || {};
+  const girisIki = girisKayitlari.filter((p) => p.adSoyad === 'Dosya Girişi İki')[0] || {};
+  kontrol('Excel sütunları doğru alanlara yazıldı',
+    girisBir.isyeriId === 'iy5' && girisBir.durum === 'aktif' && girisBir.meslek === 'Elektrik teknisyeni' &&
+    girisBir.departman === 'Bakım' && String(girisBir.telefon).replace(/\D/g, '') === '05554443322' &&
+    girisBir.iseBaslama === '2024-02-10' && girisBir.cinsiyet === 'Erkek' &&
+    girisIki.cinsiyet === 'Kadın' && girisIki.iseBaslama === '2024-02-11' && girisIki.tc === '55555555551',
+    JSON.stringify([girisBir, girisIki].map((p) => [p.meslek, p.telefon, p.iseBaslama, p.cinsiyet, p.tc])));
+  kontrol('Hatalı satır dosyadan kaydedilmedi',
+    !ISG.depo.al().personel.some((p) => p.adSoyad === 'Dosya Girişi Üç'));
+
+  /* Aynı dosya tekrar seçilirse kaydedilecek satır kalmaz: onay düğmesi kapanır,
+     kullanıcı "kayıt yapılmayacağını" ön izlemeden anlar. */
+  ISG.uygulama.personelTopluOnizle(girisSatirlari, 'Personel-Yukleme.xlsx', 'iy5');
+  await bekle(120);
+  const kaydetDugmesi = doc.getElementById('personelTopluKaydet');
+  const girisTekrar = ISG.uygulama.personelTopluDurum();
+  const mukerrerMetin = metin('#personelTopluOnizleme') + ' ' + metin('#personelTopluOzet') + ' ' +
+    metin('#personelTopluUyari');
+  kontrol('Aynı dosya yeniden seçilince tek kayıt bile eklenmiyor',
+    !!girisTekrar && girisTekrar.analiz.ozet.hazir === 0 && girisTekrar.analiz.ozet.mukerrer === 2,
+    girisTekrar ? JSON.stringify(girisTekrar.analiz.ozet) : '-');
+  kontrol('Kaydedilecek satır kalmayınca onay düğmesi kapanıyor', kaydetDugmesi.disabled === true,
+    kaydetDugmesi.textContent.trim());
+  kontrol('Ön izleme kaydın yapılmayacağını gerekçesiyle gösteriyor',
+    /Mükerrer/.test(mukerrerMetin) && /atlanacak/.test(mukerrerMetin) && /Satır 2/.test(mukerrerMetin) &&
+    !/dosyada yok/.test(mukerrerMetin), mukerrerMetin.slice(0, 140));
+  const mukerrerOnce = ISG.depo.al().personel.length;
+  kaydetDugmesi.click();
+  await bekle(140);
+  kontrol('Onaysız/uygun satırsız deneme kayıt yapmıyor',
+    ISG.depo.al().personel.length === mukerrerOnce && topluDiyalog.open === true,
+    mukerrerOnce + ' -> ' + ISG.depo.al().personel.length);
+  doc.querySelector('#personelTopluDiyalog [data-kapat]').click();
+  await bekle(90);
+  kontrol('Vazgeçilen ön izleme kapandı ve durumu temizlendi',
+    topluDiyalog.open === false && ISG.uygulama.personelTopluDurum() === null);
+
+  /* Test kayıtları geri alınır; sonraki bölümler demo verisiyle devam eder. */
+  ISG.depo.al().personel.filter((p) => /^Topluk Test |^Toplu Ölçek |^Dosya Girişi /.test(p.adSoyad))
+    .forEach((p) => ISG.depo.personelSil(p.id));
+  ISG.ui.kapsam = '';
+  ISG.ui.personelToplu = null;
+  ISG.uygulama.ciz();
+  await bekle(140);
+  kontrol('Test kayıtları temizlendi, personel sayısı geri döndü',
+    ISG.depo.al().personel.length === toplamOnce, String(ISG.depo.al().personel.length));
+
+  console.log('\n12f) Yıllık çalışma planı: şablon, toplu yükleme, seçim, toplu silme');
+  await sayfaAc('#plan');
+  const Plan = ISG.planToplu;
+  const PLAN_BASLIK = ['Sıra No', 'Ana Başlık', 'Çalışma Konusu', 'Sorumlu', 'Açıklama',
+    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+  const PLAN_YILI = 2031;
+  const planOnce = ISG.depo.al().planlar.length;
+  const iy5PlanOnce = ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy5').length;
+
+  kontrol('Plan toplu aktarım modülü yüklendi', !!Plan && typeof Plan.analizEt === 'function' &&
+    typeof Plan.uygula === 'function' && typeof Plan.sablonSayfalar === 'function');
+  kontrol('Plan şablonu 17 sütun ve istenen sırada',
+    JSON.stringify(Plan.BASLIKLAR) === JSON.stringify(PLAN_BASLIK), Plan.BASLIKLAR.join(' | '));
+  kontrol('Plan ekranında şablon/yükle/aktar/sil düğmeleri var',
+    !!doc.querySelector('[data-islem="plan-sablon"]') && !!doc.querySelector('[data-islem="plan-toplu-yukle"]') &&
+    !!doc.querySelector('[data-islem="plan-excel"]') && !!doc.querySelector('[data-islem="plan-toplu-sil"]'));
+  kontrol('Plan dosya girişi XLSX ve CSV kabul ediyor',
+    /\.xlsx/.test(doc.getElementById('planDosyaGirdi').getAttribute('accept') || '') &&
+    /text\/csv/.test(doc.getElementById('planDosyaGirdi').getAttribute('accept') || ''),
+    String(doc.getElementById('planDosyaGirdi').getAttribute('accept')));
+  kontrol('Plan tablosunda seçim kutuları ve yıl seçici var', !!doc.getElementById('planYili') &&
+    doc.querySelectorAll('[data-plan-sec]').length > 0 && !!doc.querySelector('[data-plan-sec-tumu]'),
+    String(doc.querySelectorAll('[data-plan-sec]').length));
+
+  const planSablonSayfalar = Plan.sablonSayfalar();
+  kontrol('Şablon plan ve kılavuz sayfalarından oluşuyor',
+    planSablonSayfalar.length === 2 && planSablonSayfalar[1].ad === 'Kılavuz',
+    planSablonSayfalar.map((s) => s.ad).join(', '));
+  const planSablonGeri = await ISG.excel.oku(ISG.excel.xlsxYaz(planSablonSayfalar));
+  kontrol('Plan şablonu geri okunuyor, başlıklar ilk satırda',
+    JSON.stringify((planSablonGeri[0].satirlar[0] || []).map((h) => String(h).trim())) === JSON.stringify(PLAN_BASLIK),
+    JSON.stringify(planSablonGeri[0].satirlar[0]));
+  kontrol('Plan kılavuzu mükerrer ve iş yeri izolasyon kuralını anlatıyor',
+    /Mükerrer/.test(JSON.stringify(planSablonGeri[1].satirlar)) &&
+    /İş yeri izolasyonu/.test(JSON.stringify(planSablonGeri[1].satirlar)));
+
+  const planIndirmeler = [];
+  const gercekPlanIndirme = ISG.bicim.dosyaIndirBayt;
+  ISG.bicim.dosyaIndirBayt = function (dosyaAdi, baytlar, tip) {
+    planIndirmeler.push({ ad: dosyaAdi, baytlar: baytlar, tip: tip });
+  };
+  try {
+    doc.querySelector('[data-islem="plan-sablon"]').click();
+    await bekle(120);
+  } finally {
+    ISG.bicim.dosyaIndirBayt = gercekPlanIndirme;
+  }
+  kontrol('Şablon düğmesi XLSX dosyası indiriyor', planIndirmeler.length === 1 &&
+    planIndirmeler[0].ad === 'Yillik-Calisma-Plani-Sablonu.xlsx' &&
+    planIndirmeler[0].baytlar[0] === 0x50 && planIndirmeler[0].baytlar[1] === 0x4B,
+    JSON.stringify(planIndirmeler.map((d) => d.ad)));
+
+  /* Eski biçimli kurum dosyası: sayfa bilgi bloğu, tekrar eden tablo başlığı, ay
+     numara satırı, bölüm satırları ve imza alanı faaliyet olarak kaydedilmez. */
+  const planSatirlari = [
+    ['ACME ENERJİ A.Ş. - ' + PLAN_YILI + ' YILI YILLIK ÇALIŞMA PLANI'],
+    ['Doküman No', 'İSG.FORM.012', 'Revizyon', '03', 'Sayfa', '1/3'],
+    PLAN_BASLIK.slice(),
+    ['1', '', 'Eğitimler', '', ''],
+    ['1.1', 'Eğitimler', 'Temel iş sağlığı ve güvenliği eğitimi', 'İGU', 'Yeni işe başlayanlara',
+      '', '', 'X', '', '', '', '', '', '', '', '', ''],
+    ['1.2', 'Eğitimler', 'Yangın ve tahliye tatbikatı', 'İGU, Birim Sorumluları', 'Yılda bir kez',
+      '', '', '', '', '', '', 'X', '', '', '', '', ''],
+    ['1.2', 'Eğitimler', 'Yangın ve tahliye tatbikatı', 'İGU, Birim Sorumluları', 'Dosyadaki tekrar',
+      '', '', '', '', '', '', 'X', '', '', '', '', ''],
+    ['Örnek: Biçim gösterimi', '', 'Örnek: Şablondan kalan satır', 'İGU', 'kaydedilmez',
+      '', 'X', '', '', '', '', '', '', '', '', '', ''],
+    ['2', '', 'Acil Durumlar', '', ''],
+    ['2.1', 'Acil Durumlar', 'Acil durum ekipmanı kontrolü', 'Bakım Sorumlusu', 'Üç ayda bir',
+      'X', '', '', 'X', '', '', '', '', '', '', '', ''],
+    ['', '', '', 'Faaliyeti boş satır'],
+    PLAN_BASLIK.slice(),
+    ['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+    ['3.1', 'Eğitimler', 'İlk yardım eğitimi yenileme', 'İH', 'Zorunlu',
+      '', '', '', '', '', '', '', '', '', 'X', '', ''],
+    ['', 'HAZIRLAYANLAR', 'ONAYLAYAN', '', '']
+  ];
+  const planAyrismis = Plan.analizEt(planSatirlari, { isyeriId: 'iy5', yil: 0, mevcut: [] });
+  kontrol('Plan yılı dosya başlığından bulundu, tablo başlığı satır 3',
+    planAyrismis.yil === PLAN_YILI && planAyrismis.baslikSatir === 3,
+    planAyrismis.yil + ' / ' + planAyrismis.baslikSatir);
+  kontrol('Ana başlık, tablo başlığı, imza ve örnek satırlar ayıklandı',
+    planAyrismis.ozet.bolum === 2 && planAyrismis.ozet.baslik === 2 &&
+    planAyrismis.ozet.imza === 1 && planAyrismis.ozet.ornek === 1, JSON.stringify(planAyrismis.ozet));
+  kontrol('Ayrıştırma notu kullanıcıya gösteriliyor',
+    /ana başlık/.test(planAyrismis.uyarilar.join(' ')), planAyrismis.uyarilar.join(' '));
+  kontrol('Faaliyetler ana başlık ve ay işaretleriyle doğru okundu', (function () {
+    const hazir = Plan.uygulanacaklar(planAyrismis);
+    const yangin = hazir.filter((k) => k.faaliyet === 'Yangın ve tahliye tatbikatı')[0] || {};
+    const ekipman = hazir.filter((k) => k.faaliyet === 'Acil durum ekipmanı kontrolü')[0] || {};
+    return hazir.length === 4 && JSON.stringify(yangin.aylar) === '[7]' && yangin.anaBaslik === 'Eğitimler' &&
+      JSON.stringify(ekipman.aylar) === '[1,4]' && ekipman.anaBaslik === 'Acil Durumlar';
+  })(), JSON.stringify(Plan.uygulanacaklar(planAyrismis).map((k) => [k.faaliyet, k.aylar, k.anaBaslik])));
+  kontrol('Dosya içi mükerrer satır gerekçesiyle eleniyor', planAyrismis.ozet.mukerrer === 1 &&
+    /6\. satırda aynı faaliyet/.test(JSON.stringify(planAyrismis.satirlar)), JSON.stringify(planAyrismis.ozet));
+  kontrol('Çalışma Konusu boş satır hatalı sayılıyor',
+    planAyrismis.ozet.hatali === 1 && /Çalışma Konusu sütunu boş/.test(JSON.stringify(planAyrismis.satirlar)));
+  kontrol('Kaydedilecek liste yalnızca hazır satırları içeriyor',
+    Plan.uygulanacaklar(planAyrismis).length === planAyrismis.ozet.hazir &&
+    planAyrismis.satirlar.filter((s) => s.durum !== 'hazir').every((s) =>
+      !Plan.uygulanacaklar(planAyrismis).some((k) => k.faaliyet === s.faaliyet && k.kaynakSatir === s.satirNo)),
+    JSON.stringify({ hazir: planAyrismis.ozet.hazir, liste: Plan.uygulanacaklar(planAyrismis).length }));
+  kontrol('Başlığı bulunmayan dosya anlaşılır hata veriyor',
+    /tablo başlığı bulunamadı/.test(Plan.analizEt([['A', 'B'], ['1', '2']], { mevcut: [] }).hata),
+    Plan.analizEt([['A', 'B'], ['1', '2']], { mevcut: [] }).hata);
+
+  /* Arayüz akışı: aynı faaliyet iş yerinde zaten kayıtlı → mükerrer sayılır. */
+  const planTestEski = ISG.depo.planKaydet({
+    isyeriId: 'iy5', yil: PLAN_YILI, faaliyet: 'Temel iş sağlığı ve güvenliği eğitimi',
+    sorumlu: 'İGU', durum: 'takvimde', takipTarihi: PLAN_YILI + '-03-15', sira: 1
+  }).id;
+
+  ISG.uygulama.planTopluOnizle(planSatirlari, PLAN_YILI + '-yillik-plan.xlsx', 'iy5');
+  await bekle(140);
+  const planDiyalog = doc.getElementById('planTopluDiyalog');
+  const planDurum = () => ISG.uygulama.planTopluDurum();
+  kontrol('Plan ön izleme diyaloğu açıldı', planDiyalog.open === true && !!planDurum());
+  kontrol('Plan iş yeri seçici altı iş yerini getiriyor',
+    doc.querySelectorAll('#planTopluIsyeri option').length === 6 &&
+    doc.getElementById('planTopluIsyeri').value === 'iy5',
+    String(doc.querySelectorAll('#planTopluIsyeri option').length));
+  kontrol('Plan yılı alanı dosyadan gelen yılı gösteriyor',
+    doc.getElementById('planTopluYil').value === String(PLAN_YILI),
+    doc.getElementById('planTopluYil').value);
+  kontrol('Plan özeti beş sayım kutusu basıyor',
+    doc.querySelectorAll('#planTopluOzet .toplu-sayi').length === 5,
+    String(doc.querySelectorAll('#planTopluOzet .toplu-sayi').length));
+  kontrol('Kayıtlı faaliyet mükerrer sayıldı, kalanlar listelendi',
+    planDurum().analiz.ozet.mukerrer === 2 && planDurum().analiz.ozet.hazir === 3,
+    JSON.stringify(planDurum().analiz.ozet));
+  kontrol('Dosya adı, iş yeri ve yıl ön izlemede yazıyor',
+    new RegExp(PLAN_YILI + '-yillik-plan\\.xlsx').test(metin('#planTopluDosya')) &&
+    /ASKİ-1/.test(metin('#planTopluDosya')) && /2031/.test(metin('#planTopluDosya')),
+    metin('#planTopluDosya'));
+  kontrol('Satır bazlı gerekçeler ve ay işaretleri görünüyor',
+    /Mükerrer/.test(metin('#planTopluOnizleme')) && /Oca, Nis/.test(metin('#planTopluOnizleme')) &&
+    /Çalışma Konusu sütunu boş/.test(metin('#planTopluOnizleme')), metin('#planTopluOnizleme').slice(0, 200));
+  kontrol('Onay düğmesi etkin ve kayıt metni taşıyor',
+    doc.getElementById('planTopluKaydet').disabled === false &&
+    /Kaydedilecekleri ekle/.test(doc.getElementById('planTopluKaydet').textContent));
+  const planYuklemedenOnce = ISG.depo.al().planlar.length;
+  kontrol('Onay öncesi hiçbir plan kaydı yazılmadı', planYuklemedenOnce === planOnce + 1,
+    String(planYuklemedenOnce));
+
+  /* İş yeri değişince mükerrer denetimi o iş yerine göre yeniden koşar. */
+  doc.getElementById('planTopluIsyeri').value = 'iy6';
+  doc.getElementById('planTopluIsyeri').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(90);
+  kontrol('Başka iş yerinde mükerrer sayılmıyor (iş yeri izolasyonu)',
+    planDurum().analiz.ozet.hazir === 4 && planDurum().analiz.ozet.mukerrer === 1,
+    JSON.stringify(planDurum().analiz.ozet));
+  doc.getElementById('planTopluIsyeri').value = 'iy5';
+  doc.getElementById('planTopluIsyeri').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(90);
+
+  /* Yıl değişince aynı dosya başka yılın kayıtlarıyla karşılaştırılır. */
+  doc.getElementById('planTopluYil').value = String(PLAN_YILI + 1);
+  doc.getElementById('planTopluYil').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(90);
+  kontrol('Başka yıl seçilince mükerrer denetimi tazeleniyor',
+    planDurum().analiz.ozet.hazir === 4 && planDurum().yil === PLAN_YILI + 1,
+    JSON.stringify(planDurum().analiz.ozet) + ' / ' + planDurum().yil);
+  doc.getElementById('planTopluYil').value = String(PLAN_YILI);
+  doc.getElementById('planTopluYil').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(90);
+  kontrol('Yıl geri alıninca sayımlar eski değerine döndü',
+    planDurum().analiz.ozet.hazir === 3 && planDurum().analiz.ozet.mukerrer === 2,
+    JSON.stringify(planDurum().analiz.ozet));
+
+  /* Onay: yalnızca burada ve yalnızca hedef işyerine yazılır. */
+  doc.getElementById('planTopluForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(240);
+  const planYeni = ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy5' && ISG.planYil(p) === PLAN_YILI);
+  kontrol('Yalnızca geçerli satırlar kaydedildi',
+    ISG.depo.al().planlar.length === planYuklemedenOnce + 3 && planYeni.length === 4,
+    ISG.depo.al().planlar.length + ' / ' + planYeni.length);
+  kontrol('Mükerrer, örnek ve hatalı satırlar kaydedilmedi',
+    planYeni.filter((p) => p.faaliyet === 'Temel iş sağlığı ve güvenliği eğitimi').length === 1 &&
+    !planYeni.some((p) => p.aciklama === 'Dosyadaki tekrar') &&
+    !planYeni.some((p) => /^Örnek: /.test(p.faaliyet)));
+  kontrol('Plan kaydı alanları doğru dolduruldu', (function () {
+    const ekipman = planYeni.filter((p) => p.faaliyet === 'Acil durum ekipmanı kontrolü')[0] || {};
+    const tatbikat = planYeni.filter((p) => p.faaliyet === 'Yangın ve tahliye tatbikatı')[0] || {};
+    return JSON.stringify(ekipman.aylar) === '[1,4]' && ekipman.anaBaslik === 'Acil Durumlar' &&
+      ekipman.sorumlu === 'Bakım Sorumlusu' && ekipman.durum === 'takvimde' && ekipman.kaynak === 'Excel' &&
+      ekipman.yil === PLAN_YILI && tatbikat.siraExcel === '1.2' && ISG.planAylari(tatbikat).join() === '7';
+  })(), JSON.stringify(planYeni.map((p) => [p.faaliyet, p.aylar, p.anaBaslik])));
+  kontrol('Diğer iş yerlerinin planlarına dokunulmadı',
+    ISG.depo.al().planlar.filter((p) => p.isyeriId !== 'iy5').length === planOnce - iy5PlanOnce,
+    String(ISG.depo.al().planlar.filter((p) => p.isyeriId !== 'iy5').length));
+  kontrol('ASKİ-1 mevcut planları korundu, yenileri eklendi',
+    ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy5').length === iy5PlanOnce + 4,
+    String(ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy5').length));
+  kontrol('Kayıt kalıcı yazıma geçti',
+    JSON.parse(window.localStorage.getItem(ISG.depo.anahtar)).planlar.some((p) => p.yil === PLAN_YILI &&
+      p.faaliyet === 'İlk yardım eğitimi yenileme'));
+  kontrol('Onay sonrası diyalog kapandı ve durum temizlendi',
+    planDiyalog.open === false && ISG.uygulama.planTopluDurum() === null);
+  kontrol('Kapsam ve yıl yüklenen plana çevrildi',
+    ISG.ui.kapsam === 'iy5' && String(ISG.ui.planYili) === String(PLAN_YILI),
+    ISG.ui.kapsam + ' / ' + ISG.ui.planYili);
+  kontrol('Yüklenen faaliyetler tabloda listeleniyor',
+    /Acil durum ekipmanı kontrolü/.test(metin('#gorunum')) && /Eğitimler/.test(metin('#gorunum')));
+  kontrol('Denetim izinde plan toplu yükleme kaydı var',
+    ISG.yetki.denetimListe().some((k) => k.islem === 'planTopluEkle'));
+
+  /* Aynı dosya yeniden yüklenirse tek kayıt bile eklenmez; onay düğmesi kapanır. */
+  ISG.uygulama.planTopluOnizle(planSatirlari, PLAN_YILI + '-yillik-plan.xlsx', 'iy5');
+  await bekle(120);
+  const planTekrar = planDurum();
+  kontrol('Tekrar yüklemede kaydedilecek satır kalmıyor',
+    !!planTekrar && planTekrar.analiz.ozet.hazir === 0 && planTekrar.analiz.ozet.mukerrer === 5,
+    planTekrar ? JSON.stringify(planTekrar.analiz.ozet) : '-');
+  kontrol('Onay düğmesi kaydedilecek satır kalmayınca kapanıyor',
+    doc.getElementById('planTopluKaydet').disabled === true);
+  const planTekrarOnce = ISG.depo.al().planlar.length;
+  doc.getElementById('planTopluKaydet').click();
+  await bekle(120);
+  kontrol('Satır kalmayan ön izleme kayıt yapmıyor',
+    ISG.depo.al().planlar.length === planTekrarOnce && planDiyalog.open === true,
+    String(ISG.depo.al().planlar.length));
+
+  /* Gerçek dosya seçme kutusu: Kılavuz sayfası atlanır, plan sayfası okunur. */
+  const planAy = (n) => { const r = new Array(12).fill(''); r[n - 1] = 'X'; return r; };
+  const planGirisSayfalar = [{
+    ad: 'Yıllık Çalışma Planı',
+    basliklar: PLAN_BASLIK.slice(),
+    satirlar: [
+      ['1.1', 'Eğitimler', 'Yüksekte çalışma eğitimi', 'İGU', '2032 yılı bakım planı'].concat(planAy(5)),
+      ['2.1', 'Acil Durumlar', 'İş ekipmanı periyodik muayenesi', 'Bakım Sorumlusu', '2032 yılı planı'].concat(planAy(9)),
+      ['3.1', 'Eğitimler', 'İtfaiye ile ortak tatbikat', 'İGU, Birim Sorumluları', '2032 yılı planı'].concat(planAy(11))
+    ]
+  }, {
+    ad: 'Kılavuz',
+    basliklar: ['Sütun / konu', 'Zorunluluk', 'Biçim ve kural'],
+    satirlar: [['Çalışma Konusu', 'Zorunlu', 'Boş olan satır kaydedilmez'],
+      ['Mükerrer', 'Kural', 'Aynı iş yerinde aynı konu ve sorumlu tekrar kaydedilmez']]
+  }];
+  const planGirisDosyasi = new window.File([ISG.excel.xlsxYaz(planGirisSayfalar)],
+    '2032-Yillik-Calisma-Plani.xlsx',
+    { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const planKutusu = doc.getElementById('planDosyaGirdi');
+  Object.defineProperty(planKutusu, 'files', { configurable: true, value: [planGirisDosyasi] });
+  planKutusu.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(420);
+  const planGirisDurum = planDurum();
+  kontrol('Dosya seçilince plan ön izlemesi kendiliğinden açıldı',
+    planDiyalog.open === true && !!planGirisDurum, planDiyalog.open + ' / ' + !!planGirisDurum);
+  kontrol('Seçilen Excel dosyasının adı ön izlemede yazıyor',
+    /2032-Yillik-Calisma-Plani\.xlsx/.test(metin('#planTopluDosya')), metin('#planTopluDosya'));
+  kontrol('Kılavuz sayfası yok sayılıp plan sayfası okundu',
+    !!planGirisDurum && planGirisDurum.analiz.ozet.dosyaSatir === 3 && planGirisDurum.analiz.ozet.hazir === 3,
+    planGirisDurum ? JSON.stringify(planGirisDurum.analiz.ozet) : '-');
+  kontrol('Plan yılı dosyadan okunup yıl alanına yazıldı',
+    !!planGirisDurum && planGirisDurum.yil === 2032 &&
+    doc.getElementById('planTopluYil').value === '2032',
+    (planGirisDurum && planGirisDurum.yil) + ' / ' + doc.getElementById('planTopluYil').value);
+  kontrol('Okunan dosya girişi temiz bırakıldı', planKutusu.value === '', String(planKutusu.value));
+  delete planKutusu.files;
+  const planGirisOnce = ISG.depo.al().planlar.length;
+  doc.getElementById('planTopluKaydet').click();
+  await bekle(220);
+  kontrol('Dosya seçme akışı da yalnızca onaydan sonra yazıyor',
+    ISG.depo.al().planlar.length === planGirisOnce + 3 &&
+    ISG.depo.al().planlar.filter((p) => p.yil === 2032).length === 3,
+    String(ISG.depo.al().planlar.filter((p) => p.yil === 2032).length));
+
+  /* Vazgeçilen ön izleme bellekte tutulmaz. */
+  ISG.uygulama.planTopluOnizle(planSatirlari, 'vazgecilen.xlsx', 'iy5');
+  await bekle(120);
+  doc.querySelector('#planTopluDiyalog [data-kapat]').click();
+  await bekle(90);
+  kontrol('Vazgeçilen plan ön izlemesi kapandı ve durumu silindi',
+    planDiyalog.open === false && ISG.uygulama.planTopluDurum() === null);
+
+  /* Excel'e aktar: indirilen dosya aynı modülle geri okunabilir (round-trip). */
+  ISG.ui.planYili = String(PLAN_YILI);
+  ISG.uygulama.ciz();
+  await bekle(140);
+  const planAktarim = [];
+  const gercekPlanAktarim = ISG.bicim.dosyaIndirBayt;
+  ISG.bicim.dosyaIndirBayt = function (dosyaAdi, baytlar, tip) {
+    planAktarim.push({ ad: dosyaAdi, baytlar: baytlar, tip: tip });
+  };
+  try {
+    doc.querySelector('[data-islem="plan-excel"]').click();
+    await bekle(140);
+  } finally {
+    ISG.bicim.dosyaIndirBayt = gercekPlanAktarim;
+  }
+  kontrol('"Excel\'e aktar" XLSX dosyası indiriyor', planAktarim.length === 1 &&
+    /^yillik-calisma-plani-\d{8}\.xlsx$/.test(planAktarim[0].ad) &&
+    planAktarim[0].baytlar[0] === 0x50 && planAktarim[0].baytlar[1] === 0x4B,
+    JSON.stringify(planAktarim.map((d) => d.ad)));
+  const planGeriSayfalar = await ISG.excel.oku(planAktarim[0].baytlar);
+  const planGeri = Plan.analizEt(planGeriSayfalar[0].satirlar, { isyeriId: 'iy5', yil: PLAN_YILI, mevcut: [] });
+  kontrol('İndirilen plan dosyası geri yüklenince aynı faaliyetleri veriyor',
+    planGeri.ozet.hazir === 4 && planGeri.ozet.mukerrer === 0 &&
+    /Acil durum ekipmanı kontrolü/.test(JSON.stringify(Plan.uygulanacaklar(planGeri))),
+    JSON.stringify(planGeri.ozet));
+
+  /* Tablo seçimi: tek satır, "Tümünü seç" ve seçinin silme düğmesi. */
+  const planKutulari = () => Array.from(doc.querySelectorAll('[data-plan-sec]'));
+  kontrol('Plan tablosu seçim kutularıyla çizildi', planKutulari().length === 4, String(planKutulari().length));
+  planKutulari()[0].checked = true;
+  planKutulari()[0].dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(130);
+  kontrol('Seçim sayısı yazılıyor, "Seçilenleri sil" açılıyor',
+    /1 kayıt seçili/.test(metin('.plan-secim-cubugu')) &&
+    doc.querySelector('[data-islem="plan-sec-sil"]').disabled === false, metin('.plan-secim-cubugu'));
+  doc.querySelector('[data-plan-sec-tumu]').checked = true;
+  doc.querySelector('[data-plan-sec-tumu]').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(130);
+  kontrol('"Tümünü seç" görünen dört faaliyetin tamamını seçti',
+    ISG.ui.planSecim && Object.keys(ISG.ui.planSecim).length === 4 &&
+    /4 kayıt seçili/.test(metin('.plan-secim-cubugu')), JSON.stringify(ISG.ui.planSecim));
+  doc.querySelector('[data-plan-sec-tumu]').checked = false;
+  doc.querySelector('[data-plan-sec-tumu]').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(130);
+  kontrol('Seçim kalkınca düğme yeniden kapanıyor',
+    ISG.ui.planSecim && Object.keys(ISG.ui.planSecim).length === 0 &&
+    doc.querySelector('[data-islem="plan-sec-sil"]').disabled === true, JSON.stringify(ISG.ui.planSecim));
+
+  /* Toplu silme diyaloğu: yalnızca seçili iş yeri + yıl, açık onayla. */
+  doc.querySelector('[data-islem="plan-toplu-sil"]').click();
+  await bekle(150);
+  const planSilDiyalog = doc.getElementById('planTopluSilDiyalog');
+  const planSilDurum = () => ISG.uygulama.planTopluSilDurum();
+  kontrol('Toplu silme diyaloğu açıldı, iş yeri ve yıl geldi',
+    planSilDiyalog.open === true && doc.getElementById('planSilIsyeri').value === 'iy5' &&
+    doc.getElementById('planSilYil').value === String(PLAN_YILI) && !!planSilDurum(),
+    doc.getElementById('planSilIsyeri').value + ' / ' + doc.getElementById('planSilYil').value);
+  const planKalanBeklenen = iy5PlanOnce + 3; // 2032 yüklemesi kalır, 2031 silinir
+  kontrol('Silme kapsamı ve kalan kayıt sayısı yazılıyor',
+    new RegExp(PLAN_YILI + ' yılındaki 4 kayıt silinecek').test(metin('#planSilOzet')) &&
+    metin('#planSilOzet').indexOf('kalan: ' + planKalanBeklenen + ' kayıt') > -1, metin('#planSilOzet'));
+  kontrol('Tablo seçimi yoksa "seçtiklerim" seçeneği kapalı',
+    doc.getElementById('planSilKapsamSecilen').disabled === true &&
+    doc.getElementById('planSilKapsamYil').checked === true);
+  kontrol('Onay işaretlenmeden silme düğmesi kapalı', doc.getElementById('planSilOnayla').disabled === true);
+  const planSilOnce = ISG.depo.al().planlar.length;
+  doc.getElementById('planSilOnay').checked = true;
+  doc.getElementById('planSilOnay').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(90);
+  kontrol('Onay işareti silme düğmesini açıyor', doc.getElementById('planSilOnayla').disabled === false);
+  doc.getElementById('planTopluSilForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(220);
+  const planSilSonra = ISG.depo.al().planlar;
+  kontrol('Yalnızca seçili iş yerinin seçili yılı silindi',
+    planSilSonra.length === planSilOnce - 4 &&
+    planSilSonra.filter((p) => p.isyeriId === 'iy5' && ISG.planYil(p) === PLAN_YILI).length === 0 &&
+    planSilSonra.filter((p) => p.isyeriId === 'iy5').length === planKalanBeklenen,
+    [planSilOnce, planSilSonra.length, planKalanBeklenen,
+      planSilSonra.filter((p) => p.isyeriId === 'iy5').length,
+      planSilSonra.filter((p) => p.isyeriId === 'iy5' && ISG.planYil(p) === PLAN_YILI).length].join(' -> '));
+  kontrol('Başka yıllar ve iş yerleri korundu',
+    ISG.depo.al().planlar.filter((p) => p.yil === 2032).length === 3 &&
+    ISG.depo.al().planlar.filter((p) => p.isyeriId !== 'iy5').length === planOnce - iy5PlanOnce,
+    String(ISG.depo.al().planlar.filter((p) => p.yil === 2032).length));
+  kontrol('Silme sonrası diyalog kapandı, seçim ve durum temizlendi',
+    planSilDiyalog.open === false && planSilDurum() === null &&
+    Object.keys(ISG.ui.planSecim || {}).length === 0);
+  kontrol('Denetim izinde plan toplu silme kaydı var',
+    ISG.yetki.denetimListe().some((k) => k.islem === 'planTopluSil'));
+
+  /* "Seçilenleri sil": onay sonrası yalnızca işaretli kayıtlar silinir. */
+  ISG.ui.planYili = '2032';
+  ISG.uygulama.ciz();
+  await bekle(150);
+  const planKutulari2032 = Array.from(doc.querySelectorAll('[data-plan-sec]')).slice(0, 2)
+    .map((kutu) => kutu.getAttribute('data-plan-sec'));
+  kontrol('2032 yılına geçen plan listesi tabloda görünüyor',
+    doc.querySelectorAll('[data-plan-sec]').length === 3, String(doc.querySelectorAll('[data-plan-sec]').length));
+  /* Her seçim sonrası tablo yeniden çizildiği için kutular yeniden sorgulanır. */
+  planKutulari2032.forEach((planId) => {
+    const kutu = doc.querySelector('[data-plan-sec="' + planId + '"]');
+    if (!kutu) { return; }
+    kutu.checked = true;
+    kutu.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  await bekle(150);
+  doc.querySelector('[data-islem="plan-sec-sil"]').click();
+  await bekle(120);
+  kontrol('Seçilenleri silmeden önce onay isteniyor',
+    doc.getElementById('onayDiyalog').open === true && /2 kayıt/.test(metin('#onayMetin')), metin('#onayMetin'));
+  const planSecimSilOnce = ISG.depo.al().planlar.length;
+  doc.getElementById('onayEvet').click();
+  await bekle(220);
+  kontrol('Onaylanan seçim silindi, diğer yıl kayıtları kaldı',
+    ISG.depo.al().planlar.length === planSecimSilOnce - 2 &&
+    ISG.depo.al().planlar.filter((p) => p.yil === 2032).length === 1 &&
+    Object.keys(ISG.ui.planSecim || {}).length === 0,
+    String(ISG.depo.al().planlar.filter((p) => p.yil === 2032).length));
+
+  /* Depo katmanı korumaları: işyeri ve kapsam zorunlu, izolasyon garanti. */
+  let silmeIsyeriHata = '';
+  try { ISG.depo.planTopluSil({ yil: PLAN_YILI }); } catch (e) { silmeIsyeriHata = e.message; }
+  kontrol('İşyeri belirtilmeden toplu silme reddediliyor', /işyeri seçilmedi/.test(silmeIsyeriHata), silmeIsyeriHata);
+  let silmeKapsamHata = '';
+  try { ISG.depo.planTopluSil({ isyeriId: 'iy1' }); } catch (e) { silmeKapsamHata = e.message; }
+  kontrol('Kapsamı belirsiz toplu silme reddediliyor', /belirlenmedi/.test(silmeKapsamHata), silmeKapsamHata);
+  const iy1PlanOnce = ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy1').length;
+  const bosSilme = ISG.depo.planTopluSil({ isyeriId: 'iy1', yil: 2099 });
+  kontrol('Kaydı olmayan yıl için silme 0 döner ve veriye dokunmaz',
+    bosSilme.silinen === 0 && bosSilme.kalan === iy1PlanOnce &&
+    ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy1').length === iy1PlanOnce,
+    JSON.stringify(bosSilme));
+
+  /* Test kayıtları geri alınır; sonraki bölümler demo verisiyle devam eder. */
+  ISG.depo.al().planlar.filter((p) => p.yil === 2032 || p.yil === PLAN_YILI)
+    .forEach((p) => ISG.depo.planSil(p.id));
+  ISG.ui.kapsam = '';
+  ISG.ui.planYili = 'tumu';
+  ISG.ui.planSecim = {};
+  ISG.uygulama.ciz();
+  await bekle(150);
+  kontrol('Plan test kayıtları temizlendi, sayılar geri döndü',
+    ISG.depo.al().planlar.length === planOnce, String(ISG.depo.al().planlar.length));
+
+
+
+
+
+
+
+
 
   console.log('\n12d) Şifre sıfırlama kodu');
   const sifirlama = await ISG.giris.kodGonder('mehmetkurt0948@gmail.com');
@@ -1120,9 +1856,12 @@ function bekle(ms) {
   const kullanimlar = Array.from(doc.querySelectorAll('use[href]')).map((u) => u.getAttribute('href'));
   const eksikIkon = kullanimlar.filter((h) => !doc.querySelector(h));
   kontrol('SVG ikon referansları geçerli', eksikIkon.length === 0, eksikIkon.slice(0, 3).join(', '));
-  kontrol('Diyalog sayısı 16', doc.querySelectorAll('dialog').length === 16, String(doc.querySelectorAll('dialog').length));
+  kontrol('Diyalog sayısı 19', doc.querySelectorAll('dialog').length === 19, String(doc.querySelectorAll('dialog').length));
   kontrol('Hazır kontrol listesi diyaloğu var', !!doc.getElementById('listeDiyalog'));
   kontrol('Hazır listeyi silme diyaloğu var', !!doc.getElementById('listeGeriAlDiyalog'));
+  kontrol('Toplu personel yükleme diyaloğu var', !!doc.getElementById('personelTopluDiyalog'));
+  kontrol('Plan toplu yükleme ve toplu silme diyalogları var',
+    !!doc.getElementById('planTopluDiyalog') && !!doc.getElementById('planTopluSilDiyalog'));
 
   kontrol('Bulut diyaloğu var', !!doc.getElementById('bulutDiyalog'));
   kontrol('Bulut başlık düğmesi var', doc.querySelectorAll('[data-islem="bulut-ayar"]').length === 1,

@@ -1091,6 +1091,26 @@
     return silinenler.length;
   };
 
+  /* Toplu personel yükleme: verilen kayıtları TEK işyerine, tek kalıcı yazımda
+     ekler. Mevcut personel kayıtları hiçbir şekilde güncellenmez ya da silinmez;
+     mükerrer ayıklama çağrıdan önce ISG.personelToplu.analizEt ile yapılır.
+     Kayıt bazlı eşitleme damgası kaydet() içinde üretildiği için bulut senkronu
+     bozulmaz. `isyeriId` yetki denetimi için ilk argümandır (bkz. yetki.js). */
+  ISG.depo.personelTopluEkle = function (isyeriId, kayitlar) {
+    var veri = depo.al();
+    if (!isyeriId) { throw new Error('Kayıt yapılacak işyeri seçilmedi.'); }
+    var idler = [];
+    (kayitlar || []).forEach(function (kayit) {
+      if (!kayit || !kayit.adSoyad) { return; }
+      kayit.isyeriId = isyeriId;
+      kayit.sicil = String(kayit.sicil || '');
+      kayit.durum = kayit.durum === 'pasif' ? 'pasif' : 'aktif';
+      idler.push(kaydetListede(veri.personel, kayit, 'p').id);
+    });
+    depo.kaydet();
+    return { eklenen: idler.length, idler: idler, isyeriId: isyeriId };
+  };
+
   ISG.depo.egitimKaydet = function (kayit) {
     var veri = depo.al();
     var kisi = veri.personel.filter(function (p) { return p.id === kayit.personelId; })[0];
@@ -1362,6 +1382,110 @@
     });
     depo.kaydet();
   };
+
+  /* ---------- Yıllık çalışma planı: yıl, ay ve ana başlık türetmeleri ----------
+     Eski kayıtlarda yil / aylar / anaBaslik alanları yoktur. Kayıtlar zorla
+     değiştirilmez; değerler takip tarihinden ve ay alanından türetilir. */
+
+  ISG.planYil = function (plan) {
+    var dogrudan = Number(plan && plan.yil);
+    if (dogrudan >= 1990) { return dogrudan; }
+    var takip = String((plan && plan.takipTarihi) || '');
+    var yil = Number(takip.slice(0, 4));
+    return yil >= 1990 ? yil : 0;
+  };
+
+  ISG.planAylari = function (plan) {
+    var liste = plan && Array.isArray(plan.aylar) ? plan.aylar : [];
+    var temiz = [];
+    liste.forEach(function (ay) {
+      var deger = Number(ay);
+      if (deger >= 1 && deger <= 12 && temiz.indexOf(deger) < 0) { temiz.push(deger); }
+    });
+    if (!temiz.length && plan && Number(plan.ay) >= 1 && Number(plan.ay) <= 12) { temiz.push(Number(plan.ay)); }
+    return temiz.sort(function (a, b) { return a - b; });
+  };
+
+  ISG.planAnaBaslik = function (plan) {
+    var ad = String((plan && plan.anaBaslik) || '').trim();
+    return ad || 'Diğer faaliyetler';
+  };
+
+  /* İş yerinde kayıtlı plan yılları (büyükten küçüğe); yılı bilinmeyenler 0 ile gelir. */
+  ISG.planYillari = function (hesap, isyeriId) {
+    var planlar = ISG.kapsamda(hesap, isyeriId, 'planlar');
+    var yillar = [];
+    planlar.forEach(function (plan) {
+      var yil = ISG.planYil(plan);
+      if (yil && yillar.indexOf(yil) < 0) { yillar.push(yil); }
+    });
+    return yillar.sort(function (a, b) { return b - a; });
+  };
+
+  /* Toplu plan yükleme: kayıtlar TEK işyerine ve tek kalıcı yazımda eklenir.
+     Mevcut plan kayıtları güncellenmez ya da silinmez; mükerrer ayıklama
+     ISG.planToplu.analizEt ile çağrıdan önce yapılır. `isyeriId` hem kayıt
+     izolasyonu hem yetki denetimi için ilk argümandır (bkz. yetki.js). */
+  ISG.depo.planTopluEkle = function (isyeriId, kayitlar) {
+    var veri = depo.al();
+    if (!isyeriId) { throw new Error('Kayıt yapılacak işyeri seçilmedi.'); }
+    var mevcutSayi = (veri.planlar || []).filter(function (plan) { return plan.isyeriId === isyeriId; }).length;
+    var idler = [];
+    (kayitlar || []).forEach(function (kayit, sira) {
+      if (!kayit || !kayit.faaliyet) { return; }
+      kayit.isyeriId = isyeriId;
+      kayit.sira = Number(kayit.sira) || (mevcutSayi + sira + 1);
+      kayit.yil = Number(kayit.yil) || 0;
+      kayit.aylar = ISG.planAylari(kayit);
+      kayit.ay = Number(kayit.ay) || kayit.aylar[0] || 0;
+      kayit.gun = Number(kayit.gun) || 0;
+      kayit.sorumlu = String(kayit.sorumlu || '');
+      kayit.aciklama = String(kayit.aciklama || '');
+      kayit.anaBaslik = String(kayit.anaBaslik || '');
+      kayit.durum = kayit.durum || 'takvimde';
+      kayit.takipTarihi = kayit.takipTarihi || '';
+      idler.push(kaydetListede(veri.planlar, kayit, 'pl').id);
+    });
+    depo.kaydet();
+    return { eklenen: idler.length, idler: idler, isyeriId: isyeriId };
+  };
+
+  /* Toplu plan silme: iş yeri filtresi ZORUNLU. `yil` verilirse yalnızca o yıl,
+     `idler` verilirse yalnızca seçilen kayıtlar silinir; ikisi birlikte verilirse
+     kesişim silinir. Başka iş yerlerinin kayıtlarına hiçbir koşulda dokunulmaz. */
+  ISG.depo.planTopluSil = function (filtre) {
+    var secim = filtre || {};
+    if (!secim.isyeriId) { throw new Error('Toplu silme için işyeri seçilmedi.'); }
+    var yil = Number(secim.yil) || 0;
+    var idler = Array.isArray(secim.idler) ? secim.idler : [];
+    if (!yil && !idler.length) {
+      throw new Error('Silme kapsamı belirlenmedi: yıl veya kayıt seçimi gerekli.');
+    }
+    var secili = {};
+    idler.forEach(function (id) { secili[String(id)] = true; });
+    var veri = depo.al();
+    var hedefler = [];
+    (veri.planlar || []).forEach(function (plan) {
+      if (plan.isyeriId !== secim.isyeriId) { return; }
+      if (yil && ISG.planYil(plan) !== yil) { return; }
+      if (idler.length && !secili[String(plan.id)]) { return; }
+      hedefler.push(String(plan.id));
+    });
+    if (hedefler.length) {
+      var silinecek = {};
+      hedefler.forEach(function (id) { silinecek[id] = true; });
+      veri.planlar = (veri.planlar || []).filter(function (plan) { return !silinecek[String(plan.id)]; });
+      depo.kaydet();
+    }
+    return {
+      silinen: hedefler.length,
+      isyeriId: secim.isyeriId,
+      yil: yil,
+      idler: hedefler,
+      kalan: (veri.planlar || []).filter(function (plan) { return plan.isyeriId === secim.isyeriId; }).length
+    };
+  };
+
 
   ISG.depo.tespitKaydet = function (kayit) {
     var veri = depo.al();

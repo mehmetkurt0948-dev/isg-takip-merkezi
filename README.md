@@ -23,7 +23,7 @@ kayıt tabloları.
 | **İşyerleri** | Kurum şeridi (ana kurum, ad değiştir, tüm verileri sil), işyeri kartları (tehlike sınıfı, çalışan ve kontrol maddesi sayısı), işyeri CRUD |
 | **Personel listesi** | İşyeri bazında bloklar, sicil/TC/meslek/departman/şube/kıdem/telefon/cinsiyet kolonları, arama, detay açma, eğitim kayıtları, gerçek **XLSX şablonu** ve XLSX/CSV içe-dışa aktarma, "listeyi temizle" |
 | **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma, **belge eki yükle / görüntüle / indir / kaldır** (belge başına ≤ 1 MB, `localStorage`) |
-| **Çalışma planı** | İlk yardımcı ihtiyaç/mevcut karşılaştırması, yıllık plan kartları, plan kalemi CRUD, tamamlandı işaretleme, plan KPI'ları |
+| **Çalışma planı** | İlk yardımcı ihtiyaç/mevcut karşılaştırması, yıllık plan kartları, plan kalemi CRUD, tamamlandı işaretleme, plan KPI'ları, **yıl filtresi**, **hazır Excel şablonu indir**, **Excel/CSV toplu yükleme (ön izleme + onay)**, **Excel'e aktar**, satır seçip **toplu silme** |
 | **Saha ve DÖF** | Açık/geciken/doğrulama/kapatılan tespitler, öncelik-tür filtreleri, kapatma akışı, **iş kazası ve meslek hastalığı kayıt tablosu** (personel + sicil/departman, tanı bölgesi/türü, SGK hastalık grubu, etken, kök neden sınıfı ve açıklaması, kayıp gün, sağlık kuruluşu) ve CSV çıktısı, ramak kala ve diğer olay bildirimleri |
 | **Yönetim raporu** | Tarih aralığı, açık/geciken iş, doğrulama bekleyen, dönemde tamamlanan, işyeri bazında karşılaştırma tablosu, Excel (CSV) çıktısı |
 | **İstatistikler** | On iki özet KPI, **iş kazası / meslek hastalığı veri girişi ve ortak kayıt listesi** (tarihe göre sıralı; satırdan düzenle / kapat / sil, kapsam işyeriyle "Kaza bildir" ve "Meslek hastalığı bildir") ve iş kazası analizi: **aylık kaza sıklığı (sütun grafik)**, **KSO / KAO / KSH oranları ve 12 aylık oran tablosu**, **kök neden dağılımı**, **neden × vücut bölgesi ısı matrisi**, yaralanma bölgesi/türü, **şiddet sınıfı (SGK)**, **vardiya**, **haftanın günü**, işyeri, departman, kıdem ve iş günü kaybı dağılımları, en çok kazaya uğrayan personel; personel, eğitim, DÖF, risk ve belge dağılımları; kapsam filtresi |
@@ -213,7 +213,7 @@ ve "Öncelikli işler" sayısı bu dağılımdan hesaplanır.
 
 ```text
 isg-takip-merkezi/
-├─ index.html                 # iskelet, SVG ikon sprite, 14 <dialog> formu
+├─ index.html                 # iskelet, SVG ikon sprite, 19 <dialog> formu
 ├─ 404.html                   # Pages için "sayfa bulunamadı" ekranı
 ├─ manifest.webmanifest       # PWA kimliği, tema rengi, simgeler
 ├─ .nojekyll                  # GitHub Pages Jekyll işlemesini kapatır
@@ -231,6 +231,7 @@ isg-takip-merkezi/
 │     ├─ bicim.js             # tarih/rozet/CSV/sayfalama yardımcıları
 │     ├─ yetki.js             # oturum, roller, işyeri kapsamı, onay kuyruğu
 │     ├─ excel.js             # bağımlılıksız XLSX yazıcı/okuyucu (ZIP + OpenXML)
+│     ├─ plan-toplu.js        # yıllık çalışma planı: şablon üretimi, Excel/CSV ayrıştırma, toplu kayıt/silme, XLSX çıktısı
 │     ├─ bulut.js             # isteğe bağlı Supabase eşitleme katmanı (REST)
 │     ├─ sayfalar.js          # Genel bakış, İşyerleri, Personel
 │     ├─ sayfalar-kayit.js    # Dosya kontrolleri, Çalışma planı, Saha/DÖF
@@ -238,7 +239,7 @@ isg-takip-merkezi/
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (500 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (645 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (27 kontrol)
 │  ├─ kontrol-listesi.js      # Word (.docx) / Excel (.xlsx) kontrol listesini hazır şablona çevirir
 │  ├─ kontrol-listesi-kaynaklari.json  # Excel dosya adı → işyeri kodu/ad eşleşmesi (toplu dönüşüm)
@@ -264,7 +265,8 @@ doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
   egitimler: [{ id, personelId, isyeriId, tur, tarih, sureSaat, egitmen, gecerlilik }],
   dosyalar:  [{ id, isyeriId, no, bolum, madde, durum, sorumlu, yenileme, kontrolTarihi, aciklama }],
   belgeler:  [{ id, kaynak, kaynakId, dosyaId?, isyeriId, ad, boyut, tur, tarih, icerik }],
-  planlar:   [{ id, isyeriId, sira, ay, gun, faaliyet, sorumlu, takipTarihi, durum, aciklama }],
+  planlar:   [{ id, isyeriId, yil, sira, siraExcel, anaBaslik, faaliyet, sorumlu, aciklama,
+                aylar: [1..12], ay, gun, durum, takipTarihi, kaynak, kaynakSatir }],
   tespitler: [{ id, isyeriId, tespit, konum, sorumlu, oncelik, tur, termin, durum, dogrulama, not }],
   riskler:   [{ id, isyeriId, tehlike, alan, olasilik, siddet, onlem, sorumlu, termin, durum }],
   olaylar:   [{ id, isyeriId, tur, tarih, yer, personelId, aciklama, kokNeden, durum,
@@ -366,7 +368,7 @@ Test:
 
 ```powershell
 npm install
-npm test                     # 471 kontrol + belge testi (27 kontrol), başarısızda çıkış kodu 1
+npm test                     # 645 kontrol + belge testi (27 kontrol), başarısızda çıkış kodu 1
 npm run test:belge           # yalnızca belge eki testi (27 kontrol)
 ```
 
@@ -375,7 +377,9 @@ dolaşımı, mezar taşı üretimi, `ornekYukle()` ve düğme akışı), **giri�
 **rol ve işyeri kapsamı**,
 **onay kuyruğu ve denetim izi**, iş kuralları, kapsam filtresi, personel CRUD,
 eğitim geçerliliği, dosya filtreleri ve sayfalama, DÖF oluşturma, plan
-tamamlama, saha, risk/acil kayıtları ve belge ekleri, istatistikler, rapor,
+tamamlama, **yıllık plan şablonu / Excel toplu yükleme / seçimle ve yıl bazında
+toplu silme / XLSX gidiş-dönüşü**, saha, risk/acil kayıtları ve belge ekleri,
+istatistikler, rapor,
 davet, mevzuat, şifre sıfırlama kodu, bulut eşitleme (ayar doğrulama, gönderim,
 indirme, çevrimdışı hata, bağlantı kesme), yapısal
 kontroller (tekrarlanan id, SVG referansı, göreli yollar), JSON yedekleme,
@@ -485,7 +489,7 @@ varsa çıkış kodu 1'dir; panoda “yayınladım” demekle yetinilmez. Aynı 
 `.github/workflows/kontrol.yml` içinde her `main` push'undan sonra çalışır ve
 Pages yeni sürümü servis etmezse derlemeyi kırmızıya çevirir.
 
-## 6.4. İşyeri kontrol listesini uygulamaya ekleme (Word / Excel)
+## 6.3. İşyeri kontrol listesini uygulamaya ekleme (Word / Excel)
 
 İşyerleri için iki kaynak paylaşılıyor: Word dosya kontrol listesi
 (ABB-OSGB-KL-001 şablonu) ve Excel **"İSG DOSYA KONTROL CHECKLİSTİ"**. İkisi de
@@ -542,6 +546,70 @@ otomatik önerir; birden fazla liste uygunsa (ör. kadrolu / daire) önizlemede
 Yeni bir işyeri listesi geldiğinde tek gereken, komutu yeni bir `KOD` ile
 çalıştırmaktır: `tools/kontrol-listeleri/*.json` dosyalarının tamamı
 `assets/js/kontrol-listeleri.js` içine yeniden yazılır.
+
+## 6.4. Yıllık çalışma planını Excel'den yüklemek (şablon → ön izleme → onay)
+
+Çalışma planı ekranının başlık şeridinde **Örnek Excel şablonunu indir**,
+**Excel'den toplu yükle**, **Excel'e aktar**, **Toplu sil** ve **Plan faaliyeti
+ekle** düğmeleri; tablonun üstündeki seçim çubuğunda **Tümünü seç**,
+**Seçilenleri sil** ve **CSV indir** düğmeleri bulunur. **Plan yılı** kutusu hem
+listeyi hem de yüklemenin işleneceği yılı belirler.
+
+```powershell
+# 1) Ekrandan "Örnek Excel şablonunu indir" → Yillik-Calisma-Plani-Sablonu.xlsx
+# 2) "Yıllık Çalışma Planı" sayfasını doldur (Kılavuz sekmesi okunmaz)
+# 3) "Excel'den toplu yükle" → dosyayı seç → ön izleme → "Kaydedilecekleri ekle"
+```
+
+**Sütunlar (17):** `Sıra No | Ana Başlık | Çalışma Konusu | Sorumlu | Açıklama |
+Ocak … Aralık`. Başlık eşleşmesi Türkçe duyarlıdır ve eşanlamlıları da kabul
+eder (`Faaliyet/Konu/Yapılacak İş`, `Bölüm/Kategori/Grup`, `Notlar`,
+`Sorumlu Birim` …). Ay grubu iki satırlıysa (`AYLAR` üstünde, `1…12` altında)
+iki satır birlikte okunur. Dosya seçici `.xlsx` ve `.csv` kabul eder.
+
+**Ayrıştırma kuralları** (`assets/js/plan-toplu.js` → `ISG.planToplu.analizEt`):
+
+- **Yıl** dosya içindeki serbest metinden bulunur (`2026 Yılı Çalışma Planı`,
+  `2026-2027 Yıllık Çalışma Planı`, `Yıl: 2026`); bulunursa ön izlemedeki yıl
+  alanına yazılır. Kullanıcı iş yerini veya yılı değiştirirse mükerrer denetimi
+  o kapsam için **anında yeniden koşar** (sayımlar tazelenir, dosya yeniden
+  okunmaz). Dosyada yıl bulunamazsa ekranın mevcut yılı kullanılır; yılı
+  belirsiz kayıtlar yalnızca **Tüm yıllar** görünümünde listelenir ve tabloda
+  "N kaydın yılı belirsiz" uyarısı çıkar.
+- Başlık satırı ilk 25 satırda aranır; bulunamazsa "Dosyada plan tablosu
+  başlığı bulunamadı" hatası verilir ve hiçbir kayıt yazılmaz.
+- Yalnızca numara/başlık içeren satırlar **ana başlık** sayılır, altındaki
+  faaliyetlere `anaBaslik` olarak yazılır. `HAZIRLAYANLAR`, `ONAYLAYAN`, imza,
+  `Doküman No`, `Revizyon`, `Sayfa` ve tekrar eden tablo başlığı satırları
+  ayıklanır; sayıları ön izlemede "Ayrıştırma notu" olarak yazılır.
+- **Mükerrer** denetimi iş yeri + yıl kapsamında, `Çalışma Konusu + Sorumlu`
+  ikilisiyle (Türkçe duyarlı normalizasyonla) yapılır; hem dosya içi tekrarlar
+  hem uygulamada zaten açık kayıtlar "Mükerrer" olarak raporlanır.
+- `Çalışma Konusu` boş satır **hatalı**dır; 180 karakterden uzun faaliyetler
+  kısaltılır ve uyarı olarak yazılır; `Örnek:` ile başlayan satırlar atlanır.
+- Ay hücresindeki her işaret planlanmış sayılır; `-`, `yok`, `hayır`, `0`
+  planlanmamış sayılır. Hiç ay işaretlenmeyen faaliyet uyarıyla, ay bilgisi
+  olmadan kaydedilir.
+- Dosyadaki `İşyeri` sütunu **okunmaz**: kayıtlar daima ekranda seçilen iş yerine
+  ve seçilen yıla yazılır (`ISG.depo.planTopluEkle` tek iş yeri + tek yazım).
+- **Yazma yalnız ön onaydan sonra** yapılır; `Vazgeç`/kapatma hiçbir kayıt
+  bırakmaz, tekrar yükmede "Kaydedilecek satır" 0 olur. Yetkisiz kullanıcı
+  akışında kayıt doğrudan yazılmaz, onay kuyruğuna bekleyen talep düşer.
+
+**Toplu silme** iki kapsamla çalışır: *tabloda seçilen satırlar* veya *seçili iş
+yerinin seçili yılındaki tüm kayıtlar* (`ISG.depo.planTopluSil({ isyeriId, yil,
+idler })`). `isyeriId` zorunludur; `yil` ile `idler` birlikte verilirse **kesişim**
+silinir, hiçbiri verilmezse işlem reddedilir — başka iş yerinin kayıtlarına hiçbir
+koşulda dokunulmaz ve kaydı olmayan yıl için `silinen: 0` döner. Diyalog silinecek
+kayıt sayısıyla birlikte **kalan kayıt sayısını** da yazar; tabloda seçim yoksa
+"seçtiklerim" seçeneği açılmaz. "Bu işlemin geri alınamayacağını anladım."
+işaretlenmeden Sil düğmesi açılmaz; her iki toplu işlem de (`planTopluEkle`,
+`planTopluSil`) yetki sarmalayıcısından geçtiği için denetim izine iş yeri,
+faaliyet sayısı/yıl özetli kayıt düşer.
+
+**Excel'e aktar** ekrandaki (yıl ve iş yeri kapsamında süzülmüş) listeyi şablonla
+aynı 17 sütunda `yillik-calisma-plani-YYYYMMDD.xlsx` adıyla yazar; indirilen dosya
+doldurulup geri yüklenebilir — test bu gidiş-dönüşü doğrular.
 
 ## 7. Yayınlama (GitHub Pages)
 
@@ -692,7 +760,7 @@ Notlar:
 
 1. Sağlık gözetimi (periyodik muayene, odyometri, SFT, aşı) ve KKD zimmeti.
 2. Saha denetimleri için fotoğraf/kanıt eki ve DÖF onay akışı.
-3. Şablon sütun eşleme sihirbazı; diğer listeler (risk, saha, plan) için XLSX çıktısı.
+3. Şablon sütun eşleme sihirbazı; diğer listeler (risk, saha) için XLSX çıktısı.
 4. PDF tutanak ve imza (İSG kurul kararı, tatbikat raporu).
 5. Kurul, tatbikat ve yıllık değerlendirme modülleri; hatırlatma e-postaları.
 6. Supabase/Firebase ile çok kullanıcılı yapı ve sunucu tarafı kimlik doğrulama
@@ -703,6 +771,61 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.15.0 — Yıllık çalışma planı: Excel şablonu, toplu yükleme, yıl filtresi, toplu silme
+
+- **Yeni modül `assets/js/plan-toplu.js` (`ISG.planToplu`).** Plan akışı personel
+  toplu yükleme kalıbıyla kuruldu: `analizEt` (ayrıştır + eşleştir + doğrula +
+  mükerrer), `uygulanacaklar` / `uygula` (yalnız onaydan sonra tek yazım),
+  `sablonSayfalar` / `sablonIndir`, `disaAktarSayfalar` / `disaAktar`,
+  `onizlemeSatirlari`. 17 sütun tek yerde tanımlı (`BASLIKLAR` + `AYLAR`), başlık
+  eşleşmesi Türkçe duyarlı ve eşanlamlı adları kabul ediyor; `AYLAR` üstünde
+  `1…12` altındaki iki satırlı ay grupları da okunuyor. Ayrıntı:
+  [6.4](#64-yıllık-çalışma-planını-excelden-yüklemek-şablon--ön-izleme--onay).
+- **Eski plan dosyaları okunabilir hâle getirildi:** ana başlık satırları
+  altındaki faaliyetlere `anaBaslik` olarak yazılıyor; `HAZIRLAYANLAR`,
+  `ONAYLAYAN`, imza, `Doküman No`, `Revizyon`, `Sayfa` ve tekrar eden tablo
+  başlığı satırları ayıklanıyor; `2026 Yılı Çalışma Planı` / `2026-2027 Yıllık
+  Çalışma Planı` / `Yıl: 2026` kalıplarından yıl otomatik bulunuyor; `Örnek:`
+  satırları atlanıyor. Ayarlar ve Yönetim Göstergeleri gibi plan olmayan
+  sekmeler ayrıştırma dışı kalıyor.
+- **Plan kaydı modeli genişledi:** `yil`, `siraExcel`, `anaBaslik`, `aylar`
+  (bir faaliyet birden fazla aya planlanabiliyor), `kaynak` / `kaynakSatir`
+  (hangi dosyanın hangi satırından geldiği). Okuma yardımcıları
+  `ISG.planYil`, `ISG.planAylari`, `ISG.planYillari` hem yeni kayıtları hem tek
+  `ay`/`ayAdi` taşıyan eski kayıtları birlikte işliyor; bir yılda planlanmamış
+  faaliyetler **Yıl = Tümü** seçiliyken listeye düşüyor.
+- **Depoya iki toplu işlem:** `ISG.depo.planTopluEkle(isyeriId, kayitlar)` tek
+  iş yerine tek kalıcı yazım yapar, `ISG.depo.planTopluSil({ isyeriId, yil,
+  idler })` iş yeri filtresi zorunlu olacak şekilde ya seçili kayıtları ya seçili
+  yılın tüm kayıtlarını siler; başka iş yerinin planına dokunmaz, iş yeri veya
+  kapsam verilmezse hata verir (hiçbir kayıt silinmez), kaydı olmayan yıl için
+  `silinen: 0` döner.
+- **Arayüz:** **Plan yılı** filtresi, **Örnek Excel şablonunu indir**
+  (`Yillik-Calisma-Plani-Sablonu.xlsx` — biçim + doldurma kuralları + 2 örnek
+  faaliyet satırı ve **Kılavuz** sekmesi), **Excel'den toplu yükle** (Toplam /
+  Ayıklanan / Mükerrer / Kaydedilecek sayıları + satır satır gerekçe ön
+  izlemesi; yıl alanı dosyadan gelir, iş yeri veya yıl değiştirilince mükerrer
+  denetimi o kapsam için hemen yeniden koşar), **Excel'e aktar**
+  (`yillik-calisma-plani-YYYYMMDD.xlsx`, şablonla aynı 17 sütun, round-trip),
+  seçim çubuğu (**Tümünü seç**, *N kayıt seçili*, **Seçilenleri sil**,
+  **CSV indir**) ve **Toplu sil** onay diyaloğu (iş yeri, yıl, silinecek kayıt
+  sayısı, kalan kayıt sayısı, geri alınamaz uyarısı onay kutusu).
+- **Yetki, onay ve denetim:** `planTopluEkle` ve `planTopluSil` yazma
+  işlemlerine eklendi; yetkisi olmayan kullanıcıda işlem onay kuyruğuna düşer
+  (`{ bekliyor: true }`), yapılan her toplu işlem denetim izine yazılır.
+  Diyalogdan kapatmak hiçbir kayıt bırakmaz.
+- **Test kapsamı 500 → 645 kontrol** (şablon sütun sırası ve Kılavuz sayfası,
+  şablonun geri okunması, XLSX/CSV ayrıştırma, bölüm/imza/tekrar eden başlık/
+  `Örnek:` satırlarının ayıklanması, hatalı satır gerekçesi, mükerrer sayımı ve
+  iş yeri izolasyonu, yıl değişince denetimin tazelenmesi, onay öncesi yazım
+  olmaması, satır kalmayınca onay düğmesinin kapanması, dosya seçme kutusundan
+  uçtan uca yükleme, Kılavuz sayfasının yok sayılması, kayıt alanlarının
+  doğruluğu, **Excel'e aktar** → geri yükleme round-trip'i, seçim kutuları ve
+  "Tümünü seç", seçimle silme, yıl bazında toplu silme, başka yıl/iş yerinin
+  korunması, iş yeri veya yıl filtresi eksik silmenin reddi, kaydı olmayan yıl
+  için 0 dönüş, denetim izi kayıtları). Diyalog sayısı 19'a çıktı.
+- `package.json` sürümü **2.15.0**; JS varlık damgaları yeniden üretildi.
 
 ### 2.14.0 — 17 işyerinin Excel kontrol listesi hazır şablon oldu
 

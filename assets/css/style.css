@@ -852,7 +852,106 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .belge-ust strong { display: block; font-size: 13px; }
 .belge-ust .hucre-alt { margin-top: 2px; }
 .belge-liste { display: grid; gap: 6px; margin-top: 10px; }
+
+/* ---------- Toplu personel yükleme ---------- */
+.toplu-ozet {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+.toplu-sayi {
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+.toplu-sayi span {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.toplu-sayi b { display: block; margin-top: 2px; font-size: 19px; font-weight: 700; }
+.toplu-sayi.iyi { background: var(--green-bg); border-color: var(--green-line); }
+.toplu-sayi.iyi b { color: var(--green); }
+.toplu-sayi.uyari { background: var(--amber-bg); border-color: var(--amber-line); }
+.toplu-sayi.uyari b { color: var(--amber); }
+.toplu-sayi.kotu { background: var(--red-bg); border-color: var(--red-line); }
+.toplu-sayi.kotu b { color: var(--red); }
+/* Uzun listeler diyalogu uzatmasın: kendi içinde kaydırılır (mobilde de çalışır). */
+.toplu-onizleme { max-height: 320px; overflow-y: auto; overscroll-behavior: contain; }
+.toplu-satir {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.toplu-satir .toplu-no { flex: none; width: 52px; color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+.toplu-satir .toplu-icerik { flex: 1; min-width: 0; }
+.toplu-satir .toplu-ad { font-weight: 600; }
+.toplu-satir .toplu-detay { color: var(--ink-mute); }
+.toplu-satir .toplu-neden { display: block; margin-top: 2px; color: var(--ink-soft); }
+.toplu-satir.hata { border-color: var(--red-line); background: var(--red-bg); }
+.toplu-satir.mukerrer { border-color: var(--amber-line); background: var(--amber-bg); }
+.toplu-satir.hazir .toplu-baslik { color: var(--green); }
+.toplu-not { margin: 10px 0 0; color: var(--ink-soft); font-size: 12px; }
 .belge-bos { margin: 0; padding: 8px 2px; color: var(--ink-mute); font-size: 11.5px; }
+/* ---------- Yıllık çalışma planı: yıl seçimi, seçim şeridi, plan tablosu ---------- */
+.plan-yil-secim { display: inline-flex; align-items: center; gap: 7px; }
+.plan-yil-secim select {
+  min-width: 104px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.plan-secim-cubugu { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.plan-tumu-sec { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
+.plan-tablo .plan-sec-hucre { width: 30px; text-align: center; }
+.plan-tablo .plan-aylar-hucre { min-width: 168px; }
+.plan-aylar { display: flex; flex-wrap: wrap; gap: 3px; }
+.plan-hucre {
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink-mute);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.plan-hucre.planli { border-color: var(--brand-line); background: var(--brand-soft); color: var(--brand); }
+.plan-hucre.buay { border-color: var(--amber-line); background: var(--amber-bg); color: var(--amber); }
+.plan-grup td { background: var(--brand-soft); }
+.plan-grup strong { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.plan-grup .hucre-alt { margin-left: 8px; }
+/* Diyaloğun içindeki onay/scope seçenekleri (plan toplu silme gibi) */
+.secenek { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 12.5px; color: var(--ink-soft); }
+.secenek input { margin-top: 2px; }
+.secenek.disabled, .secenek:has(input:disabled) { opacity: .55; }
+.onay-uyari {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border: 1px solid var(--amber-line);
+  border-radius: 9px;
+  background: var(--amber-bg);
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
 .belge-satir {
   display: flex;
   align-items: center;
