@@ -96,6 +96,7 @@
       gorev: kullanici.gorev || '',
       rol: rolCoz(kullanici.rol),
       isyerleri: (kullanici.isyerleri || []).slice(),
+      tumIsyerleri: kullanici.tumIsyerleri === true,
       giris: oturumKaydi.giris || ''
     };
   }
@@ -129,7 +130,8 @@
   function kapsam() {
     var o = oturum();
     if (!o) { return []; }
-    if (rolTanimi(o.rol).tumIsyerleri) {
+    /* Rolü tüm işyerleri kapsayanlar ya da yöneticinin "Tüm işyerleri" dediği kullanıcılar. */
+    if (rolTanimi(o.rol).tumIsyerleri || o.tumIsyerleri) {
       return (D.al().isyerleri || []).map(function (isyeri) { return isyeri.id; });
     }
     return o.isyerleri.slice();
@@ -155,7 +157,7 @@
       isyerleri: [], personel: [], egitimler: [], riskler: [], olaylar: [],
       dosyalar: [], belgeler: [], planlar: [], tespitler: [],
       riskEkipleri: [], acilPlanlar: [], kullanicilar: [], talepler: [],
-      denetim: [], davetler: [], mevzuat: []
+      denetim: [], mevzuat: []
     };
   }
 
@@ -165,7 +167,7 @@
     var o = oturum();
     if (!o) { return bosVeri(veri); }
     var rol = rolTanimi(o.rol);
-    if (rol.tumIsyerleri) { return veri; }
+    if (rol.tumIsyerleri || o.tumIsyerleri) { return veri; }
 
     var izinli = o.isyerleri || [];
     var dosyalar = diziSuz(veri.dosyalar, izinli);
@@ -201,7 +203,6 @@
       kullanicilar: kullanicilar,
       talepler: (veri.talepler || []).filter(function (talep) { return talep.kullaniciId === o.kullaniciId; }),
       denetim: (veri.denetim || []).filter(function (kayit) { return kayit.kullaniciId === o.kullaniciId; }),
-      davetler: [],
       mevzuat: veri.mevzuat || []
     };
   }
@@ -210,7 +211,7 @@
 
   var ADMIN_ISLEMLERI = {
     isyeriKaydet: 1, isyeriSil: 1, kullaniciKaydet: 1, kullaniciSil: 1,
-    davetKaydet: 1, davetSil: 1, ayarKaydet: 1, iceAktar: 1, sifirla: 1
+    ayarKaydet: 1, iceAktar: 1, sifirla: 1
   };
 
   var YAZMA_ISLEMLERI = [
@@ -242,7 +243,7 @@
     acilEkipEkle: 'Acil durum ekibi üyesi', acilEkipSil: 'Acil durum ekibi üyesi silme',
     isyeriKaydet: 'İşyeri kaydı', isyeriSil: 'İşyeri silme',
     kullaniciKaydet: 'Kullanıcı kaydı', kullaniciSil: 'Kullanıcı silme',
-    davetKaydet: 'Davet', davetSil: 'Davet silme', ayarKaydet: 'Ayarlar'
+    ayarKaydet: 'Ayarlar'
   };
 
   var SAYFA_ESLEME = {
@@ -425,21 +426,48 @@
 
   var orijinal = {};
 
-  function denetimYaz(ad, args, o) {
-    D.denetimEkle({
-      tur: 'yazma', islem: ad, kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad,
-      isyeriId: hedefIsyeri(ad, args), ozet: (ETIKETLER[ad] || ad) + ' kaydedildi'
-    });
+  /* Kullanıcı yönetimi işlemlerinde etkilenen kayıt denetim özetine işlenir;
+     böylece kimin kimi eklediği/güncellediği/sildiği sonradan incelenebilir. */
+  function hedefKullanici(ad, args) {
+    if (ad !== 'kullaniciKaydet' && ad !== 'kullaniciSil') { return null; }
+    var ilk = args[0];
+    if (!ilk) { return null; }
+    if (typeof ilk !== 'object') { ilk = { id: String(ilk) }; }
+    var arama = String(ilk.id || ilk.eposta || '');
+    if (arama) {
+      var kullanicilar = (D.al().kullanicilar || []);
+      for (var i = 0; i < kullanicilar.length; i += 1) {
+        if (String(kullanicilar[i].id) === arama || String(kullanicilar[i].eposta) === arama) {
+          return kullanicilar[i];
+        }
+      }
+    }
+    return ilk.adSoyad || ilk.eposta ? ilk : null;
   }
 
-  /* Davet kabulü gibi oturum öncesi meşru işlemler için korumasız erişim. */
+  function denetimYaz(ad, args, o, hedef) {
+    var etiket = ETIKETLER[ad] || ad;
+    var kayit = {
+      tur: 'yazma', islem: ad, kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad,
+      isyeriId: hedefIsyeri(ad, args), ozet: etiket + ' kaydedildi'
+    };
+    if (hedef) {
+      kayit.hedefKullanici = hedef.id || '';
+      kayit.hedefAd = hedef.adSoyad || '';
+      kayit.hedefEposta = hedef.eposta || '';
+      kayit.ozet = etiket + ': ' + (hedef.adSoyad || '-') + ' (' + (hedef.eposta || '-') + ')';
+    }
+    D.denetimEkle(kayit);
+  }
+
+  /* Şifre sıfırlama gibi oturum öncesi meşru işlemler için korumasız erişim. */
   function korunmasiz(ad) {
     var asil = orijinal[ad] || D[ad];
     if (typeof asil !== 'function') { throw new Error('Bilinmeyen depo işlemi: ' + ad); }
     return function () { return asil.apply(D, arguments); };
   }
 
-  var ADMIN_KORUMA = ['isyeriKaydet', 'isyeriSil', 'kullaniciKaydet', 'kullaniciSil', 'davetKaydet', 'davetSil', 'ayarKaydet', 'sifirla', 'iceAktar'];
+  var ADMIN_KORUMA = ['isyeriKaydet', 'isyeriSil', 'kullaniciKaydet', 'kullaniciSil', 'ayarKaydet', 'sifirla', 'iceAktar'];
 
   ADMIN_KORUMA.forEach(function (ad) {
     var asil = D[ad];
@@ -450,8 +478,9 @@
       var o = oturum();
       if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
       if (!rolTanimi(o.rol).yonetir) { throw new Error('Bu işlem yalnızca yöneticilere açıktır.'); }
+      var hedef = hedefKullanici(ad, args);
       var sonuc = asil.apply(D, args);
-      denetimYaz(ad, args, o);
+      denetimYaz(ad, args, o, hedef || hedefKullanici(ad, args));
       return sonuc;
     };
   });

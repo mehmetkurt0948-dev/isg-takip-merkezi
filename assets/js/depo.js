@@ -7,13 +7,6 @@
   var ESKI_ANAHTARLAR = ['isgtakip.v3', 'isgtakip.v2'];
   var SURUM = 4;
 
-  /* Eski sürümler siteyi örnek kayıtlarla dolduruyordu. Bu damga, örneğin
-     verilerin cihazdan bir kez silindiğini tutar. Damga yalnızca cihazdadır:
-     bulutla paylaşılmaz, böylece yeni bir cihaz zaten temiz doğar. */
-  var TEMIZLIK_ANAHTAR = 'isgtakip.temizlik';
-  var TEMIZLIK_SURUM = 1;
-  var ONCEKI_VERI_ANAHTAR = 'isgtakip.oncekiVeri';
-
   /* ---------- Alan kuralları ---------- */
 
   ISG.RISK_SINIFLARI = {
@@ -269,8 +262,6 @@
     { id: 'tahliye', ad: 'Tahliye / arama kurtarma' },
     { id: 'destek', ad: 'Destek elemanı' }
   ];
-
-  ISG.DAVET_ROLLERI = ['Kurum sahibi', 'Yönetici', 'İSG uzmanı', 'Görüntüleyici'];
 
   ISG.egitimTuru = function (id) {
     return ISG.EGITIM_TURLERI.filter(function (t) { return t.id === id; })[0] || { id: id, ad: id, yenilemeYil: 2 };
@@ -606,7 +597,7 @@
 
   var LISTE_ANAHTARLARI = [
     'egitimler', 'riskler', 'olaylar', 'dosyalar', 'belgeler', 'planlar', 'tespitler',
-    'riskEkipleri', 'acilPlanlar', 'davetler', 'mevzuat',
+    'riskEkipleri', 'acilPlanlar', 'mevzuat',
     'kullanicilar', 'talepler', 'denetim'
   ];
 
@@ -621,15 +612,6 @@
       try { fn(depoDurumu.veri); } catch (hata) { /* dinleyici hatası uygulamayı durdurmaz */ }
     });
   }
-
-  function davetKoduUret() {
-    var harfler = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    var govde = '';
-    for (var i = 0; i < 5; i += 1) { govde += harfler.charAt(Math.floor(Math.random() * harfler.length)); }
-    return 'ISG-' + govde;
-  }
-
-  ISG.davetKoduUret = davetKoduUret;
 
   /* Eski sürümden gelen ya da içe aktarılan veriyi güncel şemaya tamamlar. */
   function veriTamamla(veri) {
@@ -677,11 +659,6 @@
       if (ISG.kazaKaydi(olay)) { olay.kayipGun = ISG.kazaKayipGun(olay); }
     });
 
-    (veri.davetler || []).forEach(function (davet) {
-      if (!davet.kod) { davet.kod = davetKoduUret(); }
-      if (davet.durum !== 'kabul') { davet.durum = davet.durum || 'bekliyor'; }
-    });
-
     var kullaniciVar = (veri.kullanicilar || []).length > 0;
     if (!kullaniciVar && typeof ISG.YONETICI_HESAP === 'function') {
       /* Yönetici hesabı olmadan giriş yapılamaz: örnek hesaplar değil,
@@ -693,58 +670,13 @@
     return veri;
   }
 
-  /* ---------- Örnek (tanıtım) verisi yardımcıları ---------- */
-
-  /* Örnek hesaplar @ornek.com adresini kullanır. Gerçek hesaplar ve yönetici
-     hiçbir temizlikte silinmez; aksi hâlde siteye giriş kapanabilir. */
-  function ornekHesapMi(kullanici) {
-    return /@ornek\.com$/i.test(String((kullanici && kullanici.eposta) || ''));
-  }
-
+  /* Sıfırlamada gerçek hesaplar korunur; aksi hâlde siteye giriş kapanabilir.
+     Hiç hesap kalmadıysa boş verideki yönetici tanımı devreye girer. */
   function korunanHesaplar(liste) {
-    var kalanlar = (liste || []).filter(function (kullanici) { return !ornekHesapMi(kullanici); });
-    return kalanlar.length ? kalanlar : (typeof ISG.YONETICI_HESAP === 'function' ? ISG.YONETICI_HESAP() : []);
-  }
-
-  /* Cihazda duran örnek veriyi bir kez siler: tüm kayıt listeleri boşaltılır,
-     kurum ayarları ve gerçek hesaplar korunur. Her silinen kayıt için mezar
-     taşı bırakıldığından kayıtlar buluttan geri dönmez. Silinmeden önceki
-     hâl geri dönebilmesi için cihazda yedekte tutulur. */
-  function demoTemizle(veri, simdi) {
-    if (!veri) { return { silinen: 0, yedek: '' }; }
-    veriTamamla(veri);
-    var zaman = simdi || new Date().toISOString();
-    var onceki = {};
-    var silinen = 0;
-
-    ESITLEME_ANAHTARLARI.forEach(function (anahtar) {
-      if (anahtar === 'kullanicilar') { return; }
-      var liste = veri[anahtar] || [];
-      if (!liste.length) { return; }
-      onceki[anahtar] = liste.slice();
-      silinen += liste.length;
-      liste.forEach(function (kayit) {
-        if (kayit && kayit.id) { veri.senkron.silinen[esitlemeKodu(anahtar, kayit.id)] = zaman; }
-      });
-      veri[anahtar] = [];
+    var kalanlar = (liste || []).filter(function (kullanici) {
+      return !!(kullanici && kullanici.eposta);
     });
-
-    var hesaplar = veri.kullanicilar || [];
-    var kalanlar = hesaplar.filter(function (kullanici) { return !ornekHesapMi(kullanici); });
-    if (kalanlar.length !== hesaplar.length) {
-      onceki.kullanicilar = hesaplar.slice();
-      hesaplar.forEach(function (kullanici) {
-        if (ornekHesapMi(kullanici) && kullanici.id) {
-          veri.senkron.silinen[esitlemeKodu('kullanicilar', kullanici.id)] = zaman;
-        }
-      });
-      silinen += hesaplar.length - kalanlar.length;
-      veri.kullanicilar = kalanlar;
-    }
-
-    /* Yönetici hesabı koruma altında: hepsi silinmişse boş veri tamamlanır. */
-    veriTamamla(veri);
-    return { silinen: silinen, yedek: silinen ? JSON.stringify(onceki) : '' };
+    return kalanlar.length ? kalanlar : (typeof ISG.YONETICI_HESAP === 'function' ? ISG.YONETICI_HESAP() : []);
   }
 
   /* ---------- Kayıt bazlı eşitleme ---------- */
@@ -962,9 +894,6 @@
   }
   temelAl(depoDurumu.veri);
 
-  /* Bu cihazda yapılan tek seferlik örnek veri temizliğinin özeti. */
-  var temizlikBilgisi = null;
-
   var depo = ISG.depo = {
     anahtar: ANAHTAR,
     al: function () { return depoDurumu.veri; },
@@ -1058,28 +987,6 @@
       depo.kaydet();
       return depoDurumu.veri;
     },
-    /* Tanıtım amaçlı örnek veri kümesini yükler (6 işyeri, 37 personel,
-       katalog, mevzuat). Kayıtlar bu cihazda yeni sayılır ve buluta yazılır;
-       önceki temizliğin mezar taşları bu kayıtlar için silinir. */
-    ornekYukle: function () {
-      var veri = veriTamamla(typeof ISG.ORNEK_VERI === 'function' ? ISG.ORNEK_VERI() : {});
-      ESITLEME_ANAHTARLARI.forEach(function (anahtar) {
-        (veri[anahtar] || []).forEach(function (kayit) {
-          if (kayit && kayit.id) { delete veri.senkron.silinen[esitlemeKodu(anahtar, kayit.id)]; }
-        });
-      });
-      depoDurumu.veri = veri;
-      depo.damgala();
-      return veri;
-    },
-    /* Bir veri kümesindeki örnek kayıtları temizler (birim testler ve göç için). */
-    demoTemizle: function (veri) { return demoTemizle(veri); },
-    /* Bu cihazda yapılan tek seferlik temizliğin özeti; yapılmadıysa null. */
-    temizlikBilgisi: function () { return temizlikBilgisi; },
-    /* Temizlikten önceki verinin cihazda tutulan yedeği (JSON metni). */
-    temizlikYedegi: function () {
-      try { return global.localStorage.getItem(ONCEKI_VERI_ANAHTAR) || ''; } catch (hata) { return ''; }
-    },
     abone: function (fn) {
       if (typeof fn === 'function') { depoDurumu.dinleyiciler.push(fn); }
     },
@@ -1104,26 +1011,6 @@
   };
 
   if (tasindi) { depo.kaydet(); }
-
-  /* ---------- Tek seferlik örnek veri temizliği (2.11.0) ----------
-     Sürüm 2.10.0'a kadar site örnek kayıtlarla açılıyordu. Bu göç, cihazda
-     duran o kayıtları bir kez siler; silinen her kayıt mezar taşı aldığı için
-     buluttan geri gelmez. Silinmeden önceki hâl bu cihazda yedekte tutulur ve
-     arayüzden indirilebilir. Damga cihazda durduğundan yeni cihazlar zaten
-     boş veriyle doğar, örnek veri ise "Örnek veri yükle" ile geri getirilir. */
-  function temizlikDamgasiOku() {
-    try { return Number(global.localStorage.getItem(TEMIZLIK_ANAHTAR)) || 0; } catch (hata) { return 0; }
-  }
-  if (temizlikDamgasiOku() < TEMIZLIK_SURUM) {
-    var temizlik = demoTemizle(depoDurumu.veri);
-    if (temizlik.silinen > 0) {
-      try { global.localStorage.setItem(ONCEKI_VERI_ANAHTAR, temizlik.yedek); } catch (hata) { /* yer yoksa yedek tutulmaz */ }
-      /* Mezar taşları kalıcılaşır ve bulut eşitlemesiyle diğer cihazlara gider. */
-      depo.kaydet();
-      temizlikBilgisi = { adet: temizlik.silinen, yedekVar: true };
-    }
-    try { global.localStorage.setItem(TEMIZLIK_ANAHTAR, String(TEMIZLIK_SURUM)); } catch (hata) { /* bellek kapalıysa her açılışta denenir */ }
-  }
 
   /* ---------- Kayıt işlemleri ---------- */
 
@@ -1169,10 +1056,6 @@
     veri.kullanicilar = (veri.kullanicilar || []).map(function (kullanici) {
       kullanici.isyerleri = (kullanici.isyerleri || []).filter(function (isyeriId) { return isyeriId !== id; });
       return kullanici;
-    });
-    veri.davetler = (veri.davetler || []).map(function (davet) {
-      davet.isyerleri = (davet.isyerleri || []).filter(function (isyeriId) { return isyeriId !== id; });
-      return davet;
     });
     if (veri.isyerleri.length && !veri.isyerleri.some(function (isyeri) { return isyeri.ana; })) {
       veri.isyerleri[0].ana = true;
@@ -1587,22 +1470,7 @@
     return kayit;
   };
 
-  ISG.depo.davetKaydet = function (kayit) {
-    var veri = depo.al();
-    kayit.tarih = kayit.tarih || new Date().toISOString().slice(0, 10);
-    kayit.durum = kayit.durum || 'bekliyor';
-    kayit.kod = kayit.kod || davetKoduUret();
-    var sonuc = kaydetListede(veri.davetler, kayit, 'dv');
-    depo.kaydet();
-    return sonuc;
-  };
-
-  ISG.depo.davetSil = function (id) {
-    var veri = depo.al();
-    veri.davetler = silListeden(veri.davetler, id);
-    depo.kaydet();
-  };
-  /* ---------- Kullanıcılar ve davet kabulü ---------- */
+  /* ---------- Kullanıcılar ---------- */
 
   ISG.depo.kullaniciBul = function (id) {
     if (!id) { return null; }
@@ -1637,8 +1505,11 @@
 
   ISG.depo.kullaniciSil = function (id) {
     var veri = depo.al();
+    var silinen = (veri.kullanicilar || []).filter(function (kullanici) { return kullanici.id === id; })[0];
+    if (!silinen) { return null; }
     veri.kullanicilar = silListeden(veri.kullanicilar, id);
     depo.kaydet();
+    return silinen;
   };
 
   ISG.depo.kullaniciGirisIsaretle = function (id) {
@@ -1647,25 +1518,6 @@
     kullanici.sonGiris = new Date().toISOString();
     depo.kaydet();
     return kullanici;
-  };
-
-  ISG.depo.davetKodBul = function (kod) {
-    var hedef = String(kod || '').trim().toUpperCase();
-    if (!hedef) { return null; }
-    return (depo.al().davetler || []).filter(function (davet) {
-      return String(davet.kod || '').toUpperCase() === hedef;
-    })[0] || null;
-  };
-
-  ISG.depo.davetKabul = function (id, kullaniciId) {
-    var veri = depo.al();
-    var davet = (veri.davetler || []).filter(function (kayit) { return kayit.id === id; })[0];
-    if (!davet) { return null; }
-    davet.durum = 'kabul';
-    davet.kabulTarihi = new Date().toISOString().slice(0, 10);
-    davet.kullaniciId = kullaniciId || '';
-    depo.kaydet();
-    return davet;
   };
 
   /* ---------- Onay kuyruğu ---------- */

@@ -287,63 +287,56 @@
       '</section>';
   };
 
-  /* ---------- Ekip ve davetler ---------- */
+  /* ---------- Kullanıcılar ve yetkiler ---------- */
+
+  var ROL_ROZET = { yonetici: 'iyi', yetkili: 'bilgi', goruntuleyici: 'notr' };
 
   SAYFALAR.ekip = function () {
-    var hesap = veri();
-    var davetler = hesap.davetler || [];
-    var isyerleri = hesap.isyerleri || [];
+    var oturum = ISG.yetki.oturum();
+    var yonetici = !!(oturum && ISG.yetki.rolTanimi(oturum.rol).yonetir);
+    var hesap = ISG.depo.al();
+    var kullanicilar = (hesap.kullanicilar || []).slice().sort(function (a, b) {
+      return String(a.adSoyad || '').localeCompare(String(b.adSoyad || ''), 'tr');
+    });
 
-    var davetSatirlari = davetler.map(function (davet) {
-      var yetkiler = (davet.isyerleri || []).map(function (id) { return isyeriAdi(id); }).join(', ');
-      return '<div class="davet-satir">' +
-        '<strong>' + kacis(davet.eposta) + '</strong>' +
-        B.rozet(davet.rol, 'bilgi') +
-        '<span class="muted">' + kacis(yetkiler || 'Tüm işyerleri') + '</span>' +
+    var satirlar = kullanicilar.map(function (kullanici) {
+      var tanim = ISG.yetki.rolTanimi(kullanici.rol);
+      var kapsamMetni = kullanici.tumIsyerleri ? 'Tüm işyerleri'
+        : ((kullanici.isyerleri || []).map(isyeriAdi).join(', ') || 'İşyeri tanımlı değil');
+      var kendiHesabi = !!(oturum && oturum.kullaniciId === kullanici.id);
+      var islemler = yonetici
+        ? '<button type="button" class="dugme kucuk" data-islem="kullanici-duzenle" data-id="' + kacis(kullanici.id) + '">Düzenle</button>' +
+          '<button type="button" class="dugme kucuk" data-islem="kullanici-sifre" data-id="' + kacis(kullanici.id) + '">Şifre ver</button>' +
+          (kendiHesabi ? '' : '<button type="button" class="dugme kucuk tehlike-dugme" data-islem="kullanici-sil" data-id="' + kacis(kullanici.id) + '">Sil</button>')
+        : '';
+      return '<div class="kullanici-satir">' +
+        '<strong>' + kacis(kullanici.adSoyad) + '</strong>' +
+        '<span class="muted">' + kacis(kullanici.eposta) + '</span>' +
+        B.rozet(tanim.ad, ROL_ROZET[tanim.id] || 'bilgi') +
+        '<span class="muted">' + kacis(kapsamMetni) + '</span>' +
         '<span class="sag">' +
-          B.rozet(davet.durum === 'kabul' ? 'Kabul edildi' : 'Bekliyor', davet.durum === 'kabul' ? 'iyi' : 'uyari') +
-          '<span class="muted kucuk">' + B.tarih(davet.tarih) + '</span>' +
-          '<button type="button" class="dugme kucuk tehlike-dugme" data-islem="davet-sil" data-id="' + kacis(davet.id) + '">İptal</button>' +
+          '<span class="muted kucuk">' + (kullanici.sonGiris ? 'Son giriş ' + B.tarih(kullanici.sonGiris) : 'Henüz giriş yapmadı') + '</span>' +
+          islemler +
         '</span>' +
       '</div>';
     }).join('');
 
-    return P.sayfaBaslik('EKİP VE DAVETLER', 'Ekip ve davetler', 'İşyeri bazında kayıt ve durum takibi') +
+    return P.sayfaBaslik('KULLANICILAR VE YETKİLER', 'Kullanıcılar ve yetkiler', 'Siteye giriş yapacak kişiler ve erişim kapsamları') +
       '<section class="kart ekip-kart">' +
         '<div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
-          '<h2>Ekip ve davetler</h2>' +
-          '<p>Seçili kurum için erişim yönetimi · Kurum sahibi</p>' +
+          '<h2>Kullanıcılar</h2>' +
+          '<p>' + B.sayi(kullanicilar.length) + ' kayıtlı kullanıcı · Rol ve işyeri yetkisi yalnızca yöneticiden değiştirilir.</p>' +
         '</div>' +
         '<div class="kart-ic">' +
-          '<p class="bolum-aciklama">Davet altyapısı hazır. Otomatik e-posta gönderimi henüz bağlı değil. ' +
-            'Site şu anda özel erişimde; davetli kişinin ayrıca site paylaşım ayarlarından giriş izni alması gerekir.</p>' +
-          '<p class="bolum-aciklama" style="margin-top:8px">Davet 7 gün geçerlidir ve yalnızca belirtilen e-posta ile giriş yapan kişi tarafından kabul edilebilir. ' +
-            'Kullanıcılar yalnızca seçtiğiniz işyerlerine erişir. Kurum yöneticisi kurumun tüm işyerlerini yönetir.</p>' +
-
-          '<div style="margin-top:18px;max-width:420px">' +
-            '<label class="form-satir"><span>E-posta</span>' +
-              '<input type="email" id="davetEposta" placeholder="kisi@kurum.com" autocomplete="email">' +
-            '</label>' +
-            '<label class="form-satir"><span>Rol</span>' +
-              '<select id="davetRol">' + ISG.DAVET_ROLLERI.map(function (rol) {
-                return '<option value="' + kacis(rol) + '"' + (rol === 'Görüntüleyici' ? ' selected' : '') + '>' + kacis(rol) + '</option>';
-              }).join('') + '</select>' +
-            '</label>' +
-            '<div class="form-satir"><span>Yetkili işyerleri</span>' +
-              '<div class="secim-listesi">' +
-                '<label><input type="checkbox" class="davet-isyeri" value="__tumu"> Tüm işyerleri (kurum geneli)</label>' +
-                isyerleri.map(function (isyeri) {
-                  return '<label><input type="checkbox" class="davet-isyeri" value="' + kacis(isyeri.id) + '"> ' + kacis(isyeri.ad) + '</label>';
-                }).join('') +
-              '</div>' +
-            '</div>' +
-            '<button type="button" class="dugme birincil" data-islem="davet-gonder">' + B.ikon('i-plus') + 'Davet oluştur</button>' +
-          '</div>' +
+          '<p class="bolum-aciklama">Kullanıcıları yalnızca yönetici ekler; davet kodu veya kendi kendine kayıt yoktur. ' +
+            'E-posta adresi giriş kimliğidir, ilk şifreyi de yönetici belirler. Şifresini unutan kullanıcıya yine bu ekrandan yeni şifre verilir.</p>' +
+          (yonetici
+            ? '<p style="margin-top:12px"><button type="button" class="dugme birincil" data-islem="kullanici-yeni">' +
+              B.ikon('i-plus') + 'Yeni kullanıcı</button></p>'
+            : '<p class="bolum-aciklama" style="margin-top:8px">Yetki değişikliği için yöneticinize başvurun.</p>') +
         '</div>' +
-        '<div class="kart-baslik" style="border-top:1px solid var(--line);border-bottom:0"><div><h2 style="font-size:15px">Gönderilen davetler</h2></div>' +
-          '<div class="kart-arac"><span class="muted kucuk">' + B.sayi(davetler.length) + ' davet</span></div></div>' +
-        (davetSatirlari ? '<div class="davet-list">' + davetSatirlari + '</div>' :
-          '<div class="kart-ic">' + B.bosDurum('Henüz davet yok', 'E-posta ve işyeri seçerek ekibinize erişim verebilirsiniz.', 'i-team') + '</div>') +
+        (satirlar ? '<div class="kullanici-list">' + satirlar + '</div>' :
+          '<div class="kart-ic">' + B.bosDurum('Kayıtlı kullanıcı yok', 'Yeni kullanıcı düğmesiyle ilk hesabı tanımlayın.', 'i-team') + '</div>') +
       '</section>';
   };
 

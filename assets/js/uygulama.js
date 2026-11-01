@@ -18,7 +18,7 @@
     istatistik: 'İstatistikler',
     risk: 'Risk değerlendirmesi',
     acil: 'Acil durum planı',
-    ekip: 'Ekip ve davetler',
+    ekip: 'Kullanıcılar ve yetkiler',
     onaylar: 'Onay kuyruğu',
     mevzuat: 'Mevzuat ve kapsam'
   };
@@ -161,15 +161,7 @@
     document.body.classList.toggle('salt-okunur', !!(bilgi && bilgi.rol.id === 'goruntuleyici'));
     onayRozeti();
 
-    /* Örnek veri ve eski veri yedeği yalnızca yöneticiye açıktır; yedek düğmesi
-       bu cihazda gerçek bir yedek varsa görünür. */
-    var yoneticiMi = bilgi && bilgi.rol && bilgi.rol.id === 'yonetici';
-    var ornekDugme = el('ornekVeriDugme');
-    if (ornekDugme) { ornekDugme.hidden = !yoneticiMi; }
-    var eskiDugme = el('oncekiVeriDugme');
-    if (eskiDugme) {
-      eskiDugme.hidden = !(yoneticiMi && typeof D.temizlikYedegi === 'function' && D.temizlikYedegi());
-    }
+    /* Kullanıcı yönetimi yalnızca yöneticiye açıktır. */
 
     if (!sayfaIzinli(aktifSayfa(), bilgi && bilgi.rol)) {
       UI.kapsam = '';
@@ -1703,7 +1695,7 @@
       case 'kurum-sil':
         onayIste('Tüm veriler silinsin mi?',
           'Kurum adı ve tüm kayıtlar silinecek; site boş olarak başlayacak. Kullanıcı hesapları korunur. ' +
-          'Bu işlem geri alınamaz, ancak üst bardaki "Yedekle" ile önce yedek alabilirsiniz.',
+          'Bu işlem geri alınamaz. Gerekirse verileri ayrı bir cihazdan yedek dosyasıyla geri yükleyebilirsiniz.',
           function () {
             D.sifirla();
             UI.kapsam = '';
@@ -1964,45 +1956,34 @@
         acilPlanAc(id);
         break;
 
-      /* Ekip */
-      case 'davet-sil':
-        D.davetSil(id);
-        B.bildir('Davet iptal edildi.', 'basari');
-        ciz();
+      /* Kullanıcılar ve yetkiler */
+      case 'kullanici-yeni':
+        kullaniciAc('');
         break;
-      case 'davet-gonder':
-        davetGonder();
+      case 'kullanici-duzenle':
+        kullaniciAc(id);
         break;
-
-      /* Yedekleme */
-      case 'yedekle':
-        B.dosyaIndir('isg-takip-yedek-' + B.bugunIso() + '.json', D.disariAktar(), 'application/json', false);
-        B.bildir('JSON yedeği indirildi.', 'basari');
+      case 'kullanici-sifre':
+        kullaniciAc(id, true);
         break;
-      case 'geri-yukle': {
-        var girdi = el('yedekDosya');
-        if (girdi) { girdi.click(); }
-        break;
-      }
-      /* Örnek (tanıtım) verisi: boş açılan siteye doldurmak içindir. */
-      case 'ornek-veri':
-        onayIste('Örnek veri yüklensin mi?',
-          'Tanıtım amaçlı 6 işyeri, 37 personel ve ilgili kayıtlar yüklenecek. ' +
-          'Aynı kayıtlar bulutta duruyorsa birleştirilir, yoksa diğer cihazlara da gönderilir. ' +
-          'Geri almak için İşyerleri → Kurumu sil.',
-          function () {
-            var yuklenen = D.ornekYukle();
-            UI.kapsam = '';
-            girisSonrasi();
-            B.bildir('Örnek veri yüklendi: ' + yuklenen.isyerleri.length + ' işyeri, ' +
-              yuklenen.personel.length + ' personel.', 'basari');
-          }, 'Örnek veriyi yükle');
-        break;
-      case 'onceki-veri': {
-        var onceki = typeof D.temizlikYedegi === 'function' ? D.temizlikYedegi() : '';
-        if (!onceki) { B.bildir('Bu cihazda saklanan eski veri yedeği yok.', 'hata'); break; }
-        B.dosyaIndir('isg-takip-temizlik-oncesi-' + B.bugunIso() + '.json', onceki, 'application/json', false);
-        B.bildir('Temizlik öncesi veri indirildi.', 'basari');
+      case 'kullanici-sil': {
+        var silinecekKullanici = (D.al().kullanicilar || []).filter(function (k) { return k.id === id; })[0];
+        if (!silinecekKullanici) { break; }
+        var aktifOturum = ISG.yetki ? ISG.yetki.oturum() : null;
+        if (aktifOturum && aktifOturum.kullaniciId === id) {
+          B.bildir('Kendi hesabınızı silemezsiniz.', 'hata');
+          break;
+        }
+        onayIste(silinecekKullanici.adSoyad + ' kullanıcısı silinsin mi?',
+          'Giriş bilgileri silinecek; personel kayıtları ve işlemleri korunur.', function () {
+            try {
+              D.kullaniciSil(id);
+              B.bildir('Kullanıcı silindi.', 'basari');
+              ciz();
+            } catch (hata) {
+              B.bildir(hata.message, 'hata');
+            }
+          });
         break;
       }
       default:
@@ -2010,27 +1991,135 @@
     }
   }
 
-  function davetGonder() {
-    var eposta = el('davetEposta');
-    var rol = el('davetRol');
-    var seciliIsyerleri = [];
-    Array.prototype.forEach.call(document.querySelectorAll('.davet-isyeri:checked'), function (kutu) {
-      seciliIsyerleri.push(kutu.value);
+  /* ---------- Kullanıcı yönetimi (yalnızca yönetici) ---------- */
+
+  function rolSecenekleri(secili) {
+    return Object.keys(ISG.yetki.ROLLER).map(function (anahtar) {
+      var rol = ISG.yetki.ROLLER[anahtar];
+      return '<option value="' + B.kacis(anahtar) + '"' + (anahtar === secili ? ' selected' : '') + '>' +
+        B.kacis(rol.ad) + '</option>';
+    }).join('');
+  }
+
+  function isyeriKutulari(seciliIds, tumuMu) {
+    var isyerleri = veri().isyerleri || [];
+    var liste = ['<label class="satir-secenek"><input type="checkbox" class="kullanici-isyeri" value="__tumu"' +
+      (tumuMu ? ' checked' : '') + '><span><strong>Tüm işyerleri</strong><small>Yeni açılan işyerleri de kapsar</small></span></label>'];
+    isyerleri.forEach(function (isyeri) {
+      liste.push('<label class="satir-secenek"><input type="checkbox" class="kullanici-isyeri" value="' + B.kacis(isyeri.id) + '"' +
+        (tumuMu || seciliIds.indexOf(isyeri.id) >= 0 ? ' checked' : '') + '>' +
+        '<span><strong>' + B.kacis(isyeri.ad) + '</strong><small>' + B.kacis(isyeri.bolum || isyeri.sehir || '—') + '</small></span></label>');
     });
-    if (!eposta || !eposta.value.trim() || eposta.value.indexOf('@') < 1) {
-      B.bildir('Geçerli bir e-posta adresi girin.', 'hata');
-      if (eposta) { eposta.focus(); }
+    if (!isyerleri.length) {
+      liste.push('<p class="form-uyari" role="alert">Önce işyeri oluşturun; kullanıcı yetkisi işyerine bağlıdır.</p>');
+    }
+    return liste.join('');
+  }
+
+  /* Kullanıcı dialogunu açar. mod: '' yeni/düzenleme, 'sifre' yalnızca şifre değişimi. */
+  var kullaniciSifreModu = false;
+
+  function kullaniciAc(kullaniciId, mod) {
+    var form = el('kullaniciForm');
+    if (!form) { return; }
+    var mevcut = kullaniciId
+      ? (D.al().kullanicilar || []).filter(function (k) { return k.id === kullaniciId; })[0]
+      : null;
+    kullaniciSifreModu = !!mod && !!mevcut;
+    var alanlar = ['adSoyad', 'eposta', 'gorev', 'rol', 'aktif'];
+
+    el('kullaniciBaslik').textContent = kullaniciSifreModu
+      ? 'Şifre değiştir — ' + (mevcut.adSoyad || '')
+      : (mevcut ? 'Kullanıcıyı düzenle' : 'Yeni kullanıcı');
+    form.elements.id.value = mevcut ? mevcut.id : '';
+    alanlar.forEach(function (ad) {
+      if (form.elements[ad]) { form.elements[ad].disabled = kullaniciSifreModu; }
+    });
+
+    form.elements.adSoyad.value = mevcut ? mevcut.adSoyad || '' : '';
+    form.elements.eposta.value = mevcut ? mevcut.eposta || '' : '';
+    form.elements.gorev.value = mevcut ? mevcut.gorev || '' : '';
+    form.elements.rol.innerHTML = rolSecenekleri(mevcut ? ISG.yetki.rolCoz(mevcut.rol) : 'goruntuleyici');
+    form.elements.aktif.value = (mevcut && mevcut.aktif === false) ? '0' : '1';
+    form.elements.sifre.value = '';
+
+    var seciliIsyerleri = (mevcut && Array.isArray(mevcut.isyerleri)) ? mevcut.isyerleri : [];
+    el('kullaniciIsyerleri').innerHTML = isyeriKutulari(seciliIsyerleri, !!(mevcut && mevcut.tumIsyerleri));
+    /* Şifre değişiminde yetkiler korunur; kutular kilitli gösterilir. */
+    Array.prototype.forEach.call(document.querySelectorAll('.kullanici-isyeri'), function (kutu) {
+      kutu.disabled = kullaniciSifreModu;
+    });
+
+    uyariGoster('kullaniciUyari', '');
+    diyalogAc(el('kullaniciDiyalog'), kullaniciSifreModu ? form.elements.sifre : form.elements.adSoyad);
+  }
+
+  function kullaniciKaydetIsle(form) {
+    var data = formVerisi(form);
+    var sifre = String(form.elements.sifre.value || '');
+    var mevcut = data.id ? (D.al().kullanicilar || []).filter(function (k) { return k.id === data.id; })[0] : null;
+
+    if (!mevcut && (!sifre || sifre.length < 4)) {
+      uyariGoster('kullaniciUyari', 'Şifre en az 4 karakter olmalı.');
       return;
     }
-    var tumu = seciliIsyerleri.indexOf('__tumu') >= 0;
-    var yetkiler = tumu ? (veri().isyerleri || []).map(function (i) { return i.id; }) : seciliIsyerleri;
-    if (!yetkiler.length) {
-      B.bildir('En az bir işyeri seçin.', 'hata');
+    if (mevcut && sifre && sifre.length < 4) {
+      uyariGoster('kullaniciUyari', 'Yeni şifre en az 4 karakter olmalı.');
       return;
     }
-    D.davetKaydet({ eposta: eposta.value.trim(), rol: rol ? rol.value : 'Görüntüleyici', isyerleri: yetkiler });
-    B.bildir('Davet oluşturuldu. Davet kodunu kullanıcıya iletin.', 'basari');
-    ciz();
+
+    /* Şifre modunda diğer alanlar kilitlidir (formVerisi onları toplamaz);
+       mevcut yetkiler aynen korunur. */
+    var secimler = [];
+    Array.prototype.forEach.call(document.querySelectorAll('.kullanici-isyeri:checked'), function (kutu) {
+      secimler.push(kutu.value);
+    });
+    var tumu = kullaniciSifreModu ? !!mevcut.tumIsyerleri : secimler.indexOf('__tumu') >= 0;
+    var isyerleri = kullaniciSifreModu ? (mevcut.isyerleri || []) : (tumu ? [] : secimler);
+    if (!tumu && !isyerleri.length) {
+      uyariGoster('kullaniciUyari', 'En az bir işyeri seçin veya "Tüm işyerleri"ni işaretleyin.');
+      return;
+    }
+
+    var eposta = String(kullaniciSifreModu ? mevcut.eposta : data.eposta || '').trim().toLowerCase();
+    var cakisan = (D.al().kullanicilar || []).filter(function (k) {
+      return String(k.eposta || '').toLowerCase() === eposta && k.id !== data.id;
+    })[0];
+    if (cakisan) {
+      uyariGoster('kullaniciUyari', 'Bu e-posta adresi "' + cakisan.adSoyad + '" hesabında kullanılıyor.');
+      return;
+    }
+
+    /* Kayıt üstüne yazıldığı için mevcut alanlar da taşınır: şifre (boş bırakıldıysa),
+       son giriş ve hesap durumu kaybolmasın. */
+    var kayit = {
+      id: data.id || '',
+      adSoyad: kullaniciSifreModu ? mevcut.adSoyad : data.adSoyad,
+      eposta: eposta,
+      rol: kullaniciSifreModu ? ISG.yetki.rolCoz(mevcut.rol) : (data.rol || 'goruntuleyici'),
+      gorev: kullaniciSifreModu ? mevcut.gorev || '' : (data.gorev || ''),
+      personelId: mevcut ? mevcut.personelId || '' : '',
+      tumIsyerleri: tumu,
+      isyerleri: isyerleri,
+      aktif: kullaniciSifreModu ? mevcut.aktif !== false : data.aktif !== '0',
+      sonGiris: mevcut ? mevcut.sonGiris || '' : '',
+      olusturma: mevcut ? mevcut.olusturma || '' : new Date().toISOString(),
+      sifre: sifre || (mevcut ? mevcut.sifre || '' : '')
+    };
+    if (sifre) { kayit.sifreDegisim = new Date().toISOString(); }
+    if (!kayit.sifre) {
+      uyariGoster('kullaniciUyari', 'Kullanıcının bir şifresi yok; yeni şifre belirleyin.');
+      return;
+    }
+
+    try {
+      var kullanici = D.kullaniciKaydet(kayit);
+      diyalogKapat(el('kullaniciDiyalog'));
+      B.bildir(mevcut ? kullanici.adSoyad + ' güncellendi.' : kullanici.adSoyad + ' eklendi; giriş yapabilir.', 'basari');
+      ciz();
+    } catch (hata) {
+      uyariGoster('kullaniciUyari', hata.message);
+    }
   }
 
   /* ---------- Bulut eşitleme arayüzü ---------- */
@@ -2240,6 +2329,20 @@
   }
 
   function formlariBagla() {
+    formuBagla('kullaniciForm', kullaniciKaydetIsle);
+
+    /* "Tüm işyerleri" seçilirse tek tek işyeri işaretleri anlamsızlaşır. */
+    var yetkiKutulari = el('kullaniciIsyerleri');
+    if (yetkiKutulari) {
+      yetkiKutulari.addEventListener('change', function (olay) {
+        var kutu = olay.target;
+        if (!kutu || kutu.value !== '__tumu') { return; }
+        Array.prototype.forEach.call(yetkiKutulari.querySelectorAll('.kullanici-isyeri'), function (diger) {
+          if (diger !== kutu) { diger.disabled = kutu.checked; }
+        });
+      });
+    }
+
     formuBagla('kurumForm', function (form) {
       var deger = form.elements.kurum.value.trim();
       if (!deger) { uyariGoster('kurumUyari', 'Kurum adı zorunlu.'); return; }
@@ -2576,27 +2679,6 @@
       });
     }
 
-    var yedekGirdi = el('yedekDosya');
-    if (yedekGirdi) {
-      yedekGirdi.addEventListener('change', function () {
-        var secilen = this.files && this.files[0];
-        if (!secilen) { return; }
-        var okuyucu = new FileReader();
-        okuyucu.onload = function () {
-          try {
-            D.iceAktar(String(okuyucu.result || ''));
-            UI.kapsam = '';
-            B.bildir('Yedek geri yüklendi.', 'basari');
-            ciz();
-          } catch (hata) {
-            B.bildir('Yedek yüklenemedi: ' + hata.message, 'hata');
-          }
-        };
-        okuyucu.readAsText(secilen, 'utf-8');
-        this.value = '';
-      });
-    }
-
     var riskForm = el('riskEkipForm');
     if (riskForm && riskForm.elements.sonDegerlendirme) {
       riskForm.elements.sonDegerlendirme.addEventListener('change', function () {
@@ -2668,22 +2750,11 @@
   }
 
   /* Oturum açıldıktan sonra arayüzü hazırlar ve ilk çizimi yapar. */
-  var temizlikBildirildi = false;
-  function temizlikBildir() {
-    if (temizlikBildirildi || typeof D.temizlikBilgisi !== 'function') { return; }
-    var bilgi = D.temizlikBilgisi();
-    if (!bilgi) { return; }
-    temizlikBildirildi = true;
-    B.bildir('Örnek veriler temizlendi: ' + bilgi.adet + ' kayıt silindi. ' +
-      (bilgi.yedekVar ? 'Eski veriyi üst bardaki "Eski veri" düğmesiyle indirebilirsiniz.' : ''), 'bilgi');
-  }
-
   function girisSonrasi() {
     hazirla();
     kisileriDoldur();
     rolArayuzu();
     ciz();
-    temizlikBildir();
   }
 
   function baslat() {

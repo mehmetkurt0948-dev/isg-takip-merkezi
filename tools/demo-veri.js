@@ -1,12 +1,12 @@
-/* İSG Takip Merkezi — boş başlangıç verisi, örnek (tanıtım) veri ve kontrol
-   maddesi kataloğu
-   Site ISG.BOS_VERI() ile boş açılır. ISG.ORNEK_VERI() yalnızca arayüzdeki
-   "Örnek veri yükle" düğmesiyle kullanılır; tüm tarihler bugüne göre üretilir. */
+/* İSG Takip Merkezi — tanıtım (demo) veri kümesi — YALNIZCA GELİŞTİRME VE TEST
+   Sitede örnek veri yüklemek yoktur; bu dosya yayına (yayin/) kopyalanmaz.
+   Testler gerçekçi bir işyeri, personel ve kontrol kataloğu görebilmek için bu
+   kümeyi sayfa bağlamına yükleyip ISG.depo.iceAktar() ile deponun kendi
+   kurallarından geçirir. Tüm tarihler bugüne göre üretilir. */
 (function (global) {
   'use strict';
 
   var ISG = global.ISG = global.ISG || {};
-
   function iso(tarih) {
     return tarih.getFullYear() + '-' +
       String(tarih.getMonth() + 1).padStart(2, '0') + '-' +
@@ -26,7 +26,14 @@
     return iso(d);
   }
 
-  ISG.yilEkle = yilEkle;
+  /* Demo kümesinin kendi yönetici hesabı — ISG.YONETICI_HESAP ile aynıdır;
+     fixture tek başına da koşabilsin diye burada yinelenir. */
+  function yoneticiHesap() {
+    return [{
+      id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmetkurt0948@gmail.com', sifre: '1234',
+      rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [], aktif: true, sonGiris: ''
+    }];
+  }
 
   /* ---------- Kontrol maddesi kataloğu ---------- */
 
@@ -289,42 +296,11 @@
   ISG.katalogMaddeleri = katalogMaddeleri;
   ISG.katalogUret = katalogUret;
 
-  /* ---------- Tohum veri ----------
-     SİTE BOŞ AÇILIR: yeni bir cihazda hiçbir işyeri, personel veya kayıt
-     yoktur. Başlangıçta yalnızca yönetici hesabı bulunur (aksi hâlde giriş
-     yapılamaz). Tanıtım amaçlı dolu veri kümesi ISG.ORNEK_VERI() içinde
-     durur ve arayüzde yalnızca "Örnek veri yükle" düğmesiyle çağrılır. */
-
-  /* Tek gerçek hesap: site yöneticisi. Boş başlangıçta ve veri sıfırlandığında
-     bu hesap korunur, böylece giriş anahtarı hiçbir cihazda kaybolmaz. */
-  ISG.YONETICI_HESAP = function () {
-    return [{
-      id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmetkurt0948@gmail.com', sifre: '1234',
-      rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [], aktif: true, sonGiris: ''
-    }];
-  };
-
-  /* Boş başlangıç veri kümesi — yayındaki sitenin açıldığı hâl. */
-  ISG.BOS_VERI = function () {
-    return {
-      surum: 4,
-      olusturma: new Date().toISOString(),
-      ayarlar: {
-        kurum: '', kullanici: '', gorev: '', yillikCalismaSaati: 2250, sonMevzuatKontrolu: ''
-      },
-      isyerleri: [], personel: [], egitimler: [], riskler: [], olaylar: [],
-      dosyalar: [], belgeler: [], planlar: [], tespitler: [],
-      riskEkipleri: [], acilPlanlar: [], davetler: [], mevzuat: [],
-      kullanicilar: ISG.YONETICI_HESAP(), talepler: [], denetim: [],
-      senkron: { kayit: {}, silinen: {}, ayarlar: '' }
-    };
-  };
-
-  /* Örnek hesaplar: yalnızca "Örnek veri yükle" ile gelen tanıtım hesapları.
-     Yeni kullanıcılar yöneticinin ürettiği davet kodlarıyla katılır; şifreler
+  /* Örnek hesaplar: yalnızca bu fixture ile gelen tanıtım hesaplarıdır.
+     Gerçek kullanıcılar yöneticinin "Kullanıcı ekle" ekranından doğar; şifreler
      "Şifremi unuttum" akışıyla e-posta kodu doğrulanarak yenilenebilir. */
   ISG.ORNEK_KULLANICILAR = function () {
-    return ISG.YONETICI_HESAP().concat([
+    return yoneticiHesap().concat([
       {
         id: 'u2', adSoyad: 'Buse Şenol', eposta: 'buse.senol@ornek.com', sifre: '1234',
         rol: 'yetkili', gorev: 'B sınıfı İSG uzmanı', isyerleri: ['iy1', 'iy2'], aktif: true, sonGiris: ''
@@ -607,10 +583,8 @@
       };
     });
 
-    var davetler = [
-      { id: 'dv1', kod: 'ISG-BUSE1', eposta: 'buse.senol@ornek.com', rol: 'yetkili', isyerleri: ['iy1', 'iy2'], tarih: gun(-3), durum: 'kabul', kabulTarihi: gun(-2), kullaniciId: 'u2' },
-      { id: 'dv2', kod: 'ISG-DEPO7', eposta: 'depo.sorumlusu@ornek.com', rol: 'yetkili', isyerleri: ['iy1'], tarih: gun(-1), durum: 'bekliyor' }
-    ];
+    /* Davet akışı kaldırıldı: alan eski kayıtlar için boş durur. */
+    var davetler = [];
 
     var talepler = [
       {
@@ -679,9 +653,4 @@
       mevzuat: mevzuat
     };
   };
-})(window);
-
-
-
-
-
+})(typeof window === 'undefined' ? globalThis : window);

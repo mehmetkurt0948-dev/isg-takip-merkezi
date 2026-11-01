@@ -1,4 +1,4 @@
-/* İSG Takip Merkezi — giriş ekranı, davet kodu kabulü ve oturum açma
+/* İSG Takip Merkezi — giriş ekranı ve oturum açma
    depo.js + bicim.js + yetki.js sonrasında, uygulama.js öncesinde yüklenir. */
 (function (global) {
   'use strict';
@@ -32,7 +32,7 @@
       return kullanici.eposta && kullanici.aktif !== false;
     }).map(function (kullanici) { return kullanici.eposta; });
     if (!liste.length) {
-      return 'Bu e-posta ile kayıtlı kullanıcı bulunamadı. Tanımlı hesap yok; yönetici hesabıyla veri yedeğini geri yükleyin.';
+      return 'Bu e-posta ile kayıtlı kullanıcı bulunamadı. Hesabınızı yalnızca yönetici tanımlar; lütfen yöneticinizle görüşün.';
     }
     return 'Bu e-posta ile kayıtlı kullanıcı bulunamadı. Kayıtlı hesaplar: ' + liste.join(', ') + '.';
   }
@@ -42,38 +42,6 @@
     if (!kullanici) { throw new Error(kayitliEpostaIpucu()); }
     if (kullanici.aktif === false) { throw new Error('Bu kullanıcı pasif durumda, yöneticinizle görüşün.'); }
     if (String(kullanici.sifre || '') !== String(sifre || '')) { throw new Error('Şifre hatalı, yeniden deneyin.'); }
-    return kullanici;
-  }
-
-  function davetKabulEt(alanlar) {
-    var kod = String(alanlar.kod || '').trim().toUpperCase();
-    var eposta = String(alanlar.eposta || '').trim().toLowerCase();
-    var davet = D.davetKodBul(kod);
-    if (!davet) { throw new Error('Davet kodu bulunamadı. Kodu yöneticinizden tekrar isteyin.'); }
-    if (davet.durum === 'kabul') { throw new Error('Bu davet kodu daha önce kullanılmış.'); }
-    if (davet.eposta && String(davet.eposta).toLowerCase() !== eposta) {
-      throw new Error('Bu kod ' + davet.eposta + ' adresine tanımlı; farklı e-posta ile kullanılamaz.');
-    }
-    if (D.kullaniciEpostaBul(eposta)) {
-      throw new Error('Bu e-posta ile bir kullanıcı zaten var. "Giriş" sekmesini kullanın.');
-    }
-    if (String(alanlar.sifre || '').length < 4) { throw new Error('Şifre en az 4 karakter olmalı.'); }
-    if (alanlar.sifre !== alanlar.sifreTekrar) { throw new Error('Şifreler birbiriyle uyuşmuyor.'); }
-
-    var kullanici = Y.korunmasiz('kullaniciKaydet')({
-      adSoyad: alanlar.adSoyad,
-      eposta: eposta,
-      sifre: alanlar.sifre,
-      rol: davet.rol || 'yetkili',
-      gorev: davet.gorev || '',
-      isyerleri: (davet.isyerleri || []).slice(),
-      aktif: true
-    });
-    D.davetKabul(davet.id, kullanici.id);
-    D.denetimEkle({
-      tur: 'davet', islem: 'davetKabul', kullaniciId: kullanici.id, kullaniciAd: kullanici.adSoyad,
-      isyeriId: (davet.isyerleri || [])[0] || '', ozet: 'Davet kodu ile hesap açıldı: ' + kod
-    });
     return kullanici;
   }
 
@@ -243,7 +211,6 @@
 
         '<div class="sekme-satir giris-sekmeler" role="tablist" aria-label="Giriş yöntemi">' +
           '<button type="button" class="sekme aktif" role="tab" aria-selected="true" data-giris-sekme="giris">Giriş</button>' +
-          '<button type="button" class="sekme" role="tab" aria-selected="false" data-giris-sekme="davet">Davet kodum var</button>' +
           '<button type="button" class="sekme" role="tab" aria-selected="false" data-giris-sekme="sifirla">Şifremi unuttum</button>' +
         '</div>' +
 
@@ -256,29 +223,6 @@
           '</label>' +
           '<p class="form-uyari" id="girisUyari" role="alert" hidden></p>' +
           '<button type="submit" class="dugme birincil giris-dugme">Giriş yap</button>' +
-        '</form>' +
-
-        '<form id="davetGirisForm" class="giris-form" hidden novalidate>' +
-          '<label class="alan"><span>Davet kodu</span>' +
-            '<input type="text" name="kod" id="davetKod" autocomplete="off" placeholder="ISG-XXXXXX" required>' +
-          '</label>' +
-          '<label class="alan"><span>Ad soyad</span>' +
-            '<input type="text" name="adSoyad" autocomplete="name" placeholder="Ad Soyad" required>' +
-          '</label>' +
-          '<label class="alan"><span>E-posta</span>' +
-            '<input type="email" name="eposta" autocomplete="email" placeholder="ad.soyad@ornek.com" required>' +
-          '</label>' +
-          '<div class="form-izgara">' +
-            '<label class="alan"><span>Şifre</span>' +
-              '<input type="password" name="sifre" autocomplete="new-password" placeholder="En az 4 karakter" required>' +
-            '</label>' +
-            '<label class="alan"><span>Şifre (tekrar)</span>' +
-              '<input type="password" name="sifreTekrar" autocomplete="new-password" placeholder="Şifreyi yineleyin" required>' +
-            '</label>' +
-          '</div>' +
-          '<p class="form-uyari" id="davetUyari" role="alert" hidden></p>' +
-          '<button type="submit" class="dugme birincil giris-dugme">Daveti kabul et ve giriş yap</button>' +
-          '<p class="giris-ipucu">Davet kodu, işyeri kapsamınızı ve rolünüzü belirler; yöneticiniz tarafından oluşturulur.</p>' +
         '</form>' +
 
         '<form id="sifirlaForm" class="giris-form" hidden novalidate>' +
@@ -321,13 +265,11 @@
       dugme.setAttribute('aria-selected', aktif ? 'true' : 'false');
     });
     var girisForm = el('girisForm');
-    var davetForm = el('davetGirisForm');
     var sifirlaForm = el('sifirlaForm');
     if (girisForm) { girisForm.hidden = ad !== 'giris'; }
-    if (davetForm) { davetForm.hidden = ad !== 'davet'; }
     if (sifirlaForm) { sifirlaForm.hidden = ad !== 'sifirla'; }
     if (ad === 'sifirla') { sifirlaAdimi(1); }
-    var odak = ad === 'davet' ? el('davetKod') : (ad === 'sifirla' ? el('sifirlaEposta') : el('girisEposta'));
+    var odak = ad === 'sifirla' ? el('sifirlaEposta') : el('girisEposta');
     if (odak) { setTimeout(function () { try { odak.focus(); } catch (hata) { /* yok say */ } }, 30); }
   }
 
@@ -381,25 +323,6 @@
       girisiTamamla(kullanici);
     } catch (hata) {
       uyariGoster('girisUyari', hata.message);
-    }
-  }
-
-  function davetGonder(olay) {
-    olay.preventDefault();
-    var form = olay.target;
-    if (!form || String(form.tagName).toUpperCase() !== 'FORM') { return; }
-    var alanlar = formDegerleri(form);
-    uyariGoster('davetUyari', '');
-    if (!alanlar.kod || !alanlar.adSoyad || !alanlar.eposta || !alanlar.sifre) {
-      uyariGoster('davetUyari', 'Tüm alanları doldurun.');
-      return;
-    }
-    try {
-      var kullanici = davetKabulEt(alanlar);
-      form.reset();
-      girisiTamamla(kullanici);
-    } catch (hata) {
-      uyariGoster('davetUyari', hata.message);
     }
   }
 
@@ -471,7 +394,6 @@
     document.addEventListener('submit', function (olay) {
       if (!olay.target) { return; }
       if (olay.target.id === 'girisForm') { girisGonder(olay); }
-      if (olay.target.id === 'davetGirisForm') { davetGonder(olay); }
       if (olay.target.id === 'sifirlaForm') {
         var ikinciAdim = el('sifirlaAdim2');
         if (ikinciAdim && !ikinciAdim.hidden) { sifirlaKaydet(olay); }
@@ -546,7 +468,6 @@
     cikis: cikis,
     sekmeSec: sekmeSec,
     kullaniciDogrula: kullaniciDogrula,
-    davetKabulEt: davetKabulEt,
     kodGonder: kodGonder,
     kodDogrula: kodDogrula,
     sifreSifirla: sifreSifirla,

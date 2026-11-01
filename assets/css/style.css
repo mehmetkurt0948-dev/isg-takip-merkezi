@@ -758,10 +758,10 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 
 /* ---------- Ekip / mevzuat ---------- */
 .ekip-kart { max-width: 880px; }
-.davet-list { display: grid; }
-.davet-satir { display: flex; align-items: center; gap: 12px; padding: 13px 22px; border-top: 1px solid var(--line); font-size: 12.5px; flex-wrap: wrap; }
-.davet-satir strong { font-weight: 600; }
-.davet-satir .sag { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.kullanici-list { display: grid; }
+.kullanici-satir { display: flex; align-items: center; gap: 12px; padding: 13px 22px; border-top: 1px solid var(--line); font-size: 12.5px; flex-wrap: wrap; }
+.kullanici-satir strong { font-weight: 600; }
+.kullanici-satir .sag { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .mevzuat-list { display: grid; }
 .mevzuat-satir { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; padding: 13px 22px; border-top: 1px solid var(--line); align-items: start; }
 .mevzuat-no { color: var(--ink-mute); font-size: 11.5px; font-weight: 700; padding-top: 2px; }
@@ -1077,7 +1077,7 @@ button.kpi { width: 100%; font: inherit; }
   .diyalog { padding: 20px 16px; }
   .tespit-satir { grid-template-columns: minmax(0, 1fr); }
   .tespit-sag { justify-items: start; }
-  .davet-satir .sag { margin-left: 0; }
+  .kullanici-satir .sag { margin-left: 0; }
   .isyeri-izgara { grid-template-columns: 1fr; }
   .personel-tablo .islem-sutun { min-width: 120px; width: 120px; }
 }

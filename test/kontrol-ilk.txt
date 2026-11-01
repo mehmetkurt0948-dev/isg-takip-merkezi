@@ -1,0 +1,39 @@
+﻿
+0) Giri┼ş ekran─▒ ve oturum
+  OK   Giri┼ş katman─▒ g├Âr├╝n├╝r
+  OK   G├Âvde oturum yok s─▒n─▒f─▒nda
+  OK   Uygulama kabu─şu gizli
+  OK   Haz─▒r hesap d├╝─şmesi yok
+  OK   ┼Şifremi unuttum sekmesi var
+  OK   ┼Şifremi unuttum formu a├ğ─▒l─▒r
+  OK   S─▒f─▒rlama ilk ad─▒m─▒ g├Âr├╝n├╝r
+  OK   Kod ad─▒m─▒ a├ğ─▒ld─▒
+  OK   Servis yokken kod ekranda g├Âsterilir
+  OK   Hatal─▒ ┼şifre uyar─▒s─▒
+  OK   Hatal─▒ giri┼şte oturum a├ğ─▒lmaz
+  OK   Kay─▒ts─▒z e-postada kay─▒tl─▒ hesaplar hat─▒rlat─▒l─▒r
+  OK   Kay─▒ts─▒z e-postada oturum a├ğ─▒lmaz
+  OK   Y├Ânetici oturumu a├ğ─▒ld─▒
+  OK   Giri┼ş katman─▒ kapand─▒
+  OK   G├Âvde oturum s─▒n─▒f─▒ temizlendi
+  OK   Onay men├╝s├╝ y├Âneticide g├Âr├╝n├╝r
+  OK   Kullan─▒c─▒ alan─▒ oturum sahibini g├Âsterir
+
+0b) Bo┼ş a├ğ─▒l─▒┼ş, ├Ârnek veri temizli─şi ve ├Ârnek veri y├╝kleme
+  OK   Site bo┼ş a├ğ─▒l─▒yor: i┼şyeri yok
+  OK   Site bo┼ş a├ğ─▒l─▒yor: personel yok
+  OK   Site bo┼ş a├ğ─▒l─▒yor: t├╝m kay─▒t listeleri bo┼ş
+  OK   Bo┼ş a├ğ─▒l─▒┼şta denetim izinde yaln─▒zca oturum kay─▒tlar─▒ var
+  OK   Bo┼ş a├ğ─▒l─▒┼şta ├Ârnek (@ornek.com) hesap yok
+  OK   Bo┼ş a├ğ─▒l─▒┼şta y├Ânetici hesab─▒ duruyor (giri┼ş a├ğ─▒k)
+  OK   Bo┼ş a├ğ─▒l─▒┼şta kurum ad─▒ bo┼ş
+  FAIL Cihaz temizlik damgas─▒ yaz─▒ld─▒ (g├Â├ğ bir kez ko┼şar) -> null
+  OK   Bo┼ş a├ğ─▒l─▒┼şta yedek yaz─▒lmad─▒
+node : Test ├ğ├Âkt├╝: TypeError: Cannot read properties of null (reading 'hidden')
+At line:1 char:82
++ ... t\isg-siteleri\isg-takip-merkezi'; node tools/kontrol.js 2>&1 | Out-F ...
++                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Test ├ğ├Âkt├╝: ...ading 'hidden'):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    at C:\Users\MEHMET\.cline\data\workspaces\chat\isg-siteleri\isg-takip-merkezi\tools\kontrol.js:154:88

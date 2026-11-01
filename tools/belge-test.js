@@ -66,12 +66,17 @@ function sunucuBaslat() {
   kontrol('Yönetici oturumu açıldı', !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yonetici');
 
   /* Site boş açılır; belge akışı gerçekçi bir işyeri ve kontrol kataloğu
-     ister. Örnek veri artık yalnızca elle yükleniyor — test de aynı yolu izler. */
+     ister. Uygulamada örnek veri düğmesi yok — test, demo fixture'ını
+     (tools/demo-veri.js) sayfa bağlamına alıp deponun kendi kurallarından
+     (ISG.depo.iceAktar) geçirerek yükler. */
   kontrol('Boş açılışta işyeri yok', D.al().isyerleri.length === 0, String(D.al().isyerleri.length));
-  ISG.depo.ornekYukle();
+  w.eval(fs.readFileSync(path.join(kok, 'tools', 'demo-veri.js'), 'utf8'));
+  const demoVeri = w.ISG.ORNEK_VERI();
+  delete w.ISG.ORNEK_VERI;
+  D.iceAktar(JSON.stringify(demoVeri));
   ISG.uygulama.girisSonrasi();
   await new Promise((r) => setTimeout(r, 150));
-  kontrol('Örnek veri yükleme düğmesiz de çalışıyor', D.al().isyerleri.length === 6, String(D.al().isyerleri.length));
+  kontrol('Demo fixture kayıtları yükleniyor', D.al().isyerleri.length === 6, String(D.al().isyerleri.length));
 
   const isyeriId = D.al().isyerleri[0].id;
 
