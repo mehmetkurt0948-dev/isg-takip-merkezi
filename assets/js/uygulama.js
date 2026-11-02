@@ -14,6 +14,7 @@
     dosyalar: 'Dosya kontrolleri',
     plan: 'Çalışma planı',
     saha: 'Saha ve DÖF',
+    saglik: 'Sağlık Takibi',
     rapor: 'Yönetim raporu',
     istatistik: 'İstatistikler',
     risk: 'Risk değerlendirmesi',
@@ -2088,10 +2089,11 @@
 
     var kapsam = planSilKapsamDeger();
     var hedefler = planSilHedefleri(durum, kapsam);
-    ozetKutu.textContent = (isyeri ? isyeri.ad : 'Seçili iş yeri') + ' · ' +
-      (kapsam === 'secilen' ? B.sayi(secimSayi) + ' seçili kayıt'
-        : durum.yil + ' yılındaki ' + B.sayi(yilSayi) + ' kayıt') +
-      ' silinecek · İş yerinde kalan: ' + B.sayi(kayitlar.length - hedefler.length) + ' kayıt.';
+    ozetKutu.textContent = (isyeri ? isyeri.ad : 'Seçili iş yeri') + ' iş yerinin ' +
+      (kapsam === 'secilen' ? 'seçilen ' + B.sayi(secimSayi) + ' çalışma planı kaydını'
+        : durum.yil + ' yılına ait ' + B.sayi(yilSayi) + ' çalışma planı kaydını') +
+      ' silmek üzeresiniz. Bu işlem geri alınamaz. İş yerinde kalan: ' +
+      B.sayi(kayitlar.length - hedefler.length) + ' kayıt.';
     var onay = el('planSilOnay');
     var dugme = el('planSilOnayla');
     if (dugme) { dugme.disabled = !(onay && onay.checked) || hedefler.length === 0; }
@@ -2345,6 +2347,31 @@
       case 'personel-sil':
         personelSilOnay(id);
         break;
+      case 'saglik-duzenle': {
+        var kayit = ISG.saglikTakip.listele('', '').filter(function (k) { return k.id === id; })[0];
+        if (kayit) { UI.acikSaglik = id; UI.duzenleSaglik = id; ciz(); }
+        break;
+      }
+      case 'saglik-kapat': {
+        UI.acikSaglik = UI.acikSaglik === id ? '' : id;
+        ciz();
+        break;
+      }
+      case 'saglik-vazgec': {
+        UI.duzenleSaglik = '';
+        UI.acikSaglik = '';
+        ciz();
+        break;
+      }
+      case 'saglik-sil': {
+        if (confirm('Bu sağlık kaydını silmek istediğinize emin misiniz?')) {
+          ISG.saglikTakip.sil(id);
+          UI.acikSaglik = '';
+          UI.duzenleSaglik = '';
+          ciz();
+        }
+        break;
+      }
       case 'personel-detay':
         UI.acikPersonel = UI.acikPersonel === id ? '' : id;
         ciz();
@@ -3423,6 +3450,44 @@
     baglandi = true;
 
     formlariBagla();
+
+    var saglikForm = el('saglik-form');
+    if (saglikForm) {
+      saglikForm.addEventListener('submit', function (olay) {
+        olay.preventDefault();
+        try {
+          var form = olay.target;
+          var veri = formVerisi(form);
+          var kayit = {
+            id: veri.id || '',
+            personelId: veri.personelId,
+            isyeriId: veri.isyeriId,
+            tarih: veri.tarih,
+            doktor: veri.doktor,
+            kanGrubu: veri.kanGrubu,
+            alerji: veri.alerji,
+            kronikHastalik: veri.kronikHastalik,
+            ilac: veri.ilac,
+            engelDurumu: veri.engelDurumu,
+            sonMuayene: veri.sonMuayene,
+            calismaYasagi: veri.calismaYasagi,
+            izinsizlik: Number(veri.izinsizlik) || 0,
+            calismaSesi: veri.calismaSesi,
+            notlar: veri.notlar
+          };
+          ISG.saglikTakip.kaydet(kayit);
+          form.reset();
+          UI.duzenleSaglik = '';
+          UI.acikSaglik = '';
+          B.bildir(kayit.id ? 'Sağlık kaydı güncellendi.' : 'Sağlık kaydı eklendi.', 'basari');
+          ciz();
+        } catch (hata) {
+          if (global.console && global.console.error) { global.console.error('[form:saglik-form]', hata); }
+          B.bildir('Kayıt yapılamadı: ' + ((hata && hata.message) || 'beklenmeyen hata'), 'hata');
+        }
+      });
+    }
+
     filtreBagla();
     dosyaGirdileriBagla();
     bulutBagla();

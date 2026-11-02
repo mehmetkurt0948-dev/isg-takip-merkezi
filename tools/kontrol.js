@@ -161,7 +161,7 @@ function bekle(ms) {
 
   /* Boş veriyle tüm ekranlar dolaşılır: boş durumlar hata metni üretmemeli. */
   const bosSayfalar = ['panel', 'isyerleri', 'personel', 'dosyalar', 'plan', 'saha', 'rapor',
-    'istatistik', 'risk', 'acil', 'ekip', 'onaylar', 'mevzuat'];
+    'istatistik', 'risk', 'acil', 'ekip', 'onaylar', 'mevzuat', 'saglik'];
   for (const sayfa of bosSayfalar) {
     await sayfaAc('#' + sayfa);
     const icerik = metin('#gorunum');
@@ -1657,8 +1657,10 @@ function bekle(ms) {
     doc.getElementById('planSilYil').value === String(PLAN_YILI) && !!planSilDurum(),
     doc.getElementById('planSilIsyeri').value + ' / ' + doc.getElementById('planSilYil').value);
   const planKalanBeklenen = iy5PlanOnce + 3; // 2032 yüklemesi kalır, 2031 silinir
-  kontrol('Silme kapsamı ve kalan kayıt sayısı yazılıyor',
-    new RegExp(PLAN_YILI + ' yılındaki 4 kayıt silinecek').test(metin('#planSilOzet')) &&
+  kontrol('Silme onayı iş yerini, yılı, sayıyı ve geri alınamaz uyarısını gösteriyor',
+    new RegExp(PLAN_YILI + ' yılına ait 4 çalışma planı kaydını').test(metin('#planSilOzet')) &&
+    /silmek üzeresiniz/.test(metin('#planSilOzet')) &&
+    /geri alınamaz/.test(metin('#planSilOzet')) &&
     metin('#planSilOzet').indexOf('kalan: ' + planKalanBeklenen + ' kayıt') > -1, metin('#planSilOzet'));
   kontrol('Tablo seçimi yoksa "seçtiklerim" seçeneği kapalı',
     doc.getElementById('planSilKapsamSecilen').disabled === true &&
@@ -1731,6 +1733,109 @@ function bekle(ms) {
     bosSilme.silinen === 0 && bosSilme.kalan === iy1PlanOnce &&
     ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy1').length === iy1PlanOnce,
     JSON.stringify(bosSilme));
+
+  /* Kurumlardan gelen plan dosyalarının biçimi (ASKİ-1 2026 dosyası bu kalıba
+     birebir uyuyor): sayfa tekrarında Sorumlu sütunu kayıyor, ay işaretleri küçük
+     "x", olay tabanlı satırların ayları boş, bazı satırlarda sıra no yok, her
+     sayfada tablo başlığı + ay numarası satırı tekrar ediyor, imza alanı var. */
+  const planKurumSatirlari = [
+    ['AYDIN BÜYÜKŞEHİR BELEDİYESİ PERSONEL A.Ş. İŞ SAĞLIĞI VE GÜVENLİĞİ YILLIK ÇALIŞMA ' +
+      'PROGRAMI ( ' + PLAN_YILI + ' YILI )', '', '', '', '', '', '', '', '', '', 'Doküman No', 'İSG.YÇP'],
+    ['Bu doküman işyeri için hazırlanmış olup sunulacak İSG çalışmalarının planlandığı ' +
+      'zamanlar belirtilmiştir.'],
+    ['SIRA NO', 'ÇALIŞMA KONUSU', '', '', '', '', 'SORUMLU', '', 'AÇIKLAMA', '', '', 'AYLAR'],
+    ['', '', '', '', '', '', '', '', '', '', '', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+    ['1', 'İş Sağlığı ve Güvenliği (İSG) Kurulu'],
+    ['1.1', 'İSG Kurul Ekipleri ve Atamaları', '', '', '', '', 'İşveren/Vekili', '',
+      'Kurul ekip üyelerinde herhangi bir değişiklik olması halinde'],
+    ['1.2', 'İSG Kurul Toplantılarının Yapılması', '', '', '', '', 'İşveren/Vekili', '',
+      'Olağanüstü durumlar harici ayda bir', '', '',
+      'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X'],
+    ['', 'İşe başlama eğitimi', '', '', '', '', 'İGU, İH', '', 'Yeni işe başlayan personele', '', '',
+      'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x'],
+    ['HAZIRLAYANLAR', '', '', '', '', '', '', '', '', '', '', 'ONAYLAYAN'],
+    ['A Sınıfı İş Güvenliği Uzmanı Barış TAŞDEMİR SERTİFİKA NO: İGU-108780'],
+    ['SIRA NO', 'ÇALIŞMA KONUSU', '', '', '', '', '', 'SORUMLU', 'AÇIKLAMA', '', '', 'AYLAR'],
+    ['', '', '', '', '', '', '', '', '', '', '', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+    ['6.12', 'Makine Cihaz Ekipman Kayıt Listeleri', '', '', '', '', '', 'İşveren/Vekili',
+      'Yılda bir kez', '', '', 'X', 'X'],
+    ['6.13', 'Kimyasal Güvenlik Bilgi Formları', '', '', '', '', '', 'Birim Sorumluları',
+      'Yeni kimyasal alındığında']
+  ];
+  const kurumA = Plan.analizEt(planKurumSatirlari, { isyeriId: 'iy5', yil: 0, mevcut: [] });
+  kontrol('Kurum dosyası biçimi: yıl bulundu, bölüm/ay başlığı/imza satırları ayıklandı',
+    kurumA.yil === PLAN_YILI && kurumA.ozet.bolum === 1 && kurumA.ozet.baslik === 3 &&
+    kurumA.ozet.imza === 2 && kurumA.ozet.hazir === 5 && kurumA.ozet.hatali === 0 &&
+    kurumA.ozet.ayIsaret === 26, JSON.stringify(kurumA.ozet));
+  const kurumKayitlari = Plan.uygulanacaklar(kurumA);
+  const kurumTamYil = kurumKayitlari.filter((k) => /^İSG Kurul Toplantıları/.test(k.faaliyet))[0] || {};
+  const kurumKucukX = kurumKayitlari.filter((k) => k.faaliyet === 'İşe başlama eğitimi')[0] || {};
+  const kurumOlay = kurumKayitlari.filter((k) => /^İSG Kurul Ekipleri/.test(k.faaliyet))[0] || {};
+  const kurumKaymis = kurumKayitlari.filter((k) => k.siraExcel === '6.12')[0] || {};
+  kontrol('On iki aylık faaliyetin bütün ayları korundu',
+    JSON.stringify(kurumTamYil.aylar) === '[1,2,3,4,5,6,7,8,9,10,11,12]',
+    JSON.stringify(kurumTamYil.aylar));
+  kontrol('Küçük "x" işareti de planlanmış sayılıyor, sıra nosuz faaliyet kaydediliyor',
+    kurumKucukX.aylar && kurumKucukX.aylar.length === 12 && kurumKucukX.siraExcel === '',
+    JSON.stringify(kurumKucukX.aylar));
+  kontrol('Ay işaretlenmeyen faaliyet uyarıyla ve ay bilgisi olmadan kaydediliyor',
+    !!kurumOlay.faaliyet && (kurumOlay.aylar || []).length === 0 &&
+    /Hiçbir ay işaretlenmedi/.test(JSON.stringify(kurumA.satirlar)),
+    JSON.stringify(kurumOlay.aylar));
+  kontrol('Sayfa tekrarında kayan Sorumlu sütunu doğru okunuyor',
+    kurumKaymis.sorumlu === 'İşveren/Vekili' && JSON.stringify(kurumKaymis.aylar) === '[1,2]' &&
+    kurumKaymis.anaBaslik === 'İş Sağlığı ve Güvenliği (İSG) Kurulu',
+    JSON.stringify([kurumKaymis.sorumlu, kurumKaymis.aylar, kurumKaymis.anaBaslik]));
+
+  /* İş yeri izolasyonu: toplu yazım ve yıl bazlı silme yalnızca hedef iş yerini
+     ve hedef yılı etkiler; diğer koleksiyonlar ile eşitleme damgaları korunur. */
+  const planDisi = (veri) => JSON.stringify((veri.planlar || []).filter((p) => p.isyeriId !== 'iy5')
+    .slice().sort((a, b) => String(a.id).localeCompare(String(b.id))));
+  const koleksiyonlar = (veri) => JSON.stringify(Object.keys(veri)
+    .filter((k) => k !== 'planlar' && k !== 'denetim' && k !== 'senkron').sort()
+    .map((k) => [k, veri[k]]));
+  const depoOnce = ISG.depo.al();
+  const planDisiOnce = planDisi(depoOnce);
+  const koleksiyonlarOnce = koleksiyonlar(depoOnce);
+  const damgaOnce = JSON.parse(JSON.stringify((depoOnce.senkron || {}).kayit || {}));
+  const planYazim = Plan.uygula(kurumA, {
+    isyeriId: 'iy5', yil: PLAN_YILI,
+    mevcut: ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy5')
+  });
+  const hedefKayitlar = ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy5' && p.yil === PLAN_YILI);
+  kontrol('Toplu yazım yalnızca hedef iş yerine ve hedef yıla gidiyor',
+    planYazim.eklenen === 5 && hedefKayitlar.length === 5 &&
+    hedefKayitlar.every((p) => p.isyeriId === 'iy5' && Number(p.yil) === PLAN_YILI),
+    planYazim.eklenen + ' kayıt · ' + hedefKayitlar.length + ' hedef kayıt');
+  kontrol('Yazımda diğer iş yerlerinin planları bayt bayt aynı',
+    planDisiOnce === planDisi(ISG.depo.al()));
+  kontrol('Yazımda diğer koleksiyonlar bayt bayt aynı',
+    koleksiyonlarOnce === koleksiyonlar(ISG.depo.al()));
+  const damgaSon = (ISG.depo.al().senkron || {}).kayit || {};
+  const yeniDamga = Object.keys(damgaSon).filter((kod) => typeof damgaOnce[kod] === 'undefined');
+  const planDamga = yeniDamga.filter((kod) => kod.indexOf('planlar|') === 0);
+  const denetimDamga = yeniDamga.filter((kod) => kod.indexOf('denetim|') === 0);
+  kontrol('Eşitleme damgaları yalnızca yeni plan kayıtları ve denetim izi için eklendi',
+    planDamga.length === 5 && planDamga.length + denetimDamga.length === yeniDamga.length &&
+    Object.keys(damgaOnce).every((kod) => String(damgaSon[kod]) === String(damgaOnce[kod])),
+    yeniDamga.join(','));
+  kontrol('Aynı dosya tekrar yüklendiğinde mükerrer denetimi kayıt eklemiyor',
+    (function () {
+      const tekrar = Plan.analizEt(planKurumSatirlari, {
+        isyeriId: 'iy5', yil: PLAN_YILI,
+        mevcut: ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy5')
+      });
+      const ikinci = Plan.uygula(tekrar, { isyeriId: 'iy5', yil: PLAN_YILI });
+      return ikinci.eklenen === 0 && ikinci.mukerrer === 5 &&
+        ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy5' && p.yil === PLAN_YILI).length === 5;
+    })());
+  const baskaIsYeriOnce = planDisi(ISG.depo.al());
+  const yilSilme = ISG.depo.planTopluSil({ isyeriId: 'iy5', yil: PLAN_YILI });
+  kontrol('Yıl bazlı toplu silme yalnızca hedef iş yeri ve yılı siliyor',
+    yilSilme.silinen === 5 &&
+    ISG.depo.al().planlar.filter((p) => p.isyeriId === 'iy5' && p.yil === PLAN_YILI).length === 0 &&
+    baskaIsYeriOnce === planDisi(ISG.depo.al()),
+    'silinen ' + yilSilme.silinen + ' · kalan ' + yilSilme.kalan);
 
   /* Test kayıtları geri alınır; sonraki bölümler demo verisiyle devam eder. */
   ISG.depo.al().planlar.filter((p) => p.yil === 2032 || p.yil === PLAN_YILI)
@@ -1893,7 +1998,8 @@ function bekle(ms) {
 
   console.log('\n16) Menü, rozetler ve yapı');
   await sayfaAc('#panel');
-  kontrol('Menüde 13 sayfa var', doc.querySelectorAll('.menu-oge[data-sayfa]').length === 13, String(doc.querySelectorAll('.menu-oge[data-sayfa]').length));
+  kontrol('Menüde 14 sayfa var', doc.querySelectorAll('.menu-oge[data-sayfa]').length === 14, String(doc.querySelectorAll('.menu-oge[data-sayfa]').length));
+  kontrol('Sağlık takibi menüde', doc.querySelectorAll('.menu-oge[data-sayfa="saglik"]').length === 1);
   kontrol('İstatistik menüde', doc.querySelectorAll('.menu-oge[data-sayfa="istatistik"]').length === 1);
   kontrol('Onay kuyruğu menüde', doc.querySelectorAll('.menu-oge[data-sayfa="onaylar"]').length === 1);
   kontrol('Dosya rozeti görünür', doc.getElementById('rozetDosya').hidden === false);
@@ -1977,7 +2083,7 @@ function bekle(ms) {
   kontrol('İkinci sıfırlama da boş veri veriyor', ISG.depo.al().isyerleri.length === 0);
 
   console.log('\n18) Tüm ekranlarda metin ve ikon temizliği (boş veriyle)');
-  const tumSayfalar = ['panel', 'isyerleri', 'personel', 'dosyalar', 'plan', 'saha', 'rapor', 'istatistik', 'risk', 'acil', 'ekip', 'onaylar', 'mevzuat'];
+  const tumSayfalar = ['panel', 'isyerleri', 'personel', 'dosyalar', 'plan', 'saha', 'rapor', 'istatistik', 'risk', 'acil', 'ekip', 'onaylar', 'mevzuat', 'saglik'];
   for (const sayfa of tumSayfalar) {
     await sayfaAc('#' + sayfa);
     const icerik = metin('#gorunum');

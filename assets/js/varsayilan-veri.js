@@ -1,4 +1,4 @@
-/* İSG Takip Merkezi — varsayılan başlangıç verisi ve tarih yardımcıları
+﻿/* İSG Takip Merkezi — varsayılan başlangıç verisi ve tarih yardımcıları
    Site boş açılır: yeni bir cihazda hiçbir işyeri, personel veya kayıt
    yoktur. Başlangıçta yalnızca yönetici hesabı bulunur (aksi hâlde giriş
    yapılamaz). Tanıtım amaçlı dolu küme yayında değildir; test fixture'ı
@@ -44,7 +44,7 @@
       },
       isyerleri: [], personel: [], egitimler: [], riskler: [], olaylar: [],
       dosyalar: [], belgeler: [], planlar: [], tespitler: [],
-      riskEkipleri: [], acilPlanlar: [], mevzuat: [],
+      riskEkipleri: [], acilPlanlar: [], mevzuat: [], saglikTakip: [],
       kullanicilar: ISG.YONETICI_HESAP(), talepler: [], denetim: [],
       senkron: { kayit: {}, silinen: {}, ayarlar: '' }
     };

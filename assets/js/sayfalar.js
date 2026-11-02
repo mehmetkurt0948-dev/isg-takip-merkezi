@@ -1,14 +1,16 @@
-/* İSG Takip Merkezi — görünümler: ortak parçalar, Genel bakış, İşyerleri, Personel */
+﻿/* İSG Takip Merkezi — görünümler: ortak parçalar, Genel bakış, İşyerleri, Personel */
 (function (global) {
   'use strict';
 
   var ISG = global.ISG = global.ISG || {};
   var B = ISG.bicim;
+  var Y = ISG.yetki;
   var SAYFALAR = ISG.sayfalar = ISG.sayfalar || {};
   var UI = ISG.ui = ISG.ui || {};
 
   function veri() { return ISG.yetki ? ISG.yetki.gorunum() : ISG.depo.al(); }
   function kacis(deger) { return B.kacis(deger); }
+  function rolTanimi(rol) { return ISG.yetki.rolTanimi(rol); }
   function ui(deger, varsayilan) {
     return typeof deger === 'undefined' || deger === null || deger === '' ? (varsayilan || '') : deger;
   }
@@ -399,6 +401,121 @@
     '</section>';
   }
 
+  /* ---------- Sayfa: Sağlık Takibi ---------- */
+  function saglikSatiri(k, hesap, yonetir) {
+    var acik = UI.acikSaglik === k.id;
+    var isyeriAd = (hesap.isyerleri || []).filter(function (i) { return i.id === k.isyeriId; })[0];
+    var isyeriMetin = isyeriAd ? isyeriAd.ad : (k.isyeriId || '-');
+    var kisi = (hesap.personel || []).filter(function (p) { return p.id === k.personelId; })[0];
+    var kisiAd = kisi ? kisi.adSoyad : (k.personelId || '-');
+    var surecDurum = k.calismaYasagi ? '<span class="etiket engel">YASAK VAR</span>' : '<span class="etiket uygun">UYGUN</span>';
+    return '<section class="kisi-kart" data-id="' + kacis(k.id) + '">' +
+      '<header class="kisi-baslik">' +
+        '<span class="kisi-ad">' + kacis(kisiAd) + '</span>' +
+        '<span class="kisi-isyeri">' + kacis(isyeriMetin) + '</span>' +
+        '<span class="kisi-tarih">' + kacis(k.tarih || '-') + '</span>' +
+        surecDurum +
+      '</header>' +
+      '<div class="kisi-icerik"' + (acik ? '' : ' hidden') + '>' +
+        '<table class="tablo-kucuk saglik-tablo">' +
+          '<tr><td>Muayene tarihi</td><td>' + kacis(k.tarih || '-') + '</td></tr>' +
+          '<tr><td>Hekim</td><td>' + kacis(k.doktor || '-') + '</td></tr>' +
+          '<tr><td>Çalışma şekli</td><td>' + kacis(k.calismaSesi || '-') + '</td></tr>' +
+          '<tr><td>Çalışma yasağı</td><td>' + kacis(k.calismaYasagi || 'Yok') + '</td></tr>' +
+          '<tr><td>İzinsizlik günü</td><td>' + kacis(k.izinsizlik || '0') + '</td></tr>' +
+          '<tr><td>Kan grubu</td><td>' + kacis(k.kanGrubu || '-') + '</td></tr>' +
+          '<tr><td>Alerji</td><td>' + kacis(k.alerji || '-') + '</td></tr>' +
+          '<tr><td>Kronik hastalık</td><td>' + kacis(k.kronikHastalik || '-') + '</td></tr>' +
+          '<tr><td>Kullanılan ilaç</td><td>' + kacis(k.ilac || '-') + '</td></tr>' +
+          '<tr><td>Engel durumu</td><td>' + kacis(k.engelDurumu || '-') + '</td></tr>' +
+          '<tr><td>Son muayene</td><td>' + kacis(k.sonMuayene || '-') + '</td></tr>' +
+          '<tr><td>Notlar</td><td>' + kacis(k.notlar || '-') + '</td></tr>' +
+        '</table>' +
+        '<div class="islem-sutun">' +
+          '<button type="button" data-islem="saglik-duzenle" data-id="' + kacis(k.id) + '">Düzenle</button>' +
+          '<button type="button" data-islem="saglik-kapat" data-id="' + kacis(k.id) + '">' + (acik ? 'Gizle' : 'Göster') + '</button>' +
+          (yonetir ? '<button type="button" data-islem="saglik-sil" data-id="' + kacis(k.id) + '" class="dugme tehlike">Sil</button>' : '') +
+        '</div>' +
+      '</div>' +
+    '</section>';
+  }
+
+  function saglikFormu(k) {
+    k = k || {};
+    var alanHtml = ISG.saglikAlanlari.map(function (a) {
+      var deger = k[a.id] || '';
+      var gizli = ISG.saglikGizliAlanlar.indexOf(a.id) >= 0 ? ' class="gizli-alan"' : '';
+      var input;
+      if (a.tip === 'textarea') {
+        input = '<textarea name="' + a.id + '">' + kacis(deger) + '</textarea>';
+      } else if (a.tip === 'select' && a.secenekler) {
+        input = '<select name="' + a.id + '">' + a.secenekler.map(function (s) {
+          return '<option value="' + s + '"' + (deger === s ? ' selected' : '') + '>' + s + '</option>';
+        }).join('') + '</select>';
+      } else if (a.tip === 'date') {
+        input = '<input type="date" name="' + a.id + '" value="' + kacis(deger) + '">';
+      } else if (a.tip === 'number') {
+        input = '<input type="number" name="' + a.id + '" value="' + kacis(deger) + '">';
+      } else {
+        input = '<input type="text" name="' + a.id + '" value="' + kacis(deger) + '">';
+      }
+      return '<div class="form-satir"' + gizli + '><label>' + a.ad + (a.zorunlu ? ' *' : '') + '</label>' + input + '</div>';
+    }).join('');
+    return '<form id="saglik-form" class="form-kutu">' +
+      '<input type="hidden" name="id" value="' + kacis(k.id || '') + '">' +
+      alanHtml +
+      '<div class="form-islem">' +
+        '<button type="button" class="dugme ikincil" data-islem="saglik-vazgec">Vazgeç</button>' +
+        '<button type="submit" class="dugme birincil">' + (k.id ? 'Güncelle' : 'Kaydet') + '</button>' +
+      '</div>' +
+    '</form>';
+  }
+
+  SAYFALAR.saglik = function (hesap) {
+    var o = Y.oturum();
+    if (!o) { return '<div class="hata">' + B.bosDurum('Oturum bulunamadı', 'Lütfen giriş yapın.', 'i-kisisel') + '</div>'; }
+    var rol = rolTanimi(o.rol);
+    if (rol.id !== 'yonetici' && rol.id !== 'yetkili' && rol.id !== 'goruntuleyici') {
+      return '<div class="hata">' + B.bosDurum('Erişim yok', 'Sağlık kayıtlarını görüntüleme izniniz yok.', 'i-kisisel') + '</div>';
+    }
+
+    var liste;
+    try {
+      liste = ISG.saglikTakip.listele(
+        rol.id === 'yetkili' && o.isyerleri.length === 1 ? o.isyerleri[0] : '',
+        ''
+      );
+    } catch (hata) {
+      return '<div class="hata">' + B.bosDurum('Kayıtlar okunamadı', (hata && hata.message) || 'Beklenmeyen hata.', 'i-kisisel') + '</div>';
+    }
+
+    var satirHtml = liste.map(function (k) { return saglikSatiri(k, hesap, rol.yonetir === true); }).join('');
+    if (!satirHtml) {
+      satirHtml = '<div class="bos-kart"><p>Sağlık kaydı bulunamadı. İlk kaydı aşağıdan ekleyebilirsiniz.</p></div>';
+    }
+
+    var duzenlenen = UI.duzenleSaglik ? liste.filter(function (k) { return k.id === UI.duzenleSaglik; })[0] || null : null;
+    var form = rol.id === 'goruntuleyici' ? '' : saglikFormu(duzenlenen);
+
+    return '<section class="sayfa saglik-sayfa">' +
+      sayfaBaslik('SAĞLIK TAKİBİ', 'Personel Sağlık Takibi', 'Muayene kayıtları, çalışma yasağı ve izinsizlik takibi.') +
+      '<div class="grid-iki">' +
+        '<div class="kart">' +
+          '<h3>Kayıtlar</h3>' +
+          satirHtml +
+        '</div>' +
+        '<div class="kart">' +
+          '<h3>' + (duzenlenen ? 'Kaydı Düzenle' : 'Yeni Kayıt') + '</h3>' +
+          form +
+        '</div>' +
+      '</div>' +
+    '</section>';
+  };
+
+  /* Sayfa ataması (uygulama.js ISG.sayfalar[data-sayfa] ile çağırır). */
+  ISG.sayfalar = ISG.sayfalar || SAYFALAR;
+  ISG.sayfalar.saglik = SAYFALAR.saglik;
+
   ISG.parcalar = {
     sayfaBaslik: sayfaBaslik,
     kapsamSecici: kapsamSecici,
@@ -408,6 +525,7 @@
     kazaTablosu: kazaTablosu
   };
 })(window);
+
 
 
 

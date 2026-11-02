@@ -1,4 +1,4 @@
-/* İSG Takip Merkezi — oturum, roller, işyeri kapsamı ve onay kuyruğu
+﻿/* İSG Takip Merkezi — oturum, roller, işyeri kapsamı ve onay kuyruğu
    depo.js ve bicim.js'ten sonra, sayfa modüllerinden ve uygulama.js'ten önce yüklenir. */
 (function (global) {
   'use strict';
@@ -533,6 +533,33 @@
     };
   });
 
+
+  /* ---------- Sağlık verileri erişim kontrolü ---------- */
+  /* Yalnızca yönetici ve işyeri hekimi/yetkili (işyeri kapsamında) sağlık kayıtlarını
+     oluşturabilir/silerebilir. Görüntüleyici erişemez. */
+  var SAGLIK_ISLEMLERI = ['saglikTakipKaydet', 'saglikTakipSil'];
+  SAGLIK_ISLEMLERI.forEach(function (ad) {
+    var asil = D[ad];
+    if (typeof asil !== 'function') { return; }
+    orijinal[ad] = asil;
+    D[ad] = function () {
+      var args = Array.prototype.slice.call(arguments);
+      var o = oturum();
+      if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
+      var rol = rolTanimi(o.rol);
+      if (rol.id !== 'yonetici' && rol.id !== 'yetkili') {
+        throw new Error('Sağlık kayıtlarına yalnızca yönetici ve işyeri hekimi/yetkili erişebilir.');
+      }
+      if (rol.id === 'yetkili') {
+        var isyeriId = (args && args[0] && args[0].isyeriId) || '';
+        if (!isyeriId) { throw new Error('İşyeri belirlenemedi.'); }
+        if (o.isyerleri.indexOf(isyeriId) < 0) { throw new Error('Bu işyeri yetki kapsamınızda değil.'); }
+      }
+      var sonuc = asil.apply(D, args);
+      denetimYaz(ad, args, o);
+      return sonuc;
+    };
+  });
   ISG.yetki = {
     ROLLER: ROLLER,
     rolCoz: rolCoz,

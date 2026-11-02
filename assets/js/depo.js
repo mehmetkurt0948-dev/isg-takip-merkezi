@@ -1,4 +1,4 @@
-/* İSG Takip Merkezi — alan kuralları, veri katmanı ve görev motoru */
+﻿/* İSG Takip Merkezi — alan kuralları, veri katmanı ve görev motoru */
 (function (global) {
   'use strict';
 
@@ -598,7 +598,7 @@
   var LISTE_ANAHTARLARI = [
     'egitimler', 'riskler', 'olaylar', 'dosyalar', 'belgeler', 'planlar', 'tespitler',
     'riskEkipleri', 'acilPlanlar', 'mevzuat',
-    'kullanicilar', 'talepler', 'denetim'
+    'kullanicilar', 'talepler', 'denetim', 'saglikTakip'
   ];
 
   /* Bulut eşitlemesinde kayıt bazında birleştirilen listeler. */
@@ -609,10 +609,9 @@
 
   function yayinla() {
     depoDurumu.dinleyiciler.forEach(function (fn) {
-      try { fn(depoDurumu.veri); } catch (hata) { /* dinleyici hatası uygulamayı durdurmaz */ }
+      try { fn(depoDurumu.veri); } catch (hata) { /* dinleyici hatasi uygulamayi durdurmaz */ }
     });
   }
-
   /* Eski sürümden gelen ya da içe aktarılan veriyi güncel şemaya tamamlar. */
   function veriTamamla(veri) {
     if (!veri) { return veri; }
@@ -664,6 +663,14 @@
       /* Yönetici hesabı olmadan giriş yapılamaz: örnek hesaplar değil,
          yalnızca gerçek yönetici hesabı eklenir. */
       veri.kullanicilar = ISG.YONETICI_HESAP();
+
+      /* ENGIN EKLE: enginozcan1402@gmail.com hesabı her cihazda yerel olarak 
+      olsun, bulut senkronizasyonu kapalıysa bile giriş yapılabilsin. */
+      veri.kullanicilar.push({
+        id: 'u2', adSoyad: 'Engin Özcan', eposta: 'enginozcan1402@gmail.com',
+        sifre: '1402', rol: 'yetkili', gorev: 'İSG Güvenliği Uzmanı',
+        isyerleri: [], aktif: true, sonGiris: ''
+      });
     }
 
     veri.surum = SURUM;
@@ -1711,6 +1718,38 @@
     depo.kaydet();
   };
 
+  /* ---------- İş sağlığı / personel sağlık takibi ---------- */
+  /* Hassas sağlık verileri: yalnızca yönetici ve işyeri hekimi/yetkili (işyeri kapsamında) erişebilir. */
+  ISG.depo.saglikTakipKaydet = function (kayit) {
+    var veri = depo.al();
+    veri.saglikTakip = veri.saglikTakip || [];
+    kayit.id = kayit.id || ISG.yeniId('sk');
+    kayit.tarih = kayit.tarih || ISG.bicim.bugunIso();
+    var yer = -1;
+    veri.saglikTakip.forEach(function (k, i) { if (k.id === kayit.id) { yer = i; } });
+    if (yer >= 0) { veri.saglikTakip[yer] = kayit; } else { veri.saglikTakip.push(kayit); }
+    if (!depo.kaydet()) { throw new Error("Sağlık kaydı kaydedilemedi: depolama dolu."); }
+    return kayit;
+  };
+
+  ISG.depo.saglikTakipSil = function (id) {
+    var veri = depo.al();
+    veri.saglikTakip = (veri.saglikTakip || []).filter(function (k) { return k.id !== id; });
+    depo.kaydet();
+  };
+
+  ISG.depo.saglikTakipBul = function (id) {
+    if (!id) { return null; }
+    return (depo.al().saglikTakip || []).filter(function (k) { return k.id === id; })[0] || null;
+  };
+
+  ISG.depo.saglikTakipListe = function (isyeriId, personelId) {
+    var liste = (depo.al().saglikTakip || []).slice();
+    if (isyeriId) { liste = liste.filter(function (k) { return k.isyeriId === isyeriId; }); }
+    if (personelId) { liste = liste.filter(function (k) { return k.personelId === personelId; }); }
+    return liste.sort(function (a, b) { return String(b.tarih || "").localeCompare(String(a.tarih || "")); });
+  };
+
   ISG.depo.ayarKaydet = function (alanlar) {
     var veri = depo.al();
     veri.ayarlar = veri.ayarlar || {};
@@ -1719,5 +1758,6 @@
     return veri.ayarlar;
   };
 })(window);
+
 
 
