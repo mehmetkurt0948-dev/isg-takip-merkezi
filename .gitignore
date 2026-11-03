@@ -17,3 +17,8 @@ out-*.xlsx
 
 # Canli veri yedekleri (kisisel veri icerir, depoya ASLA girmez)
 yedek-personel/
+yedek-saglik/
+
+# Saglik aktarim ciktilari (kisisel saglik verisi icerir)
+saglik-analiz.txt
+saglik-yazim.txt

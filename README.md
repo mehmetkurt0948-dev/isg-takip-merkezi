@@ -22,7 +22,7 @@ kayıt tabloları.
 | **Genel bakış** | Tüm işyerlerinden türetilen görev motoru: geciken / bugün / yaklaşan / tarihsiz işler, öncelik sıralı liste, işyeri bazında durum tablosu |
 | **İşyerleri** | Kurum şeridi (ana kurum, ad değiştir, tüm verileri sil), işyeri kartları (tehlike sınıfı, çalışan ve kontrol maddesi sayısı), işyeri CRUD |
 | **Personel listesi** | İşyeri bazında bloklar, sicil/TC/meslek/departman/şube/kıdem/telefon/cinsiyet kolonları, arama, detay açma, eğitim kayıtları, gerçek **XLSX şablonu** ve XLSX/CSV içe-dışa aktarma, "listeyi temizle" |
-| **Sağlık takibi** | İşyeri hekimi sağlık kayıtları: personel, işyeri, tarih, doktor, kan grubu, alerji, kronik hastalık, ilaç, engel durumu, son muayene, çalışma yasağı, izinsizlik ve not alanları; hassas alanlar cihazda şifreli saklanır, kayıt ekleme/güncelleme yönetici ve yetkilide, silme yalnızca yöneticide. Personel veya işyeri silinse de muayene kayıtları silinmez: kişi adı, sicil ve işyeri adı kayda dondurulur, listede "silinmiş personel" rozetiyle okunmaya devam eder; silme onayında kaç kaydın korunduğu belirtilir |
+| **Sağlık takibi** | İşyeri hekimi sağlık kayıtları: personel, işyeri, tarih, doktor, kan grubu, alerji, kronik hastalık, ilaç, engel durumu, son muayene, çalışma yasağı, izinsizlik ve not alanları; hassas alanlar cihazda şifreli saklanır, kayıt ekleme/güncelleme yönetici ve yetkilide, silme yalnızca yöneticide. Personel veya işyeri silinse de muayene kayıtları silinmez: kişi adı, sicil ve işyeri adı kayda dondurulur, listede "silinmiş personel" rozetiyle okunmaya devam eder; silme onayında kaç kaydın korunduğu belirtilir; **tam personel listesi** (muayene kaydı olmayanlar dâhil, arama + durum + işyeri filtresi, kişi geçmişi ve kayıt düzenleme/silme), **üç gruplu katlanır kayıt formu**, **Excel şablonu / içe aktarma (ön izleme + onay) / dışa aktarma** |
 | **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma, **belge eki yükle / görüntüle / indir / kaldır** (belge başına ≤ 1 MB, `localStorage`) |
 | **Çalışma planı** | İlk yardımcı ihtiyaç/mevcut karşılaştırması, yıllık plan kartları, plan kalemi CRUD, tamamlandı işaretleme, plan KPI'ları, **yıl filtresi**, **hazır Excel şablonu indir**, **Excel/CSV toplu yükleme (ön izleme + onay)**, **Excel'e aktar**, satır seçip **toplu silme** |
 | **Saha ve DÖF** | Açık/geciken/doğrulama/kapatılan tespitler, öncelik-tür filtreleri, kapatma akışı, **iş kazası ve meslek hastalığı kayıt tablosu** (personel + sicil/departman, tanı bölgesi/türü, SGK hastalık grubu, etken, kök neden sınıfı ve açıklaması, kayıp gün, sağlık kuruluşu) ve CSV çıktısı, ramak kala ve diğer olay bildirimleri |
@@ -682,6 +682,37 @@ silinen mezar taşı `0`. `--denetim-yok` verilmezse denetim izine
 
 
 
+## 6.6. Sağlık kayıtlarını Excel'den yüklemek ve dışa aktarmak
+
+Sağlık Takibi ekranında üç Excel işlemi vardır:
+
+| Düğme | Ne yapar? |
+|---|---|
+| **Şablon indir (.xlsx)** | `ISG.excel` ile gerçek XLSX üretir: `Sağlık Kayıtları` (15 sütun + örnek satır) ve `Kılavuz` sayfaları. İnternet/CDN gerekmez. |
+| **Sağlık kaydı Excel'den yükle** | `.xlsx` dosyasını okur, kişiyi önce **Sicil No** sonra **Ad Soyad** ile eşleştirir, satırları doğrular ve **hiçbir şey yazmadan** ön izleme diyaloğu açar. |
+| **Excel'e aktar** | Kapsamdaki sağlık kayıtlarını (çözülmüş hâliyle) XLSX olarak indirir; dosya yeniden yüklenebilir. |
+
+Ön izleme diyaloğunda **Dosya satırı / Kaydedilecek / Mükerrer / Hatalı** sayıları
+ve satır satır neden listelenir. Kayıtlar yalnızca **"Kaydedilecekleri ekle"**
+onayından sonra `ISG.saglikTakip.kaydet` üzerinden yazılır; böylece hassas
+alanların şifrelenmesi, yönetici denetimi ve günlük kaydı atlanmaz.
+
+Kurallar:
+
+- **Zorunlu:** `Muayene Tarihi` (YYYY-AA-GG veya GG.AA.YYYY) ve personel eşleşmesi.
+- Aynı personel + aynı muayene tarihi **mükerrer** sayılır, ikinci kez yazılmaz
+  (dosya içinde tekrar eden satırlar da).
+- **Hatalı** satırlar: personel bulunamadı/aynı sicil veya ad birden çok kişide,
+  tarih okunamadı, personelin işyeri yok. Hatalı satır kaydedilmez; nedeni yazılır.
+- **İşyeri sütunu okunmaz:** kayıt her zaman kişinin kendi işyerine yazılır.
+- Aynı ad birden çok personelde varsa satıra **Sicil No** yazılmalıdır.
+- Sağlık kasası genel bulut eşitlemesine dâhil değildir; içe/dışa aktarma
+  dosyaları kişisel sağlık verisi içerir, paylaşımı sınırlandırılmalıdır.
+
+Modül `assets/js/saglik-toplu.js` (`ISG.saglikToplu`) altındadır; `analizEt`,
+`uygula`, `sablonSayfalar`, `sablonIndir`, `disaAktarSayfalar`, `disaAktar` ve
+`onizlemeSatirlari` arayüzden bağımsız test edilir (`test/sagliktoplutest.js`).
+
 ## 7. Yayınlama (GitHub Pages)
 
 Uygulama tamamen statiktir: sunucu tarafı, derleme adımı, veritabanı veya API
@@ -842,6 +873,38 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.18.0 — Sağlık takibi: tam personel listesi, katlanır form, Excel içe/dışa aktarma
+
+- **Sekme etiketleri düzeltildi.** Çalışma kitabı sekmeleri `{ ad, satirlar }`
+  nesneleri olarak saklanıyor, arayüz ise etiket olarak nesneyi basıyordu: beş
+  sekme de **"[object Object]"** görünüyordu. Artık `sekme.ad` okunuyor; sayaçlar
+  başlık satırını düşerek hesaplanıyor. 1163 satırlık TAM LİSTE tek seferde
+  basılmasın diye çalışma kitabı tablosuna **50 satırlık sayfalama** eklendi.
+- **Tam personel listesi.** Sağlık Takibi'ne kapsamdaki **tüm personel** basılıyor
+  (muayene kaydı olmayanlar **"MUAYENE YOK"** rozetiyle). Arama, durum
+  (Tümü/Muayene yok/Sevkli/Yasaklı/Uygun) ve işyeri filtreleri, sayfalama,
+  kişi başına **geçmiş** (kayıt sayısı, tarih, sonuç, sevk, yasak) ve satırdan
+  **Muayene ekle / Düzenle / Sil** işlemleri var.
+- **Katlanır kayıt formu.** Form artık sayfaya sürekli açık basılmıyor:
+  `<details>` paneli varsayılan kapalı; "Yeni kayıt"/"Muayene ekle"/"Düzenle"
+  açıyor, kayıt veya "Vazgeç" kapatıyor. Alanlar üç grupta: **Personel ve
+  muayene**, **Sağlık bilgileri (gizli)**, **Muayene sonucu ve iş kısıtları**.
+  Personel ve işyeri serbest metin yerine **kayıtlı listelerden seçilir**; kişi
+  seçilince işyeri otomatik dolar.
+- **Excel şablonu, içe ve dışa aktarma.** Yeni `assets/js/saglik-toplu.js`
+  (`ISG.saglikToplu`): 15 sütunluk şablon (`Şablon indir`), kişiyi Sicil No →
+  Ad Soyad sırasıyla eşleştiren, tarihleri çözen, mükerrer/hata ayıklayan
+  `analizEt`, yalnız onaydan sonra `ISG.saglikTakip.kaydet` ile yazan `uygula`,
+  ve kayıtları yeniden yüklenebilir XLSX'e çeviren `disaAktar`. Ön izleme
+  diyaloğu personel/plan toplu yükleme kalıbındadır.
+- **Arama kutusu karışıklığı giderildi.** Sağlık ekranındaki her `input` olayı
+  çalışma kitabı aramasını da eziyordu; artık her kutu yalnızca kendi listesini
+  ve sayfasını sıfırlar.
+- **Testler:** mevcut `test/sagliktest.js` korunarak kapsam `#saglik-kayit-tablo`
+  ile daraltıldı; yeni `test/sagliktoplutest.js` 50 kontrolle personel listesi,
+  katlanır form, sekme etiketleri/sayfalama, şablon, analiz, mükerrer koruması ve
+  onaylı içe aktarma akışını doğrular.
 
 ### 2.16.0 — Toplu personel yükleme: Kıdem Tarihi korunuyor, tekil kimlik, ASKİ-1 aktarım aracı
 

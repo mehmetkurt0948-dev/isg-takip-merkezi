@@ -2214,6 +2214,7 @@
       if (kapanan && kapanan.id === 'personelTopluDiyalog') { UI.personelToplu = null; }
       if (kapanan && kapanan.id === 'planTopluDiyalog') { UI.planToplu = null; }
       if (kapanan && kapanan.id === 'planTopluSilDiyalog') { UI.planSil = null; }
+      if (kapanan && kapanan.id === 'saglikTopluDiyalog') { UI.saglikToplu = null; }
       diyalogKapat(kapanan);
       return;
     }
@@ -2221,7 +2222,9 @@
     var sayfaGit = olay.target.closest('[data-sayfa-git]');
     if (sayfaGit) {
       var gitAdet = Number(sayfaGit.getAttribute('data-sayfa-git')) || 1;
-      if (aktifSayfa() === 'saglik') { UI.saglikSayfa = gitAdet; }
+      var anahtarKap = sayfaGit.closest('[data-sayfa-anahtar]');
+      if (anahtarKap) { UI[anahtarKap.getAttribute('data-sayfa-anahtar')] = gitAdet; }
+      else if (aktifSayfa() === 'saglik') { UI.saglikSayfa = gitAdet; }
       else { UI.dosyaSayfa = gitAdet; }
       ciz();
       return;
@@ -2379,10 +2382,46 @@
       case 'saglik-xlsx-yukle':
         if (el('saglikXlsxGirdi')) { el('saglikXlsxGirdi').click(); }
         break;
+      case 'saglik-ice-aktar':
+        if (el('saglikKayitGirdi')) { el('saglikKayitGirdi').click(); }
+        break;
+      case 'saglik-sablon':
+        saglikSablon();
+        break;
+      case 'saglik-disa-aktar':
+        saglikExcel();
+        break;
+      case 'saglik-yeni':
+        UI.saglikFormuAc = true;
+        UI.saglikKisi = '';
+        UI.duzenleSaglik = '';
+        UI.acikSaglik = '';
+        ciz();
+        break;
+      case 'saglik-kisi-ekle':
+        UI.saglikKisi = id;
+        UI.saglikFormuAc = true;
+        UI.duzenleSaglik = '';
+        ciz();
+        break;
+      case 'saglik-kisi-gecmis':
+        UI.acikSaglikKisi = UI.acikSaglikKisi === id ? '' : id;
+        ciz();
+        break;
+      case 'saglik-kisi-sil': {
+        if (confirm('Bu sağlık kaydı silinsin mi? Kişinin diğer muayene kayıtları korunur.')) {
+          ISG.saglikTakip.sil(id);
+          UI.acikSaglikKisi = '';
+          UI.acikSaglik = '';
+          UI.duzenleSaglik = '';
+          ciz();
+        }
+        break;
+      }
       case 'saglik-duzenle': {
         if (ISG.yetki.rolTanimi(ISG.yetki.oturum().rol).id !== 'yonetici') { B.bildir('Sağlık kayıtlarını yalnızca yönetici düzenleyebilir.', 'hata'); break; }
         var kayit = ISG.saglikTakip.listele('', '').filter(function (k) { return k.id === id; })[0];
-        if (kayit) { UI.acikSaglik = id; UI.duzenleSaglik = id; ciz(); }
+        if (kayit) { UI.acikSaglik = id; UI.duzenleSaglik = id; UI.saglikFormuAc = true; UI.saglikKisi = ''; ciz(); }
         break;
       }
       case 'saglik-kapat': {
@@ -2393,6 +2432,8 @@
       case 'saglik-vazgec': {
         UI.duzenleSaglik = '';
         UI.acikSaglik = '';
+        UI.saglikFormuAc = false;
+        UI.saglikKisi = '';
         ciz();
         break;
       }
@@ -2401,6 +2442,8 @@
           ISG.saglikTakip.sil(id);
           UI.acikSaglik = '';
           UI.duzenleSaglik = '';
+          UI.saglikFormuAc = false;
+          UI.saglikKisi = '';
           ciz();
         }
         break;
@@ -3253,6 +3296,11 @@
     formuBagla('planTopluForm', function () {
       planTopluKaydetIsle();
     });
+
+    /* SAĞLIK KAYITLARI: Excel ön izlemesi onaylanınca yazılır. */
+    formuBagla('saglikTopluForm', function () {
+      saglikTopluKaydetIsle();
+    });
     ['planTopluIsyeri', 'planTopluYil'].forEach(function (alanId) {
       var alan = el(alanId);
       if (alan) { alan.addEventListener('change', planTopluDegisti); }
@@ -3384,6 +3432,143 @@
     });
   }
 
+  /* ---------- Sağlık kayıtları: Excel şablonu, içe ve dışa aktarma ----------
+     Akış personel/plan toplu yükleme kalıbıyla aynıdır: dosya okunur, ön izleme
+     gösterilir, kayıtlar yalnızca kullanıcı onayından sonra yazılır. */
+
+  var SAGLIK_TOPLU_DURUM_AD = {
+    hazir: 'Kaydedilecek',
+    mukerrer: 'Mükerrer — atlanacak',
+    hata: 'Hatalı — kaydedilmeyecek'
+  };
+
+  function saglikSayfaSec(sayfalar) {
+    var liste = sayfalar || [];
+    for (var i = 0; i < liste.length; i += 1) {
+      var satirlar = (liste[i] && liste[i].satirlar) || [];
+      if (ISG.saglikToplu.haritaBul(satirlar)) { return satirlar; }
+    }
+    return (liste[0] && liste[0].satirlar) || [];
+  }
+
+  function saglikTopluSatirHtml(satir) {
+    var sinif = satir.durum === 'hata' ? ' hata' :
+      (satir.durum === 'mukerrer' ? ' mukerrer' : (satir.durum === 'hazir' ? ' hazir' : ''));
+    var kayit = satir.kayit || {};
+    return '<div class="toplu-satir' + sinif + '">' +
+      '<span class="toplu-no">Satır ' + satir.satirNo + '</span>' +
+      '<span class="toplu-icerik">' +
+        '<span class="toplu-ad">' + B.kacis(satir.kisiAd || '—') +
+          (satir.sicil ? ' <span class="toplu-detay">· ' + B.kacis(satir.sicil) + '</span>' : '') + '</span>' +
+        ' <span class="toplu-detay">' + B.kacis(kayit.tarih || '—') + '</span>' +
+        '<span class="toplu-neden"><strong class="toplu-baslik">' +
+          B.kacis(SAGLIK_TOPLU_DURUM_AD[satir.durum] || satir.durum) + '</strong>' +
+          (satir.mesaj ? B.kacis(' — ' + satir.mesaj) : '') + '</span>' +
+      '</span></div>';
+  }
+
+  function saglikTopluOnizle(satirlar, dosyaAdi) {
+    var analiz;
+    try {
+      analiz = ISG.saglikToplu.analizEt(satirlar, { mevcut: ISG.saglikTakip.listele('', '') });
+    } catch (hata) {
+      B.bildir(hata.message || 'Dosya çözümlenemedi.', 'hata');
+      return;
+    }
+    UI.saglikToplu = { satirlar: satirlar, dosyaAdi: dosyaAdi || '', analiz: analiz };
+    saglikTopluDiyalogCiz();
+    diyalogAc(el('saglikTopluDiyalog'), el('saglikTopluKaydet'));
+  }
+
+  function saglikTopluDiyalogCiz() {
+    var durum = UI.saglikToplu;
+    var ozet = el('saglikTopluOzet');
+    var onizleme = el('saglikTopluOnizleme');
+    var dugme = el('saglikTopluKaydet');
+    var dosyaSatiri = el('saglikTopluDosya');
+    if (!durum || !durum.analiz || !ozet || !onizleme) { return; }
+    var a = durum.analiz;
+    if (dosyaSatiri) { dosyaSatiri.textContent = 'Dosya: ' + (durum.dosyaAdi || '—'); }
+    ozet.innerHTML =
+      topluSayi('Dosya satırı', a.ozet.dosyaSatir, '') +
+      topluSayi('Kaydedilecek', a.ozet.hazir, 'iyi') +
+      topluSayi('Mükerrer', a.ozet.mukerrer, 'uyari') +
+      topluSayi('Hatalı', a.ozet.hatali, a.ozet.hatali ? 'kotu' : '');
+    var liste = ISG.saglikToplu.onizlemeSatirlari(a, 150);
+    onizleme.innerHTML =
+      (a.uyarilar.length ? '<p class="toplu-not">' + B.kacis(a.uyarilar.join(' ')) + '</p>' : '') +
+      (liste.goruntulenecek.length ? liste.goruntulenecek.map(saglikTopluSatirHtml).join('') :
+        '<p class="belge-bos">' + B.kacis(a.hata || 'Ön izlenecek satır yok.') + '</p>') +
+      (liste.toplam > liste.goruntulenecek.length ?
+        '<p class="toplu-not">' + B.sayi(liste.toplam - liste.goruntulenecek.length) +
+        ' satır liste dışında kaldı; sayımlar tüm dosya için doğrudur.</p>' : '');
+    if (dugme) {
+      dugme.disabled = !!a.hata || a.ozet.hazir === 0;
+      dugme.textContent = 'Kaydedilecekleri ekle (' + B.sayi(a.ozet.hazir) + ')';
+    }
+  }
+
+  function saglikTopluKaydetIsle() {
+    var durum = UI.saglikToplu;
+    if (!durum || !durum.analiz) { return; }
+    var o = ISG.yetki.oturum();
+    if (!o || ISG.yetki.rolTanimi(o.rol).id !== 'yonetici') {
+      uyariGoster('saglikTopluUyari', 'Sağlık kayıtlarını yalnızca yönetici içe aktarabilir.');
+      return;
+    }
+    if (durum.analiz.hata) {
+      uyariGoster('saglikTopluUyari', durum.analiz.hata);
+      return;
+    }
+    if (!durum.analiz.ozet.hazir) {
+      uyariGoster('saglikTopluUyari', 'Kaydedilecek satır yok. Mükerrer ve hatalı satırları dosyada düzeltip yeniden yükleyin.');
+      return;
+    }
+    var sonuc;
+    try {
+      sonuc = ISG.saglikToplu.uygula(durum.analiz);
+    } catch (hata) {
+      uyariGoster('saglikTopluUyari', hata.message || 'Sağlık kayıtları yazılamadı.');
+      return;
+    }
+    uyariGoster('saglikTopluUyari', '');
+    UI.saglikToplu = null;
+    diyalogKapat(el('saglikTopluDiyalog'));
+    if (sonuc.eklenen) {
+      UI.saglikSayfa = 1;
+      UI.saglikKisiSayfa = 1;
+      UI.saglikKisiDurum = 'tumu';
+    }
+    var metin = sonuc.eklenen + ' sağlık kaydı eklendi';
+    if (sonuc.hatali) { metin += ' · ' + sonuc.hatali + ' satır yazılamadı'; }
+    if (sonuc.hatalar.length) { metin += ' (' + sonuc.hatalar[0] + ')'; }
+    B.bildir(metin + '.', sonuc.eklenen ? 'basari' : 'hata');
+    ciz();
+  }
+
+  function saglikSablon() {
+    try {
+      ISG.saglikToplu.sablonIndir('Saglik-Kayitlari-Sablonu.xlsx');
+      B.bildir('Sağlık şablonu (XLSX) indirildi. Doldurup "Sağlık kaydı Excel\'den yükle" ile aktarın.', 'basari');
+    } catch (hata) {
+      B.bildir(hata.message || 'Şablon oluşturulamadı.', 'hata');
+    }
+  }
+
+  function saglikExcel() {
+    try {
+      var liste = ISG.saglikTakip.listele('', '');
+      if (!liste.length) {
+        B.bildir('Dışa aktarılacak sağlık kaydı yok.', 'uyari');
+        return;
+      }
+      ISG.saglikToplu.disaAktar(tarihliAd('saglik-kayitlari', 'xlsx'), liste, veri().personel);
+      B.bildir(B.sayi(liste.length) + ' sağlık kaydı Excel dosyasına aktarıldı.', 'basari');
+    } catch (hata) {
+      B.bildir(hata.message || 'Excel dosyası oluşturulamadı.', 'hata');
+    }
+  }
+
   /* ---------- Filtreler ve dosya girişleri ---------- */
 
   function filtreBagla() {
@@ -3395,7 +3580,11 @@
       if (kutu.tagName === 'SELECT' || kutu.type === 'date' || kutu.type === 'number') { return; }
       UI[anahtar] = kutu.value;
       if (anahtar.indexOf('dosya') === 0) { UI.dosyaSayfa = 1; }
-      if (anahtar.indexOf('saglik') === 0) { UI.saglikSayfa = 1; UI.saglikKitapArama = kutu.value; }
+      /* Her arama kutusu yalnızca kendi listesinin sayfasını sıfırlar; önceden
+         sağlık aramaları çalışma kitabı aramasını da eziyordu. */
+      if (anahtar === 'saglikArama') { UI.saglikSayfa = 1; }
+      if (anahtar === 'saglikKitapArama') { UI.saglikKitapSayfa = 1; }
+      if (anahtar === 'saglikKisiArama') { UI.saglikKisiSayfa = 1; }
       if (anahtar === 'raporBaslangic' || anahtar === 'raporBitis') { return; }
       odakBilgi = anahtar;
       cizGecikmeli();
@@ -3408,7 +3597,8 @@
       if (kutu.type === 'search' || kutu.type === 'text' || kutu.type === 'email' || kutu.type === 'tel') { return; }
       UI[anahtar] = kutu.value;
       if (anahtar.indexOf('dosya') === 0) { UI.dosyaSayfa = 1; }
-      if (anahtar.indexOf('saglik') === 0) { UI.saglikSayfa = 1; UI.saglikKitapArama = kutu.value; }
+      if (anahtar === 'saglikBoyut') { UI.saglikSayfa = 1; }
+      if (anahtar === 'saglikKisiDurum' || anahtar === 'saglikKisiIsyeri') { UI.saglikKisiSayfa = 1; }
       if (anahtar === 'kapsam') { UI.dosyaSayfa = 1; UI.acikPersonel = ''; }
       ciz(true);
     });
@@ -3532,6 +3722,8 @@
         ISG.saglikTakip.kaydet(kayit);
         UI.duzenleSaglik = '';
         UI.acikSaglik = '';
+        UI.saglikFormuAc = false;
+        UI.saglikKisi = '';
         B.bildir(kayit.id ? 'Sağlık kaydı güncellendi.' : 'Sağlık kaydı eklendi.', 'basari');
         ciz();
       } catch (hata) {
@@ -3581,6 +3773,38 @@
         ciz();
       }).catch(function (hata) { B.bildir(hata.message || 'Excel dosyası okunamadı.', 'hata'); }).finally(function () { saglikDosya.value = ''; });
     }); }
+
+    /* Sağlık kayıtları: yalnızca .xlsx; şablon sütunları ISG.saglikToplu'da tanımlı. */
+    var saglikKayit = el('saglikKayitGirdi');
+    if (saglikKayit) { saglikKayit.addEventListener('change', function () {
+      var dosya = saglikKayit.files && saglikKayit.files[0];
+      if (!dosya) { return; }
+      if (!/\.xlsx$/i.test(dosya.name || '')) {
+        B.bildir('Sağlık kayıtları için yalnızca .xlsx dosyası yüklenebilir.', 'hata');
+        saglikKayit.value = '';
+        return;
+      }
+      ISG.excel.oku(dosya).then(function (sayfalar) {
+        var satirlar = saglikSayfaSec(sayfalar);
+        if (!satirlar.length) {
+          B.bildir('Excel dosyasında veri bulunamadı.', 'hata');
+          return;
+        }
+        saglikTopluOnizle(satirlar, dosya.name || 'saglik.xlsx');
+      }).catch(function (hata) {
+        B.bildir(hata.message || 'Excel dosyası okunamadı.', 'hata');
+      }).finally(function () { saglikKayit.value = ''; });
+    }); }
+
+    /* Kişi seçilince işyeri otomatik dolar; yanlış işyerine kayıt yazılması zorlaşır. */
+    document.addEventListener('change', function (olay) {
+      var alan = olay.target;
+      if (!alan || alan.tagName !== 'SELECT' || alan.name !== 'personelId') { return; }
+      var form = alan.form;
+      if (!form || form.id !== 'saglik-form') { return; }
+      var kisi = (veri().personel || []).filter(function (p) { return p.id === alan.value; })[0];
+      if (kisi && form.elements.isyeriId) { form.elements.isyeriId.value = kisi.isyeriId || ''; }
+    });
   }
 
   /* Oturum açıldıktan sonra arayüzü hazırlar ve ilk çizimi yapar. */
@@ -3625,7 +3849,14 @@
     planTopluSilIsle: planTopluSilIsle,
     planTopluSilDurum: function () { return UI.planSil; },
     planExcel: planExcel,
-    planSablon: planSablon
+    planSablon: planSablon,
+    /* Sağlık takibi toplu akışları (Excel ön izleme + onay). */
+    saglikTopluOnizle: saglikTopluOnizle,
+    saglikTopluKaydetIsle: saglikTopluKaydetIsle,
+    saglikTopluDiyalogCiz: saglikTopluDiyalogCiz,
+    saglikTopluDurum: function () { return UI.saglikToplu; },
+    saglikSablon: saglikSablon,
+    saglikExcel: saglikExcel
   };
 
   if (document.readyState === 'loading') {

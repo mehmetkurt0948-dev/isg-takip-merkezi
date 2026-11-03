@@ -2010,7 +2010,8 @@ function bekle(ms) {
   const kullanimlar = Array.from(doc.querySelectorAll('use[href]')).map((u) => u.getAttribute('href'));
   const eksikIkon = kullanimlar.filter((h) => !doc.querySelector(h));
   kontrol('SVG ikon referansları geçerli', eksikIkon.length === 0, eksikIkon.slice(0, 3).join(', '));
-  kontrol('Diyalog sayısı 19', doc.querySelectorAll('dialog').length === 19, String(doc.querySelectorAll('dialog').length));
+  kontrol('Diyalog sayısı 20', doc.querySelectorAll('dialog').length === 20, String(doc.querySelectorAll('dialog').length));
+  kontrol('Sağlık içe aktarma diyaloğu var', !!doc.getElementById('saglikTopluDiyalog'));
   kontrol('Hazır kontrol listesi diyaloğu var', !!doc.getElementById('listeDiyalog'));
   kontrol('Hazır listeyi silme diyaloğu var', !!doc.getElementById('listeGeriAlDiyalog'));
   kontrol('Toplu personel yükleme diyaloğu var', !!doc.getElementById('personelTopluDiyalog'));

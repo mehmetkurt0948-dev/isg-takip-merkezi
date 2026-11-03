@@ -14,7 +14,7 @@
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="assets/css/style.css?v=73ce44a2">
+  <link rel="stylesheet" href="assets/css/style.css?v=28a488ff">
 </head>
 <body class="oturum-yok">
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -727,6 +727,34 @@
     </form>
   </dialog>
 
+  <!-- SAĞLIK TAKİBİ: EXCEL'DEN İÇE AKTARMA (ön izleme → onay) -->
+  <dialog class="diyalog" id="saglikTopluDiyalog" aria-labelledby="saglikTopluBaslik">
+    <form method="dialog" id="saglikTopluForm" novalidate>
+      <button type="button" class="diyalog-kapat" data-kapat aria-label="Kapat">
+        <svg class="ikon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+      <p class="ustyazi">SAĞLIK TAKİBİ - EXCEL'DEN İÇE AKTARMA</p>
+      <h2 id="saglikTopluBaslik">Sağlık kayıtlarını içe aktar</h2>
+      <p class="hucre-alt" id="saglikTopluDosya">Dosya: —</p>
+      <div class="toplu-ozet" id="saglikTopluOzet"></div>
+      <section class="belge-kutu" aria-labelledby="saglikTopluOnizlemeBaslik">
+        <div class="belge-ust">
+          <div>
+            <strong id="saglikTopluOnizlemeBaslik">Satır satır ön izleme</strong>
+            <span class="hucre-alt">Kişi önce Sicil No, bulunamazsa Ad Soyad ile eşleştirilir. Kayıtlar
+              kişinin kendi işyerine yazılır; hatalı ve mükerrer satırlar kaydedilmez.</span>
+          </div>
+        </div>
+        <div class="belge-liste toplu-onizleme" id="saglikTopluOnizleme"></div>
+      </section>
+      <p class="form-uyari" id="saglikTopluUyari" role="alert" hidden></p>
+      <div class="diyalog-eylem">
+        <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
+        <button type="submit" class="dugme birincil" id="saglikTopluKaydet">Kaydedilecekleri ekle</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- SAHA TESPİTİ / DÖF -->
   <dialog class="diyalog" id="tespitDiyalog" aria-labelledby="tespitBaslik">
     <form method="dialog" id="tespitForm" novalidate>
@@ -1138,6 +1166,7 @@
   <input type="file" id="personelDosya" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
   <input type="file" id="planDosyaGirdi" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
   <input type="file" id="saglikXlsxGirdi" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+  <input type="file" id="saglikKayitGirdi" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
   <div class="bildirimler" id="bildirimler" aria-live="polite" aria-atomic="true"></div>
 
   <noscript><p class="noscript">Bu uygulama JavaScript gerektirir. Lütfen tarayıcınızda JavaScript'i etkinleştirin.</p></noscript>
@@ -1150,15 +1179,16 @@
   <script src="assets/js/bulut.js?v=cb731a87"></script>
   <script src="assets/js/yetki.js?v=7f63b759"></script>
   <script src="assets/js/saglik-takip.js?v=f6d30d70"></script>
+  <script src="assets/js/saglik-toplu.js?v=30fd72d0"></script>
   <script src="assets/js/saglik-calisma-kitabi.js?v=945bb2d9"></script>
   <script src="assets/js/excel.js?v=394d9d94"></script>
   <script src="assets/js/personel-toplu.js?v=c1da8dfb"></script>
   <script src="assets/js/plan-toplu.js?v=0f07de95"></script>
-  <script src="assets/js/sayfalar.js?v=e31cbdb9"></script>
+  <script src="assets/js/sayfalar.js?v=764f44ca"></script>
   <script src="assets/js/sayfalar-kayit.js?v=e6d456c2"></script>
   <script src="assets/js/sayfalar-rapor.js?v=d56d2996"></script>
   <script src="assets/js/giris.js?v=1b24e845"></script>
-  <script src="assets/js/uygulama.js?v=d2c6ed2e"></script>
+  <script src="assets/js/uygulama.js?v=adcfd3a0"></script>
 </body>
 </html>
 

@@ -450,36 +450,157 @@
     (acik ? '<tr class="saglik-detay-satir"><td></td><td colspan="7">' + saglikDetay(k) + '</td></tr>' : '');
   }
 
-  function saglikFormu(k) {
-    k = k || {};
-    var alanHtml = ISG.saglikAlanlari.map(function (a) {
-      var deger = k[a.id] || '';
-      var gizli = ISG.saglikGizliAlanlar.indexOf(a.id) >= 0 ? ' class="gizli-alan"' : '';
-      var input;
-      if (a.tip === 'textarea') {
-        input = '<textarea name="' + a.id + '">' + kacis(deger) + '</textarea>';
-      } else if (a.tip === 'select' && a.secenekler) {
-        input = '<select name="' + a.id + '">' + a.secenekler.map(function (s) {
-          return '<option value="' + s + '"' + (deger === s ? ' selected' : '') + '>' + s + '</option>';
+  /* ---------- Sağlık formu: kişi/işyeri seçimi + üç alan grubu ---------- */
+  /* Form alanları üç mantıklı grupta toplanır; kullanıcı hangi bilginin gizli
+     (şifreli) olduğunu görür. Kişi ve işyeri serbest metin değil, kayıtlı
+     listelerden seçilir; böylece "p1" gibi ham kimlik yazılamaz. */
+  var SAGLIK_GRUPLARI = [
+    { ad: 'Personel ve muayene', alanlar: ['personelId', 'isyeriId', 'tarih', 'doktor'] },
+    { ad: 'Sağlık bilgileri (gizli)', alanlar: ['kanGrubu', 'alerji', 'kronikHastalik', 'ilac', 'engelDurumu'] },
+    { ad: 'Muayene sonucu ve iş kısıtları', alanlar: ['sonMuayene', 'sevkEdilen', 'calismaYasagi', 'izinsizlik', 'calismaSesi', 'notlar'] }
+  ];
+
+  function saglikAlanBul(id) {
+    return (ISG.saglikAlanlari || []).filter(function (alan) { return alan.id === id; })[0] || null;
+  }
+
+  function saglikIsyeriSecenekleri(hesap, seciliId, kayit) {
+    var isyerleri = ((hesap && hesap.isyerleri) || []).slice();
+    var html = '<option value="">İşyeri seçin…</option>';
+    html += isyerleri.map(function (isyeri) {
+      return '<option value="' + kacis(isyeri.id) + '"' + secili(isyeri.id, seciliId) + '>' + kacis(isyeri.ad) + '</option>';
+    }).join('');
+    /* Silinmiş işyerine bağlı eski kayıt düzenlenebilsin: etiketi koru. */
+    if (seciliId && !isyerleri.some(function (isyeri) { return isyeri.id === seciliId; })) {
+      html += '<option value="' + kacis(seciliId) + '" selected>' +
+        kacis((kayit && kayit.isyeriAd) || 'Silinmiş işyeri') + '</option>';
+    }
+    return html;
+  }
+
+  function saglikPersonelSecenekleri(hesap, seciliId, kayit) {
+    var isyeriInd = {};
+    ((hesap && hesap.isyerleri) || []).forEach(function (isyeri) { isyeriInd[isyeri.id] = isyeri; });
+    var liste = ((hesap && hesap.personel) || []).slice().sort(function (a, b) {
+      return String(a.adSoyad || '').localeCompare(String(b.adSoyad || ''), 'tr');
+    });
+    var html = '<option value="">Personel seçin…</option>' + liste.map(function (kisi) {
+      var isyeri = isyeriInd[kisi.isyeriId];
+      var etiket = (kisi.adSoyad || '') + (kisi.sicil ? ' · ' + kisi.sicil : '') +
+        (isyeri ? ' — ' + isyeri.ad : '');
+      return '<option value="' + kacis(kisi.id) + '"' + secili(kisi.id, seciliId) + '>' + kacis(etiket) + '</option>';
+    }).join('');
+    if (seciliId && !liste.some(function (kisi) { return kisi.id === seciliId; })) {
+      html += '<option value="' + kacis(seciliId) + '" selected>' +
+        kacis(((kayit && kayit.personelAd) || 'Silinmiş personel') +
+          ((kayit && kayit.personelSicil) ? ' · ' + kayit.personelSicil : '')) + '</option>';
+    }
+    return html;
+  }
+
+  function saglikAlanGirdisi(alan, kayit, hesap) {
+    var deger = kayit[alan.id];
+    if (deger === null || typeof deger === 'undefined') { deger = ''; }
+    var zorunlu = alan.zorunlu ? ' required' : '';
+    var input;
+    if (alan.id === 'personelId') {
+      input = '<select name="personelId"' + zorunlu + '>' +
+        saglikPersonelSecenekleri(hesap, String(deger), kayit) + '</select>';
+    } else if (alan.id === 'isyeriId') {
+      input = '<select name="isyeriId"' + zorunlu + '>' +
+        saglikIsyeriSecenekleri(hesap, String(deger), kayit) + '</select>';
+    } else if (alan.id === 'girisYapan') {
+      input = '<input type="hidden" name="girisYapan" value="' + kacis(deger) + '">';
+    } else if (alan.tip === 'textarea') {
+      input = '<textarea name="' + alan.id + '"' + zorunlu + '>' + kacis(deger) + '</textarea>';
+    } else if (alan.tip === 'select' && alan.secenekler) {
+      input = '<select name="' + alan.id + '">' +
+        '<option value="">Seçin…</option>' +
+        alan.secenekler.map(function (secenek) {
+          return '<option value="' + kacis(secenek) + '"' + secili(secenek, deger) + '>' + kacis(secenek) + '</option>';
         }).join('') + '</select>';
-      } else if (a.tip === 'date') {
-        input = '<input type="date" name="' + a.id + '" value="' + kacis(deger) + '">';
-      } else if (a.tip === 'number') {
-        input = '<input type="number" name="' + a.id + '" value="' + kacis(deger) + '">';
-      } else {
-        input = '<input type="text" name="' + a.id + '" value="' + kacis(deger) + '">';
-      }
-      return '<div class="form-satir"' + gizli + '><label>' + a.ad + (a.zorunlu ? ' *' : '') + '</label>' + input + '</div>';
+    } else if (alan.tip === 'date') {
+      input = '<input type="date" name="' + alan.id + '" value="' + kacis(deger) + '"' + zorunlu + '>';
+    } else if (alan.tip === 'number') {
+      input = '<input type="number" name="' + alan.id + '" min="0" step="1" value="' + kacis(deger) + '">';
+    } else {
+      input = '<input type="text" name="' + alan.id + '" value="' + kacis(deger) + '"' + zorunlu + '>';
+    }
+    var genis = (alan.tip === 'textarea' || alan.id === 'personelId' || alan.id === 'isyeriId') ? ' genis' : '';
+    return '<label class="alan' + genis + '"><span>' + kacis(alan.ad) + (alan.zorunlu ? ' *' : '') + '</span>' +
+      input + '</label>';
+  }
+
+  function saglikFormu(k, hesap) {
+    k = k || {};
+    var gruplar = SAGLIK_GRUPLARI.map(function (grup) {
+      return '<fieldset class="saglik-grup"><legend>' + kacis(grup.ad) + '</legend>' +
+        '<div class="form-izgara">' +
+        grup.alanlar.map(function (id) {
+          var alan = saglikAlanBul(id);
+          return alan ? saglikAlanGirdisi(alan, k, hesap) : '';
+        }).join('') +
+        '</div></fieldset>';
     }).join('');
     return '<form id="saglik-form" class="form-kutu">' +
       '<input type="hidden" name="id" value="' + kacis(k.id || '') + '">' +
-      alanHtml +
+      '<input type="hidden" name="girisYapan" value="' + kacis(k.girisYapan || '') + '">' +
+      gruplar +
       '<div class="form-islem">' +
         '<button type="button" class="dugme ikincil" data-islem="saglik-vazgec">Vazgeç</button>' +
         '<button type="submit" class="dugme birincil">' + (k.id ? 'Güncelle' : 'Kaydet') + '</button>' +
       '</div>' +
     '</form>';
   }
+
+
+  /* Tam personel listesi satırı: kişinin son muayenesi ve tüm geçmişi.
+     Kaydı olmayan personel de listelenir; "MUAYENE YOK" rozetiyle takip edilir. */
+  function saglikKisiGecmisi(satir, yonetir) {
+    if (!satir.kayitlar.length) {
+      return '<p class="hucre-alt">Bu personel için muayene kaydı yok. “Muayene ekle” ile ilk kaydı girin.</p>';
+    }
+    return '<table class="tablo-kucuk saglik-tablo"><thead><tr><th>Tarih</th><th>Sonuç</th>' +
+      '<th>Sevk</th><th>Çalışma yasağı</th><th class="sag">İşlem</th></tr></thead><tbody>' +
+      satir.kayitlar.map(function (kayit) {
+        return '<tr><td>' + B.tarih(kayit.tarih) + '</td>' +
+          '<td>' + kacis(saglikKes(kayit.sonMuayene, 60)) + '</td>' +
+          '<td>' + kacis(saglikKes(kayit.sevkEdilen, 40)) + '</td>' +
+          '<td>' + kacis(saglikKes(kayit.calismaYasagi, 40)) + '</td>' +
+          '<td class="sag"><div class="dosya-eylem">' +
+            (yonetir ? '<button type="button" data-islem="saglik-duzenle" data-id="' + kacis(kayit.id) + '">Düzenle</button>' : '') +
+            (yonetir ? '<button type="button" class="sil" data-islem="saglik-kisi-sil" data-id="' + kacis(kayit.id) + '">Sil</button>' : '') +
+          '</div></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function saglikKisiSatiri(satir, sira, yonetir) {
+    var kisi = satir.kisi;
+    var acik = UI.acikSaglikKisi === kisi.id;
+    var sinif = satir.durum.id === 'uygun' ? 'iyi' :
+      (satir.durum.id === 'sevkli' ? 'uyari' : (satir.durum.id === 'yasakli' ? 'tehlike' : 'notr'));
+    var html = '<tr>' +
+      '<td>' + sira + '</td>' +
+      '<td><b>' + kacis(kisi.adSoyad) + '</b>' +
+        (kisi.sicil ? '<p class="hucre-alt">Sicil: ' + kacis(kisi.sicil) + '</p>' : '') +
+        (kisi.gorev ? '<p class="hucre-alt">' + kacis(kisi.gorev) + '</p>' : '') + '</td>' +
+      '<td>' + kacis(satir.isyeri || '—') + '</td>' +
+      '<td>' + (satir.son ? B.tarih(satir.son.tarih) : '—') + '</td>' +
+      '<td>' + B.rozet(satir.durum.ad, sinif) + '</td>' +
+      '<td>' + B.sayi(satir.kayitlar.length) + '</td>' +
+      '<td class="sag"><div class="dosya-eylem">' +
+        (yonetir ? '<button type="button" data-islem="saglik-kisi-ekle" data-id="' + kacis(kisi.id) + '">Muayene ekle</button>' : '') +
+        (satir.kayitlar.length ? '<button type="button" data-islem="saglik-kisi-gecmis" data-id="' + kacis(kisi.id) + '">' +
+          (acik ? 'Geçmişi gizle' : 'Geçmiş (' + satir.kayitlar.length + ')') + '</button>' : '') +
+      '</div></td>' +
+    '</tr>';
+    if (acik) {
+      html += '<tr class="saglik-detay-satir"><td></td><td colspan="6">' +
+        saglikKisiGecmisi(satir, yonetir) + '</td></tr>';
+    }
+    return html;
+  }
+
 
   SAYFALAR.saglik = function (hesap) {
     var o = Y.oturum();
@@ -528,6 +649,56 @@
     zengin.sort(function (a, b) {
       return String(b.k.tarih || '').localeCompare(String(a.k.tarih || '')) || a.ad.localeCompare(b.ad, 'tr');
     });
+    /* ---------- Tam personel listesi: kaydı olmayan personel de görünür ---------- */
+    var kayitlarKisi = {};
+    liste.forEach(function (kayit) {
+      if (!kayit || !kayit.personelId) { return; }
+      (kayitlarKisi[kayit.personelId] = kayitlarKisi[kayit.personelId] || []).push(kayit);
+    });
+    Object.keys(kayitlarKisi).forEach(function (kisiId) {
+      kayitlarKisi[kisiId].sort(function (a, b) {
+        return String(b.tarih || '').localeCompare(String(a.tarih || ''));
+      });
+    });
+    var kadro = ((hesap && hesap.personel) || []).filter(function (kisi) {
+      return kisi && kisi.id;
+    }).map(function (kisi) {
+      var kayitlar = kayitlarKisi[kisi.id] || [];
+      return {
+        kisi: kisi,
+        kayitlar: kayitlar,
+        son: kayitlar[0] || null,
+        isyeri: isyInd[kisi.isyeriId] ? isyInd[kisi.isyeriId].ad : '',
+        durum: kayitlar.length ? saglikOzet(kayitlar[0]) : { id: 'yok', ad: 'MUAYENE YOK' }
+      };
+    });
+    kadro.sort(function (a, b) {
+      return String(a.kisi.adSoyad || '').localeCompare(String(b.kisi.adSoyad || ''), 'tr');
+    });
+    var kisiArama = String(UI.saglikKisiArama || '').toLocaleLowerCase('tr');
+    var kisiDurum = UI.saglikKisiDurum || 'tumu';
+    var kisiIsyeri = UI.saglikKisiIsyeri || '';
+    var kadroFiltre = kadro.filter(function (satir) {
+      if (kisiDurum !== 'tumu' && satir.durum.id !== kisiDurum) { return false; }
+      if (kisiIsyeri && satir.kisi.isyeriId !== kisiIsyeri) { return false; }
+      if (kisiArama) {
+        return [satir.kisi.adSoyad, satir.kisi.sicil, satir.isyeri, satir.kisi.gorev, satir.kisi.departman]
+          .join(' ').toLocaleLowerCase('tr').indexOf(kisiArama) >= 0;
+      }
+      return true;
+    });
+    var kisiSayilar = { tumu: kadro.length, yok: 0, sevkli: 0, yasakli: 0, uygun: 0 };
+    kadro.forEach(function (satir) {
+      kisiSayilar[satir.durum.id] = (kisiSayilar[satir.durum.id] || 0) + 1;
+    });
+    var kisiBoyut = 25;
+    var kisiSonSayfa = Math.max(1, Math.ceil(kadroFiltre.length / kisiBoyut));
+    var kisiSayfa = Math.min(Math.max(1, Number(UI.saglikKisiSayfa) || 1), kisiSonSayfa);
+    var kisiSatirlar = kadroFiltre.slice((kisiSayfa - 1) * kisiBoyut, kisiSayfa * kisiBoyut);
+    var kisiHtml = kisiSatirlar.map(function (satir, i) {
+      return saglikKisiSatiri(satir, (kisiSayfa - 1) * kisiBoyut + i + 1, rol.yonetir === true);
+    }).join('');
+
     var sayilar = { tumu: zengin.length, sevkli: 0, yasakli: 0, uygun: 0 };
     zengin.forEach(function (z) { sayilar[z.durum.id] = (sayilar[z.durum.id] || 0) + 1; });
 
@@ -551,15 +722,51 @@
     }).join('');
 
     var duzenlenen = UI.duzenleSaglik ? liste.filter(function (k) { return k.id === UI.duzenleSaglik; })[0] || null : null;
-    var form = rol.yonetir ? saglikFormu(duzenlenen) : '';
-    if (rol.yonetir && ISG.saglikTakip.erisimTalepleri().some(function (t) { return t.durum === 'bekliyor'; })) {
-      form = '<div class="kart"><h3>Bekleyen erişim talepleri</h3>' + ISG.saglikTakip.erisimTalepleri().filter(function (t) { return t.durum === 'bekliyor'; }).map(function (t) { return '<div class="kullanici-satir"><strong>' + kacis(t.kullaniciAd) + '</strong><span>' + kacis(t.eposta) + '</span><button type="button" class="dugme ikincil" data-islem="saglik-erisim-ret" data-id="' + kacis(t.id) + '">Reddet</button><button type="button" class="dugme birincil" data-islem="saglik-erisim-onay" data-id="' + kacis(t.id) + '">Erişim ver</button></div>'; }).join('') + '</div>' + form;
+    /* "Muayene ekle" seçilen kişi: form kişi/işyeri seçili ve açık gelir. */
+    var yeniKayit = {};
+    if (!duzenlenen && UI.saglikKisi) {
+      var secilenKisi = ((hesap && hesap.personel) || []).filter(function (kisi) { return kisi.id === UI.saglikKisi; })[0];
+      if (secilenKisi) {
+        yeniKayit.personelId = secilenKisi.id;
+        yeniKayit.isyeriId = secilenKisi.isyeriId || '';
+      }
+    }
+    var formAcik = !!(UI.saglikFormuAc || duzenlenen || UI.saglikKisi);
+    var form = rol.yonetir ? '<details class="saglik-giris" id="saglik-giris"' + (formAcik ? ' open' : '') + '>' +
+      '<summary>' + (duzenlenen ? 'Sağlık kaydını düzenle' : 'Yeni sağlık kaydı') + '</summary>' +
+      '<div class="kart-ic">' + saglikFormu(duzenlenen || yeniKayit, hesap) + '</div>' +
+    '</details>' : '';
+    var talepKart = '';
+    if (rol.yonetir) {
+      var bekleyenler = ISG.saglikTakip.erisimTalepleri().filter(function (t) { return t.durum === 'bekliyor'; });
+      if (bekleyenler.length) {
+        talepKart = '<div class="kart"><h3>Bekleyen erişim talepleri</h3>' +
+          bekleyenler.map(function (t) {
+            return '<div class="kullanici-satir"><strong>' + kacis(t.kullaniciAd) + '</strong><span>' + kacis(t.eposta) + '</span>' +
+              '<button type="button" class="dugme ikincil" data-islem="saglik-erisim-ret" data-id="' + kacis(t.id) + '">Reddet</button>' +
+              '<button type="button" class="dugme birincil" data-islem="saglik-erisim-onay" data-id="' + kacis(t.id) + '">Erişim ver</button></div>';
+          }).join('') + '</div>';
+      }
     }
 
     var calismaKitabi = ISG.depo.saglikCalismaKitabi ? ISG.depo.saglikCalismaKitabi() : null;
-    var sekmeAdlari = calismaKitabi && calismaKitabi.sekmeler || ['TAM LİSTE', 'YÜKSEK RİSKLİ MESLEKLER', 'ÇALIŞMASI UYGUN DEĞİLDİR', 'SAĞLIK TARAMALARI EKSİK OLANLAR', 'MALULİYETİ OLANLAR'];
-    var seciliListeSekmesi = UI.saglikListeSekmesi || 0;
-    var calismaSatirlari = calismaKitabi && calismaKitabi.sekmeler[seciliListeSekmesi] ? (calismaKitabi.sekmeler[seciliListeSekmesi].satirlar || []) : [];
+    var varsayilanSekmeler = ['TAM LİSTE', 'YÜKSEK RİSKLİ MESLEKLER', 'ÇALIŞMASI UYGUN DEĞİLDİR',
+      'SAĞLIK TARAMALARI EKSİK OLANLAR', 'MALULİYETİ OLANLAR'];
+    /* Sekmeler {ad, satirlar} nesneleridir. Etiket olarak nesne basılırsa ekranda
+       "[object Object]" görünür; ad alanı okunur. Eski düz metin biçimi de desteklenir. */
+    var kitapSekmeleri = (calismaKitabi && calismaKitabi.sekmeler) || [];
+    var sekmeAdlari = kitapSekmeleri.length ? kitapSekmeleri.map(function (sekme, i) {
+      if (typeof sekme === 'string') { return sekme; }
+      return (sekme && sekme.ad) || varsayilanSekmeler[i] || ('Sekme ' + (i + 1));
+    }) : varsayilanSekmeler;
+    var seciliListeSekmesi = Math.min(Math.max(0, Number(UI.saglikListeSekmesi) || 0),
+      Math.max(0, sekmeAdlari.length - 1));
+    var seciliSekme = kitapSekmeleri[seciliListeSekmesi];
+    var calismaSatirlari = Array.isArray(seciliSekme) ? seciliSekme : ((seciliSekme && seciliSekme.satirlar) || []);
+    function sekmeSatirSayisi(sekme) {
+      var satirlar = Array.isArray(sekme) ? sekme : ((sekme && sekme.satirlar) || []);
+      return Math.max(0, satirlar.length - 1);
+    }
     var calismaTablo = '';
     if (calismaKitabi) {
       var basliklar = calismaSatirlari.length ? calismaSatirlari[0] : [];
@@ -568,15 +775,64 @@
       if (aramaKitap) {
         veriSatirlari = veriSatirlari.filter(function (r) { return r.join(' ').toLocaleLowerCase('tr-TR').indexOf(aramaKitap) >= 0; });
       }
-      calismaTablo = '<div class="filtre-cubugu"><input type="search" data-ui="saglikKitapArama" value="' + kacis(UI.saglikKitapArama || '') + '" placeholder="Çalışma kitabında ara..." aria-label="Excel çalışma kitabında ara"><span class="muted">' + B.sayi(veriSatirlari.length) + ' kayıt</span></div>' +
-        '<div class="tablo-kap"><table class="tablo-kucuk"><thead><tr>' + basliklar.map(function (c) { return '<th>' + kacis(c || '') + '</th>'; }).join('') + '</tr></thead><tbody>' +
-        (veriSatirlari.length ? veriSatirlari.map(function (r) { return '<tr>' + basliklar.map(function (_, i) { return '<td>' + kacis(r[i] || '') + '</td>'; }).join('') + '</tr>'; }).join('') : '<tr><td colspan="' + Math.max(1, basliklar.length) + '">' + B.bosDurum('Bu sekmede kayıt yok', 'Arama ölçütünü temizleyin veya Excel çalışma kitabını yeniden yükleyin.', 'i-saglik') + '</td></tr>') +
-        '</tbody></table></div>';
+      var kitapBoyut = 50;
+      var kitapSonSayfa = Math.max(1, Math.ceil(veriSatirlari.length / kitapBoyut));
+      var kitapSayfa = Math.min(Math.max(1, Number(UI.saglikKitapSayfa) || 1), kitapSonSayfa);
+      var kitapDilim = veriSatirlari.slice((kitapSayfa - 1) * kitapBoyut, kitapSayfa * kitapBoyut);
+      calismaTablo = '<div class="filtre-cubugu"><input type="search" data-ui="saglikKitapArama" value="' +
+          kacis(UI.saglikKitapArama || '') + '" placeholder="Çalışma kitabında ara..." aria-label="Excel çalışma kitabında ara">' +
+          '<span class="muted">' + B.sayi(veriSatirlari.length) + ' kayıt</span></div>' +
+        '<div class="tablo-kap"><table class="tablo-kucuk" id="saglik-kitap-tablo"><thead><tr>' +
+          basliklar.map(function (c) { return '<th>' + kacis(c || '') + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        (kitapDilim.length ? kitapDilim.map(function (r) {
+          return '<tr>' + basliklar.map(function (_, i) { return '<td>' + kacis(r[i] || '') + '</td>'; }).join('') + '</tr>';
+        }).join('') : '<tr><td colspan="' + Math.max(1, basliklar.length) + '">' +
+          B.bosDurum('Bu sekmede kayıt yok', 'Arama ölçütünü temizleyin veya Excel çalışma kitabını yeniden yükleyin.', 'i-saglik') +
+          '</td></tr>') +
+        '</tbody></table></div>' +
+        '<div class="filtre-ozet" style="border-top:1px solid var(--line)">' +
+          '<span class="muted">' + (veriSatirlari.length ? ((kitapSayfa - 1) * kitapBoyut + 1) + '–' +
+            Math.min(kitapSayfa * kitapBoyut, veriSatirlari.length) + ' / ' + B.sayi(veriSatirlari.length) : '0 kayıt') + '</span>' +
+          '<span class="sag-arac" data-sayfa-anahtar="saglikKitapSayfa">' + B.sayfalama(veriSatirlari.length, kitapSayfa, kitapBoyut) + '</span>' +
+        '</div>';
     }
+    var kitapArac = rol.yonetir ? '<div class="kart-arac">' +
+      '<button type="button" class="dugme birincil" data-islem="saglik-xlsx-yukle">' +
+        (calismaKitabi ? 'Excel listesini güncelle' : 'Excel listesini yükle') + '</button>' +
+      '<button type="button" class="dugme" data-islem="saglik-ice-aktar">Sağlık kaydı Excel\'den yükle</button>' +
+      '<button type="button" class="dugme" data-islem="saglik-sablon">Şablon indir (.xlsx)</button>' +
+      '<button type="button" class="dugme" data-islem="saglik-disa-aktar">Excel\'e aktar</button>' +
+    '</div>' : '';
     return '<section class="sayfa saglik-sayfa">' +
       sayfaBaslik('SAĞLIK TAKİBİ', 'Personel Sağlık Takibi', 'Muayene kayıtları, sevk ve çalışma yasağı takibi.') +
-      '<div class="kart"><div class="kart-baslik"><div><h2>İşyeri hekimi çalışma kitabı</h2><p>' + (calismaKitabi ? 'Kaynak: ' + kacis(calismaKitabi.dosyaAdi || 'ASKI İş Yeri Hekimi Sağlık Takip 2026–2028') + ' · ' + B.tarih(String(calismaKitabi.yuklemeTarihi || '').slice(0, 10)) : 'ASKI İş Yeri Hekimi Sağlık Takip 2026–2028 · beş sekmeli liste') + '</p></div>' + (rol.yonetir ? '<button class="dugme birincil" data-islem="saglik-xlsx-yukle">' + (calismaKitabi ? 'Excel listesini güncelle' : 'Excel listesini yükle') + '</button>' : '') + '</div><div class="sekme-satir">' + sekmeAdlari.map(function (ad, i) { return '<button type="button" class="sekme' + (i === seciliListeSekmesi ? ' aktif' : '') + '" data-islem="saglik-liste-sekme" data-sekme="' + i + '">' + kacis(ad) + (calismaKitabi && calismaKitabi.sekmeler[i] ? ' <b>' + B.sayi(Math.max(0, calismaKitabi.sekmeler[i].satirlar.length - 1)) + '</b>' : '') + '</button>'; }).join('') + '</div>' + (calismaKitabi ? calismaTablo : '<div class="kart-ic">' + B.bosDurum('Çalışma kitabı henüz yüklenmedi', rol.yonetir ? '“Excel listesini yükle” düğmesini seçin. Dosyanın beş sekmesi sağlık kasasına aktarılacak.' : 'Çalışma kitabı yönetici tarafından yüklendikten sonra burada görünür.', 'i-saglik') + '</div>') + (calismaKitabi && rol.yonetir ? '<p class="muted">Liste bu cihazın korumalı sağlık kasasında saklanır. Genel bulut eşitlemesine eklenmez.</p>' : '') + '</div>' +
-      '<div class="kart">' +
+      talepKart +
+      '<div class="kart"><div class="kart-baslik"><div><h2>İşyeri hekimi çalışma kitabı</h2><p>' + (calismaKitabi ? 'Kaynak: ' + kacis(calismaKitabi.dosyaAdi || 'ASKI İş Yeri Hekimi Sağlık Takip 2026–2028') + ' · ' + B.tarih(String(calismaKitabi.yuklemeTarihi || '').slice(0, 10)) : 'ASKI İş Yeri Hekimi Sağlık Takip 2026–2028 · beş sekmeli liste') + '</p></div>' + kitapArac + '</div><div class="sekme-satir">' + sekmeAdlari.map(function (ad, i) { return '<button type="button" class="sekme' + (i === seciliListeSekmesi ? ' aktif' : '') + '" data-islem="saglik-liste-sekme" data-sekme="' + i + '">' + kacis(ad) + (kitapSekmeleri[i] ? ' <b>' + B.sayi(sekmeSatirSayisi(kitapSekmeleri[i])) + '</b>' : '') + '</button>'; }).join('') + '</div>' + (calismaKitabi ? calismaTablo : '<div class="kart-ic">' + B.bosDurum('Çalışma kitabı henüz yüklenmedi', rol.yonetir ? '“Excel listesini yükle” düğmesini seçin. Dosyanın beş sekmesi sağlık kasasına aktarılacak.' : 'Çalışma kitabı yönetici tarafından yüklendikten sonra burada görünür.', 'i-saglik') + '</div>') + (calismaKitabi && rol.yonetir ? '<p class="muted">Liste bu cihazın korumalı sağlık kasasında saklanır. Genel bulut eşitlemesine eklenmez.</p>' : '') + '</div>' +
+      /* Personel listesi: kaydı olmayanlar dâhil tüm kadro */
+      '<div class="kart" id="saglik-kisi-kart">' +
+        '<div class="kart-baslik"><div><h2>Personel listesi</h2><p>Kapsamdaki tüm personel ve son muayene durumu; kaydı olmayanlar da izlenir.</p></div>' +
+          '<span class="rozet notr">' + B.sayi(kadro.length) + ' personel</span></div>' +
+        '<div class="filtre-cubugu">' +
+          '<input type="search" data-ui="saglikKisiArama" value="' + kacis(UI.saglikKisiArama || '') + '" placeholder="Ad, sicil, görev veya işyeri ara..." aria-label="Personel listesinde ara">' +
+          '<select data-ui="saglikKisiDurum" aria-label="Muayene durumu">' +
+            [['tumu', 'Tümü'], ['yok', 'Muayene yok'], ['sevkli', 'Sevkli'], ['yasakli', 'Yasaklı'], ['uygun', 'Uygun']].map(function (ikili) {
+              return '<option value="' + ikili[0] + '"' + secili(ikili[0], kisiDurum) + '>' + ikili[1] + ' (' + B.sayi(kisiSayilar[ikili[0]] || 0) + ')</option>';
+            }).join('') +
+          '</select>' +
+          (((hesap && hesap.isyerleri) || []).length > 1 ? '<select data-ui="saglikKisiIsyeri" aria-label="İşyeri filtresi"><option value="">Tüm işyerleri</option>' +
+            hesap.isyerleri.map(function (isyeri) { return '<option value="' + kacis(isyeri.id) + '"' + secili(isyeri.id, kisiIsyeri) + '>' + kacis(isyeri.ad) + '</option>'; }).join('') + '</select>' : '') +
+        '</div>' +
+        '<div class="tablo-kap"><table class="tablo-kucuk" id="saglik-kisi-tablo">' +
+          '<thead><tr><th>#</th><th>Personel</th><th>İşyeri</th><th>Son muayene</th><th>Durum</th><th>Kayıt</th><th class="sag">İşlemler</th></tr></thead>' +
+          '<tbody>' + (kisiHtml || '<tr><td colspan="7">' + B.bosDurum('Personel bulunamadı', 'Arama veya durum filtresini temizleyin. Personel listesi boşsa önce personel ekleyin.', 'i-team') + '</td></tr>') + '</tbody>' +
+        '</table></div>' +
+        '<div class="filtre-ozet" style="border-top:1px solid var(--line)">' +
+          '<span class="muted">' + (kadroFiltre.length ? ((kisiSayfa - 1) * kisiBoyut + 1) + '–' + Math.min(kisiSayfa * kisiBoyut, kadroFiltre.length) + ' / ' + B.sayi(kadroFiltre.length) : '0 personel') + '</span>' +
+          '<span class="sag-arac" data-sayfa-anahtar="saglikKisiSayfa">' + B.sayfalama(kadroFiltre.length, kisiSayfa, kisiBoyut) + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="kart" id="saglik-kayit-kart">' +
+        '<div class="kart-baslik"><div><h2>Muayene kayıtları</h2><p>Kayıt bazında arama, sekme, detay ve düzenleme.</p></div>' +
+          (rol.yonetir ? '<button type="button" class="dugme birincil" data-islem="saglik-yeni">Yeni kayıt</button>' : '') + '</div>' +
         '<div class="filtre-cubugu">' +
           '<input type="search" data-ui="saglikArama" value="' + kacis(UI.saglikArama || '') + '"' +
             ' placeholder="Personel, sicil, sonuç veya sevk ara..." aria-label="Sağlık kayıtlarında ara">' +
@@ -594,7 +850,7 @@
               [10, 25, 50, 100].map(function (adet) { return '<option value="' + adet + '"' + (boyut === adet ? ' selected' : '') + '>' + adet + ' kayıt</option>'; }).join('') +
             '</select></span>' +
         '</div>' +
-        '<div class="tablo-kap"><table class="tablo-kucuk">' +
+        '<div class="tablo-kap"><table class="tablo-kucuk" id="saglik-kayit-tablo">' +
           '<thead><tr><th>#</th><th>Personel</th><th>İşyeri</th><th>Muayene</th><th>Sonuç</th><th>Sevk</th><th>Durum</th><th class="sag">İşlemler</th></tr></thead>' +
           '<tbody>' + (satirHtml || '<tr><td colspan="8">' + B.bosDurum('Kayıt bulunamadı', 'Filtreleri sıfırlayın ya da yeni sağlık kaydı ekleyin.', 'i-saglik') + '</td></tr>') + '</tbody>' +
         '</table></div>' +
@@ -603,9 +859,7 @@
           '<span class="sag-arac">' + B.sayfalama(filtreli.length, sayfa, boyut) + '</span>' +
         '</div>' +
       '</div>' +
-      (form ? '<div class="kart">' +
-        '<h3>' + (duzenlenen ? 'Kaydı Düzenle' : 'Yeni Kayıt') + '</h3>' + form +
-      '</div>' : '') +
+      (form ? '<div class="kart saglik-giris-kart">' + form + '</div>' : '') +
     '</section>';
   };
 

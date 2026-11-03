@@ -1458,3 +1458,39 @@ body.oturum-yok .kabuk { display: none; }
   .onay-satir .sag { justify-content: flex-start; }
 }
 
+/* ---------- Sağlık takibi: katlanır giriş formu ve alan grupları ---------- */
+.saglik-giris-kart { padding: 0; overflow: hidden; }
+.saglik-giris > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 22px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  list-style: none;
+}
+.saglik-giris > summary::-webkit-details-marker { display: none; }
+.saglik-giris > summary::after { content: '▾'; color: var(--ink-mute); font-size: 13px; }
+.saglik-giris[open] > summary { border-bottom: 1px solid var(--line); }
+.saglik-giris[open] > summary::after { content: '▴'; }
+.saglik-giris > .kart-ic { padding: 16px 22px 20px; }
+.saglik-grup {
+  margin: 0 0 14px;
+  padding: 12px 14px 2px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.saglik-grup > legend { padding: 0 6px; color: var(--brand); font-size: 12px; font-weight: 700; }
+.saglik-grup .form-izgara { gap: 12px; }
+.saglik-grup .alan { margin-bottom: 10px; }
+.saglik-giris-kart .form-islem { margin-top: 4px; }
+
+@media (max-width: 720px) {
+  .saglik-giris > summary { padding: 14px 16px; }
+  .saglik-giris > .kart-ic { padding: 14px 16px 18px; }
+  .saglik-grup { padding: 10px 10px 0; }
+}
+
+

@@ -81,7 +81,7 @@ ISG.depo.geriYukle(baslangic);
 /* yardimcilar */
 const sayfa = () => belge.querySelector('.saglik-sayfa');
 const govde = () => (sayfa() ? sayfa().innerHTML : '');
-const satirlar = () => Array.prototype.slice.call(belge.querySelectorAll('.saglik-sayfa tbody tr'))
+const satirlar = () => Array.prototype.slice.call(belge.querySelectorAll('#saglik-kayit-tablo > tbody > tr'))
   .filter((t) => String(t.className).indexOf('saglik-detay') < 0 && !t.querySelector('.bos-durum'));
 function ayrinti(etiket, deger) {
   if (process.env.SAGLIK_DEBUG) {
@@ -140,10 +140,10 @@ function girisYap(kullanici) {
   ok(!!sayfa(), 'saglik sayfasi render ediliyor');
   ok(belge.querySelectorAll('.saglik-sayfa [data-islem="saglik-liste-sekme"]').length === 5, 'Excel çalışma kitabının beş sekmesi görünür');
   ok(govde().indexOf('sevk ve çalışma yasağı takibi') > -1, 'sayfa başlığı sevk + çalışma yasağını anlatıyor');
-  const thead = belge.querySelector('.saglik-sayfa thead');
+  const thead = belge.querySelector('#saglik-kayit-tablo thead');
   const theadHtml = thead ? thead.innerHTML : '';
   ok(/>Sevk</.test(theadHtml) && />Durum</.test(theadHtml), 'listede Sevk ve Durum sütunlari');
-  ok(belge.querySelector('.saglik-sayfa tbody').textContent.indexOf('Kayıt bulunamadı') > -1, 'kayıt yokken boş durum mesajı');
+  ok(belge.querySelector('#saglik-kayit-tablo tbody').textContent.indexOf('Kayıt bulunamadı') > -1, 'kayıt yokken boş durum mesajı');
   ok(!!saglikFormu(), 'yönetime kayıt formu basılıyor');
   const personnelSecim = saglikFormu() && saglikFormu().elements.personelId;
   ok(!!personnelSecim, 'formda Personel alanı var');
@@ -232,7 +232,7 @@ function girisYap(kullanici) {
   await ara('Ortopedi');
   ok(satirlar().length === 1 && satirlar()[0].textContent.indexOf('Fatma Şeker') > -1, 'sevk metninde arama');
   await ara('boyleKayitYok');
-  ok(satirlar().length === 0 && belge.querySelector('.saglik-sayfa tbody').textContent.indexOf('Kayıt bulunamadı') > -1, 'eşleşmeyen aramada boş durum');
+  ok(satirlar().length === 0 && belge.querySelector('#saglik-kayit-tablo tbody').textContent.indexOf('Kayıt bulunamadı') > -1, 'eşleşmeyen aramada boş durum');
   await ara('');
   ok(satirlar().length === 3, 'arama temizlenince liste geri geliyor');
 
