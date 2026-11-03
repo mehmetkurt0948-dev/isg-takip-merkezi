@@ -20,6 +20,7 @@
     { id: 'ilac', ad: 'Kullanılan İlaçlar', tip: 'textarea', gizli: true },
     { id: 'engelDurumu', ad: 'Engel Durumu', tip: 'text', gizli: true },
     { id: 'sonMuayene', ad: 'Son Muayene Sonucu', tip: 'textarea', gizli: true },
+    { id: 'sevkEdilen', ad: 'Sevk Edilen Hastane / Bölüm', tip: 'textarea', gizli: true },
     { id: 'calismaYasagi', ad: 'Çalışma Yasağı / Önerisi', tip: 'textarea', gizli: true },
     { id: 'izinsizlik', ad: 'İzinsizlik Günleri', tip: 'number', gizli: true },
     { id: 'calismaSesi', ad: 'Çalışma Şekli', tip: 'select', secenekler: ['saha', 'buro', 'karisik'] },
@@ -27,12 +28,14 @@
     { id: 'girisYapan', ad: 'Giriş Yapan', tip: 'text', gizli: true }
   ];
 
-  ISG.saglikGizliAlanlar = ['kanGrubu', 'alerji', 'kronikHastalik', 'ilac', 'engelDurumu', 'sonMuayene', 'calismaYasagi', 'izinsizlik', 'notlar', 'girisYapan'];
+  ISG.saglikGizliAlanlar = ['kanGrubu', 'alerji', 'kronikHastalik', 'ilac', 'engelDurumu', 'sonMuayene', 'sevkEdilen', 'calismaYasagi', 'izinsizlik', 'notlar', 'girisYapan'];
 
-  /* ---------- Client-side şifreleme (XOR + base64) ---------- */
-  /* Not: Bu basit bir obfuscation'dur. Üretim ortamında Supabase RLS + istemci
-     tarafında AES-GCM (örn. Web Crypto API) kullanılmasını öneririz. */
+  /* ---------- Yerel kayıt uyumluluğu (gerçek güvenlik sınırı değildir) ---------- */
+  /* Erişim sınırı ayrı sağlık kasası + yönetici onayıdır. Eski kayıtların
+     okunabilmesi için bu biçim korunmuştur; bulut kimlik bilgisi tek başına
+     sağlık kaydına erişim sağlamamalıdır. */
   var SIFRE_ANAHTAR = 'isgtakip-saglik-2026';
+  var SIFRE_ISARETI = 'sg2:';
   function xorCevir(metin, anahtar) {
     var cikti = '';
     for (var i = 0; i < metin.length; i += 1) {
@@ -40,13 +43,41 @@
     }
     return cikti;
   }
+  /* btoa yalnızca tek baytlık karakter kabul eder. Türkçe karakterler (ğ, ı, ş...)
+     iki bayta çıkarıldığı için dönüşüm yapılmadan şifrelenemiyordu ve hata yutulup
+     değer düz metin olarak saklanıyordu. */
+  function bayut(metin) {
+    return encodeURIComponent(metin).replace(/%([0-9A-F]{2})/g, function (_, ikiHex) {
+      return String.fromCharCode(parseInt(ikiHex, 16));
+    });
+  }
+  function baylardan(dizi) {
+    var hexliler = '';
+    for (var i = 0; i < dizi.length; i += 1) {
+      hexliler += '%' + ('00' + dizi.charCodeAt(i).toString(16)).slice(-2);
+    }
+    return decodeURIComponent(hexliler);
+  }
   function sifrele(metin) {
     if (!metin) { return ''; }
-    try { return btoa(xorCevir(String(metin), SIFRE_ANAHTAR)); } catch (e) { return String(metin); }
+    try { return SIFRE_ISARETI + btoa(xorCevir(bayut(String(metin)), SIFRE_ANAHTAR)); }
+    catch (e) { return String(metin); }
   }
   function coz(sifreli) {
     if (!sifreli) { return ''; }
-    try { return xorCevir(atob(String(sifreli)), SIFRE_ANAHTAR); } catch (e) { return String(sifreli); }
+    var metin = String(sifreli);
+    if (metin.indexOf(SIFRE_ISARETI) === 0) {
+      try { return baylardan(xorCevir(atob(metin.slice(SIFRE_ISARETI.length)), SIFRE_ANAHTAR)); }
+      catch (e) { return metin; }
+    }
+    /* Etiketsiz eski kayıt: tek baytlık XOR denenir. Çözünen metin okunabilir
+       değilse değer eski sürümdeki UTF-8 hatası yüzünden düz metin yazılmıştır;
+       olduğu gibi döndürülür ve mevcut kayıt bozulmaz. */
+    try {
+      var aday = xorCevir(atob(metin), SIFRE_ANAHTAR);
+      if (!aday || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(aday)) { return metin; }
+      return aday;
+    } catch (e) { return metin; }
   }
 
   function kaydiSifrele(kayit) {
@@ -88,6 +119,9 @@
     var o = Y.oturum();
     if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
     var rol = Y.rolTanimi(o.rol);
+    if (rol.id !== 'yonetici' && !D.saglikYetkiliMi(o.kullaniciId)) {
+      return D.saglikErisimTalepKaydet({ kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad, eposta: o.eposta, rol: o.rol });
+    }
     if (rol.id !== 'yonetici' && rol.id !== 'yetkili') {
       throw new Error('Sağlık kaydı yalnızca yönetici veya işyeri hekimi/yetkili tarafından kaydedilebilir.');
     }
@@ -96,8 +130,9 @@
     }
     var hatalar = dogrula(kayit);
     if (hatalar.length) { throw new Error(hatalar.join(' ')); }
+    if (rol.id !== 'yonetici') { throw new Error('Yalnızca yönetici sağlık kayıtlarını ekleyip düzenleyebilir.'); }
     kayit.girisYapan = o.kullaniciId;
-    var sifreli = kayidiSifrele(kayit);
+    var sifreli = kaydiSifrele(kayit);
     return D.saglikTakipKaydet(sifreli);
   }
 
@@ -105,9 +140,7 @@
     var o = Y.oturum();
     if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
     var rol = Y.rolTanimi(o.rol);
-    if (rol.id !== 'yonetici' && rol.id !== 'yetkili' && rol.id !== 'goruntuleyici') {
-      throw new Error('Sağlık kayıtlarını görüntüleme izniniz yok.');
-    }
+    if (rol.id !== 'yonetici' && !D.saglikYetkiliMi(o.kullaniciId)) { throw new Error('Sağlık verilerine erişmek için yönetici onayı gerekir.'); }
     if (!isyeriId && rol.id === 'yetkili' && o.isyerleri.length === 1) {
       isyeriId = o.isyerleri[0];
     }
@@ -123,6 +156,31 @@
     D.saglikTakipSil(id);
   }
 
+  function duzenlemeTalepEt(kayit) {
+    var o = Y.oturum();
+    if (!o) { throw new Error('Oturum bulunamadı.'); }
+    if (Y.rolTanimi(o.rol).id !== 'yonetici' && !D.saglikYetkiliMi(o.kullaniciId)) {
+      return D.saglikErisimTalepKaydet({ kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad, eposta: o.eposta, rol: o.rol });
+    }
+    throw new Error('Sağlık kayıtlarını yalnızca yönetici düzenleyebilir.');
+  }
+
+  function erisimTalepEt() {
+    var o = Y.oturum();
+    if (!o) { throw new Error('Önce oturum açın.'); }
+    return D.saglikErisimTalepKaydet({ kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad, eposta: o.eposta, rol: o.rol });
+  }
+  function erisimTalepleri() {
+    var o = Y.oturum();
+    if (!o || Y.rolTanimi(o.rol).id !== 'yonetici') { throw new Error('Sağlık erişim taleplerini yalnızca yönetici görebilir.'); }
+    return D.saglikErisimTalepleri();
+  }
+  function erisimKarar(id, onay) {
+    var o = Y.oturum();
+    if (!o || Y.rolTanimi(o.rol).id !== 'yonetici') { throw new Error('Erişim kararını yalnızca yönetici verebilir.'); }
+    return D.saglikErisimKarar(id, !!onay);
+  }
+
   /* ---------- Arayüz açısı ---------- */
   ISG.saglikTakip = {
     kaydet: kaydet,
@@ -132,15 +190,20 @@
     alanlar: ISG.saglikAlanlari,
     gizliAlanlar: ISG.saglikGizliAlanlar,
     sifrele: sifrele,
-    coz: coz
+    coz: coz,
+    erisimTalepEt: erisimTalepEt,
+    erisimTalepleri: erisimTalepleri,
+    erisimKarar: erisimKarar,
+    duzenlemeTalepEt: duzenlemeTalepEt
   };
 
   /* Basit rapor metni (ekrana yazdırma / rapor sayfası için). */
   function raporMetni(liste) {
     if (!liste || !liste.length) { return 'Sağlık kaydı bulunamadı.'; }
-    var satirlar = ['Tarih\tPersonel\tİşyeri\tHekim\tÇalışma Şekli\tÇalışma Yasağı'];
+    var satirlar = ['Tarih\tPersonel\tİşyeri\tHekim\tÇalışma Şekli\tSevk\tÇalışma Yasağı'];
     liste.forEach(function (k) {
-      satirlar.push([k.tarih, k.personelId, k.isyeriId, k.doktor || '-', k.calismaSesi || '-', k.calismaYasagi || '-'].join('\t'));
+      /* Kişi/işyeri silinmişse kayda dondurulan ad kullanılır; ham kimlik yazılmaz. */
+      satirlar.push([k.tarih, k.personelAd || k.personelId, k.isyeriAd || k.isyeriId, k.doktor || '-', k.calismaSesi || '-', k.sevkEdilen || '-', k.calismaYasagi || '-'].join('\t'));
     });
     return satirlar.join('\n');
   }

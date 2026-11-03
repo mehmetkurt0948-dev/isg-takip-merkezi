@@ -1,4 +1,4 @@
-﻿/* İSG Takip Merkezi — alan kuralları, veri katmanı ve görev motoru */
+/* İSG Takip Merkezi — alan kuralları, veri katmanı ve görev motoru */
 (function (global) {
   'use strict';
 
@@ -603,6 +603,9 @@
 
   /* Bulut eşitlemesinde kayıt bazında birleştirilen listeler. */
   var ESITLEME_ANAHTARLARI = ['isyerleri', 'personel'].concat(LISTE_ANAHTARLARI);
+  /* Sağlık dosyası ayrı ve onay korumalı yerel kasada saklanır; genel bulut
+     JSON'una hiçbir zaman eklenmez. */
+  ESITLEME_ANAHTARLARI = ESITLEME_ANAHTARLARI.filter(function (anahtar) { return anahtar !== 'saglikTakip'; });
 
   /* Silinen kayıtların mezar taşları bu süre sonunda birleşimden düşer. */
   var MEZAR_OMRU_GUN = 120;
@@ -885,6 +888,10 @@
   }
 
   var okunanVeri = oku(ANAHTAR);
+  var saglikKasasi = oku('isgtakip.saglik.kasa') || { kayitlar: [], talepler: [] };
+  saglikKasasi.kayitlar = saglikKasasi.kayitlar || [];
+  saglikKasasi.talepler = saglikKasasi.talepler || [];
+  saglikKasasi.calismaKitabi = saglikKasasi.calismaKitabi || null;
   var tasindi = false;
   if (!okunanVeri) {
     for (var geri = 0; geri < ESKI_ANAHTARLAR.length && !okunanVeri; geri += 1) {
@@ -923,6 +930,8 @@
       /* Değişen kayıtlar kalıcı yazımdan önce damgalanır; bulut eşitlemesi
          böylece kayıt bazında karşılaştırma yapabilir. */
       try {
+        /* Ayrı sağlık kasasındaki kayıtlar genel depoya karışmaz. */
+        depoDurumu.veri.saglikTakip = [];
         degisiklikDamgala(depoDurumu.veri, new Date().toISOString());
       } catch (hata) { /* damgalama hatası kaydı engellemez */ }
       try {
@@ -938,6 +947,8 @@
        damgası üretilmez; yalnızca yerel temel anlık görüntü güncellenir. */
     yukle: function (girdi) {
       var veri = veriTamamla(girdi);
+      /* Eski/uzak JSON içindeki sağlık satırları kasaya aktarılmaz. */
+      veri.saglikTakip = [];
       depoDurumu.veri = veri;
       temelAl(veri);
       try {
@@ -1054,6 +1065,47 @@
     return liste.filter(function (kayit) { return kayit.id !== id; });
   }
 
+  /* ---------- Sağlık kayıtlarında kimlik etiketi ----------
+     Muayene kayıtları (saglikTakip) personel ya da işyeri silindiğinde SİLİNMEZ:
+     geçmiş işyeri muayenesi bulguları mevzuat gereği saklanır. Kayıt sahipsiz
+     kalmasın diye kişinin adı/sicili ve işyerinin adı kayda yazılır (dondurulur);
+     silme sonrası listede ham kimlik yerine "Ayşe Demir · silinmiş personel" okunur. */
+  function saglikIsyeriAdi(veri, isyeriId) {
+    var isyeri = (veri.isyerleri || []).filter(function (i) { return i && i.id === isyeriId; })[0];
+    return isyeri ? String(isyeri.ad || '') : '';
+  }
+  /* Canlı eşitleme: kişi ve işyeri hâlâ kayıtlıyken etiketler güncel tutulur. */
+  function saglikEtiketSinla(veri, kayit) {
+    if (!kayit || !kayit.personelId) { return; }
+    var kisi = (veri.personel || []).filter(function (p) { return p && p.id === kayit.personelId; })[0];
+    if (kisi) {
+      kayit.personelAd = String(kisi.adSoyad || '');
+      kayit.personelSicil = String(kisi.sicil || '');
+    }
+    var isyeriAd = saglikIsyeriAdi(veri, kayit.isyeriId);
+    if (isyeriAd) { kayit.isyeriAd = isyeriAd; }
+  }
+  /* Silmeden hemen önce çağrılır: silinecek kişinin adı kayda dondurulur.
+     Dönen değer etkilenen sağlık kaydı sayısıdır (onay metninde gösterilir). */
+  function saglikEtiketDondur(veri, aitMi) {
+    var kisiHarita = {};
+    (veri.personel || []).forEach(function (p) { if (p && p.id) { kisiHarita[p.id] = p; } });
+    var sayi = 0;
+    (saglikKasasi.kayitlar || []).forEach(function (kayit) {
+      if (!kayit || !aitMi(kayit)) { return; }
+      var kisi = kisiHarita[kayit.personelId];
+      if (kisi) {
+        kayit.personelAd = String(kisi.adSoyad || '');
+        kayit.personelSicil = String(kisi.sicil || '');
+      }
+      var isyeriAd = saglikIsyeriAdi(veri, kayit.isyeriId);
+      if (isyeriAd) { kayit.isyeriAd = isyeriAd; }
+      sayi += 1;
+    });
+    if (sayi) { try { global.localStorage.setItem('isgtakip.saglik.kasa', JSON.stringify(saglikKasasi)); } catch (hata) { depoDurumu.kalici = false; } }
+    return sayi;
+  }
+
   ISG.depo.isyeriKaydet = function (kayit) {
     var veri = depo.al();
     var sonuc = kaydetListede(veri.isyerleri, kayit, 'iy');
@@ -1069,6 +1121,12 @@
 
   ISG.depo.isyeriSil = function (id) {
     var veri = depo.al();
+    /* Sağlık kayıtları silinmez; kişinin adı ve işyeri etiketi kayda dondurulur. */
+    var isyeriPersoneli = {};
+    (veri.personel || []).forEach(function (p) { if (p && p.isyeriId === id) { isyeriPersoneli[p.id] = true; } });
+    saglikEtiketDondur(veri, function (kayit) {
+      return kayit.isyeriId === id || !!isyeriPersoneli[kayit.personelId];
+    });
     veri.isyerleri = silListeden(veri.isyerleri, id);
     ['personel', 'egitimler', 'riskler', 'olaylar', 'dosyalar', 'belgeler', 'planlar', 'tespitler', 'riskEkipleri', 'acilPlanlar'].forEach(function (anahtar) {
       veri[anahtar] = (veri[anahtar] || []).filter(function (kayit) { return kayit.isyeriId !== id; });
@@ -1094,6 +1152,9 @@
 
   ISG.depo.personelSil = function (id) {
     var veri = depo.al();
+    /* Muayene kayıtları silinmez (geçmiş bulgular saklanır); kişinin adı kayda
+       dondurulur, arayüz "silinmiş personel" olarak göstermeye devam eder. */
+    saglikEtiketDondur(veri, function (kayit) { return kayit.personelId === id; });
     veri.personel = silListeden(veri.personel, id);
     veri.egitimler = veri.egitimler.filter(function (e) { return e.personelId !== id; });
     veri.olaylar.forEach(function (olay) { if (olay.personelId === id) { olay.personelId = ''; } });
@@ -1103,6 +1164,10 @@
   ISG.depo.personelTemizle = function (isyeriId) {
     var veri = depo.al();
     var silinenler = veri.personel.filter(function (p) { return p.isyeriId === isyeriId; }).map(function (p) { return p.id; });
+    /* Listeden silinen kişilerin muayene kayıtları korunur; adları kayda dondurulur. */
+    saglikEtiketDondur(veri, function (kayit) {
+      return silinenler.indexOf(kayit.personelId) >= 0 || kayit.isyeriId === isyeriId;
+    });
     veri.personel = veri.personel.filter(function (p) { return p.isyeriId !== isyeriId; });
     veri.egitimler = veri.egitimler.filter(function (e) { return silinenler.indexOf(e.personelId) < 0; });
     veri.olaylar.forEach(function (olay) {
@@ -1721,33 +1786,86 @@
   /* ---------- İş sağlığı / personel sağlık takibi ---------- */
   /* Hassas sağlık verileri: yalnızca yönetici ve işyeri hekimi/yetkili (işyeri kapsamında) erişebilir. */
   ISG.depo.saglikTakipKaydet = function (kayit) {
-    var veri = depo.al();
-    veri.saglikTakip = veri.saglikTakip || [];
+    saglikKasasi.kayitlar = saglikKasasi.kayitlar || [];
     kayit.id = kayit.id || ISG.yeniId('sk');
     kayit.tarih = kayit.tarih || ISG.bicim.bugunIso();
+    /* Ad/sicil/işyeri etiketi canlıyken güncellenir; kişi silinirse son değer korunur. */
+    saglikEtiketSinla(depo.al(), kayit);
     var yer = -1;
-    veri.saglikTakip.forEach(function (k, i) { if (k.id === kayit.id) { yer = i; } });
-    if (yer >= 0) { veri.saglikTakip[yer] = kayit; } else { veri.saglikTakip.push(kayit); }
-    if (!depo.kaydet()) { throw new Error("Sağlık kaydı kaydedilemedi: depolama dolu."); }
+    saglikKasasi.kayitlar.forEach(function (k, i) { if (k.id === kayit.id) { yer = i; } });
+    if (yer >= 0) { saglikKasasi.kayitlar[yer] = kayit; } else { saglikKasasi.kayitlar.push(kayit); }
+    try { global.localStorage.setItem('isgtakip.saglik.kasa', JSON.stringify(saglikKasasi)); }
+    catch (hata) { throw new Error('Sağlık kaydı kaydedilemedi: korumalı depolama dolu.'); }
+    yayinla();
     return kayit;
   };
 
   ISG.depo.saglikTakipSil = function (id) {
-    var veri = depo.al();
-    veri.saglikTakip = (veri.saglikTakip || []).filter(function (k) { return k.id !== id; });
-    depo.kaydet();
+    saglikKasasi.kayitlar = (saglikKasasi.kayitlar || []).filter(function (k) { return k.id !== id; });
+    global.localStorage.setItem('isgtakip.saglik.kasa', JSON.stringify(saglikKasasi));
   };
 
   ISG.depo.saglikTakipBul = function (id) {
     if (!id) { return null; }
-    return (depo.al().saglikTakip || []).filter(function (k) { return k.id === id; })[0] || null;
+    return (saglikKasasi.kayitlar || []).filter(function (k) { return k.id === id; })[0] || null;
   };
 
   ISG.depo.saglikTakipListe = function (isyeriId, personelId) {
-    var liste = (depo.al().saglikTakip || []).slice();
+    var liste = (saglikKasasi.kayitlar || []).slice();
     if (isyeriId) { liste = liste.filter(function (k) { return k.isyeriId === isyeriId; }); }
     if (personelId) { liste = liste.filter(function (k) { return k.personelId === personelId; }); }
     return liste.sort(function (a, b) { return String(b.tarih || "").localeCompare(String(a.tarih || "")); });
+  };
+
+  /* Silme onaylarında kullanılır: muayene kayıtları silinmez, kaçıncı kaydın
+     sahipsiz kalacağı (korunacağı) kullanıcıya söylenir. */
+  ISG.depo.saglikTakipSay = function (personelId) {
+    if (!personelId) { return 0; }
+    return (saglikKasasi.kayitlar || []).filter(function (k) { return k.personelId === personelId; }).length;
+  };
+
+  /* İşyeri bazlı sayım: isyeriId alanı eski/bozuk kayıtlar da kişinin işyerinden
+     sayılır, böylece onay metnindeki sayı hiçbir durumda eksik kalmaz. */
+  ISG.depo.saglikTakipIsyeriSay = function (isyeriId) {
+    if (!isyeriId) { return 0; }
+    var veri = depo.al();
+    var kisi = {};
+    (veri.personel || []).forEach(function (p) { if (p && p.isyeriId === isyeriId) { kisi[p.id] = true; } });
+    var sayi = (saglikKasasi.kayitlar || []).filter(function (k) {
+      return k.isyeriId === isyeriId || !!kisi[k.personelId];
+    }).length;
+    return sayi;
+  };
+
+  ISG.depo.saglikErisimTalepKaydet = function (talep) {
+    saglikKasasi.talepler = saglikKasasi.talepler || [];
+    var bulunan = saglikKasasi.talepler.filter(function (x) { return x.kullaniciId === talep.kullaniciId && x.durum === 'bekliyor'; })[0];
+    if (bulunan) { return bulunan; }
+    talep.id = talep.id || ISG.yeniId('sa');
+    talep.olusturma = new Date().toISOString();
+    talep.durum = 'bekliyor';
+    saglikKasasi.talepler.push(talep);
+    global.localStorage.setItem('isgtakip.saglik.kasa', JSON.stringify(saglikKasasi));
+    return talep;
+  };
+  ISG.depo.saglikErisimTalepleri = function () { return (saglikKasasi.talepler || []).slice(); };
+  ISG.depo.saglikErisimKarar = function (id, onay) {
+    var talep = (saglikKasasi.talepler || []).filter(function (x) { return x.id === id; })[0];
+    if (!talep) { return null; }
+    talep.durum = onay ? 'onaylandi' : 'reddedildi';
+    talep.kararTarihi = new Date().toISOString();
+    global.localStorage.setItem('isgtakip.saglik.kasa', JSON.stringify(saglikKasasi));
+    return talep;
+  };
+  ISG.depo.saglikYetkiliMi = function (kullaniciId) {
+    return (saglikKasasi.talepler || []).some(function (x) { return x.kullaniciId === kullaniciId && x.durum === 'onaylandi'; });
+  };
+  ISG.depo.saglikCalismaKitabi = function () { return saglikKasasi.calismaKitabi; };
+  ISG.depo.saglikCalismaKitabiKaydet = function (kitap) {
+    saglikKasasi.calismaKitabi = kitap;
+    global.localStorage.setItem('isgtakip.saglik.kasa', JSON.stringify(saglikKasasi));
+    yayinla();
+    return kitap;
   };
 
   ISG.depo.ayarKaydet = function (alanlar) {

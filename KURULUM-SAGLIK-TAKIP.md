@@ -2,14 +2,21 @@
 
 Bu dosya, `ASKI_Isyeri_Hekimi_Saglik_Takip_2026-2028.xlsx` içindeki personel sağlık verilerinin güvenli bir şekilde depolanması, güncellenmesi ve erişilmesi için gereken altyapıyı açıklar.
 
-## 1. Ne yapıldı?
+## 1. Erişim ve gizlilik
+
+Sağlık kayıtları `isgtakip.saglik.kasa` adlı ayrı yerel tarayıcı deposunda saklanır; genel `isgtakip.v4` verisine ve anonim bulut JSON eşitlemesine dahil edilmez. Yönetici doğrudan erişir. Diğer kullanıcılar Sağlık Takibi ekranından erişim ister ve yönetici karar verir. Listeyi görüntüleme onaydan sonra açılır; kayıt ekleme, düzenleme ve Excel yükleme yalnızca yöneticiye açıktır.
+
+Bu onay istemci tarafındadır ve aynı tarayıcı/profil için geçerlidir. Mevcut uygulama parolaları ve Supabase anon anahtarı sunucu kimlik doğrulaması sağlamaz. Sağlık verisini cihazlar arasında paylaşmak için Supabase Auth ve `auth.uid()` kullanan RLS ile ayrı bir sağlık tablosu/Edge Function kurulmalıdır. Eski anonim tam erişim politikası kullanılmamalıdır.
+
+## 2. Ne yapıldı?
 
 | Dosya | İçerik |
 |-------|--------|
 | `assets/js/varsayilan-veri.js` | `saglikTakip: []` boş başlangıç dizisi eklendi |
 | `assets/js/depo.js` | `saglikTakipKaydet`, `saglikTakipSil`, `saglikTakipBul`, `saglikTakipListe` CRUD fonksiyonları eklendi |
-| `assets/js/yetki.js` | `saglikTakipKaydet`/`saglikTakipSil` sadece **Yönetici** ve **İşyeri Hekimi/Yetkili** tarafından çalıştırılabilir; Yetkili sadece kendi işyerine ait kayıtlara erişebilir; Görüntüleyici erişemez |
-| `assets/js/saglik-takip.js` | Yeni modül: 16 alanlık sağlık şeması, hassas alanların client-side şifrelenmesi (XOR+base64), tarih validasyonu, rapor metni |
+| `assets/js/depo.js` | Sağlık verisi ayrı yerel kasada; eski genel sağlık kayıtları ilk kullanımda ayrılır |
+| `assets/js/saglik-takip.js` | Sağlık erişim talebi ve yönetici karar kontrolü |
+| `assets/js/saglik-calisma-kitabi.js` | XLSX sekmelerini sağlık kasasına alan yardımcı |
 
 ## 2. Supabase kurulumu (sunucu tarafı)
 
@@ -55,21 +62,8 @@ create index if not exists saglik_takip_tarih_idx on public.saglik_takip (tarih 
 alter table public.saglik_takip enable row level security;
 
 drop policy if exists saglik_takip_yönetici on public.saglik_takip;
-create policy saglik_takip_yönetici on public.saglik_takip
-  for all
-  to anon
-  using (true)
-  with check (true);
-
-drop policy if exists saglik_takip_okuma on public.saglik_takip;
-create policy saglik_takip_okuma on public.saglik_takip
-  for select
-  to anon
-  using (true);
-
--- Not: Üretim ortamında `to anon` yerine doğrulanmış kullanıcı rolleri
--- (auth.uid(), jwt claims) kullanılmalı. Şu anki yapı client-side
--- erişim kontrolü (yetki.js) ile desteklenmektedir.
+-- Güvenli varsayılan: hiçbir anon/authenticated erişim politikası oluşturmayın.
+revoke all on public.saglik_takip from anon, authenticated;
 ```
 
 ## 3. HTML sayfasına entegrasyon
@@ -114,12 +108,12 @@ console.log(rapor);
 | Rol | Sağlık kaydı görebilir mi? | Kaydedebilir mi? | Silebilir mi? | Kapsam |
 |-----|---------------------------|------------------|---------------|--------|
 | Yönetici | Evet | Evet | Evet | Tüm işyerleri |
-| Yetkili (İşyeri Hekimi) | Evet | Evet | Hayır | Sadece atandığı işyeri |
-| Görüntüleyici | Hayır | Hayır | Hayır | — |
+| Yönetici onaylı kullanıcı | Evet | Hayır | Hayır | Yönetici onayı verilmiş hesap |
+| Yetkili / Görüntüleyici | Talep edebilir | Hayır | Hayır | Onay verilene kadar erişim yok |
 
 ## 5. XLSX dosyasını içeri aktarma
 
-`ASKI_Isyeri_Hekimi_Saglik_Takip_2026-2028.xlsx` dosyanızın **sütun başlıklarını** buraya yapıştırırsam, verileri `saglikTakip` şemasına dönüştüren bir içeri aktarma scripti yazabilirim.
+Sağlık Takibi sayfasındaki **Excel listesini yükle** düğmesi çalışma kitabının bütün sekmelerini adlarıyla birlikte yerel sağlık kasasına alır. Yönetici onayı olmayan kullanıcılar sekmeleri göremez.
 
 Şu anki sağlık alanı şeması:
 - personelId, isyeriId, tarih (zorunlu)

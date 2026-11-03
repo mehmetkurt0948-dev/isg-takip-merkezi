@@ -488,6 +488,15 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .hucre-alt { display: block; margin-top: 2px; color: var(--ink-mute); font-size: 11px; }
 .tablo-kucuk td { font-size: 12.5px; padding: 10px 12px; }
 .tablo-kucuk th:last-child, .tablo-kucuk td:last-child { min-width: 170px; }
+
+/* Sağlık takibi: satır içi detay açılımı. */
+.saglik-detay-satir > td { background: #f7fafc; padding: 12px 16px 16px; }
+.saglik-detay-satir:hover > td { background: #f7fafc; }
+.saglik-tablo { width: auto; max-width: 760px; }
+.saglik-tablo td { border-bottom: 1px solid var(--line); padding: 7px 10px; }
+.saglik-tablo td:last-child { min-width: 0; }
+.saglik-tablo td:first-child { width: 165px; color: var(--ink-mute); font-weight: 600; }
+.saglik-tablo tr:last-child td { border-bottom: 0; }
 .sayi-sutun { font-variant-numeric: tabular-nums; }
 
 /* ---------- Filtre çubuğu ---------- */

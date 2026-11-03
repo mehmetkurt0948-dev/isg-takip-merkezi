@@ -946,6 +946,10 @@
     var o = ISG.yetki ? ISG.yetki.oturum() : null;
     var rol = o && ISG.yetki ? ISG.yetki.rolTanimi(o.rol) : null;
     var onaylayabilir = !!(rol && rol.onaylar);
+    var saglikTalepleri = onaylayabilir && ISG.saglikTakip ? ISG.saglikTakip.erisimTalepleri().filter(function (t) { return t.durum === 'bekliyor'; }) : [];
+    var saglikSatirlari = saglikTalepleri.map(function (t) {
+      return '<div class="onay-satir"><div class="onay-satir-bilgi"><strong>Sağlık verisi erişimi · ' + kacis(t.kullaniciAd || '') + '</strong><span>' + kacis(t.eposta || '') + ' · ' + kacis(ISG.yetki.rolTanimi(t.rol).ad) + '</span><span class="kucuk">Erişim onayı talep edildi. Sağlık satırları bu isteğe eklenmez.</span></div><div class="sag"><button type="button" class="dugme kucuk ikincil" data-islem="saglik-erisim-ret" data-id="' + kacis(t.id) + '">Reddet</button><button type="button" class="dugme kucuk birincil" data-islem="saglik-erisim-onay" data-id="' + kacis(t.id) + '">Erişim ver</button></div></div>';
+    }).join('');
 
     var liste = (hesap.talepler || []).slice().sort(function (a, b) {
       if (a.durum === 'bekliyor' && b.durum !== 'bekliyor') { return -1; }
@@ -978,7 +982,7 @@
           eylemler +
         '</div>' +
       '</div>';
-    }).join('');
+    }).join('') + saglikSatirlari;
 
     var aciklama = onaylayabilir ?
       'Yetkili kullanıcıların gönderdiği değişiklik taleplerini inceleyin. Onaylanan talepler kayda hemen uygulanır.' :

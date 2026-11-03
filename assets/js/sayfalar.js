@@ -401,43 +401,53 @@
     '</section>';
   }
 
-  /* ---------- Sayfa: Sağlık Takibi ---------- */
-  function saglikSatiri(k, hesap, yonetir) {
+  /* ---------- Sayfa: Sağlık Takibi (dosya kontrolleri benzeri tablo görünümü) ---------- */
+  function saglikOzet(k) {
+    if (k.calismaYasagi) { return { id: 'yasakli', ad: 'YASAK VAR' }; }
+    if (k.sevkEdilen) { return { id: 'sevkli', ad: 'SEVKLİ' }; }
+    return { id: 'uygun', ad: 'UYGUN' };
+  }
+  function saglikKes(metin, uzunluk) {
+    var s = String(metin || '');
+    return s.length > uzunluk ? s.slice(0, uzunluk) + '…' : (s || '-');
+  }
+  function saglikDetay(k) {
+    return '<table class="tablo-kucuk saglik-tablo">' +
+      '<tr><td>Muayene tarihi</td><td>' + kacis(k.tarih || '-') + '</td></tr>' +
+      '<tr><td>Hekim</td><td>' + kacis(k.doktor || '-') + '</td></tr>' +
+      '<tr><td>Çalışma şekli</td><td>' + kacis(k.calismaSesi || '-') + '</td></tr>' +
+      '<tr><td>Son muayene</td><td>' + kacis(k.sonMuayene || '-') + '</td></tr>' +
+      '<tr><td>Sevk edilen</td><td>' + kacis(k.sevkEdilen || '-') + '</td></tr>' +
+      '<tr><td>Çalışma yasağı</td><td>' + kacis(k.calismaYasagi || 'Yok') + '</td></tr>' +
+      '<tr><td>İzinsizlik günü</td><td>' + kacis(k.izinsizlik || '0') + '</td></tr>' +
+      '<tr><td>Kan grubu</td><td>' + kacis(k.kanGrubu || '-') + '</td></tr>' +
+      '<tr><td>Alerji</td><td>' + kacis(k.alerji || '-') + '</td></tr>' +
+      '<tr><td>Kronik hastalık</td><td>' + kacis(k.kronikHastalik || '-') + '</td></tr>' +
+      '<tr><td>Kullanılan ilaç</td><td>' + kacis(k.ilac || '-') + '</td></tr>' +
+      '<tr><td>Engel durumu</td><td>' + kacis(k.engelDurumu || '-') + '</td></tr>' +
+      '<tr><td>Notlar</td><td>' + kacis(k.notlar || '-') + '</td></tr>' +
+    '</table>';
+  }
+  function saglikSatiri(z, sira, yonetir) {
+    var k = z.k;
     var acik = UI.acikSaglik === k.id;
-    var isyeriAd = (hesap.isyerleri || []).filter(function (i) { return i.id === k.isyeriId; })[0];
-    var isyeriMetin = isyeriAd ? isyeriAd.ad : (k.isyeriId || '-');
-    var kisi = (hesap.personel || []).filter(function (p) { return p.id === k.personelId; })[0];
-    var kisiAd = kisi ? kisi.adSoyad : (k.personelId || '-');
-    var surecDurum = k.calismaYasagi ? '<span class="etiket engel">YASAK VAR</span>' : '<span class="etiket uygun">UYGUN</span>';
-    return '<section class="kisi-kart" data-id="' + kacis(k.id) + '">' +
-      '<header class="kisi-baslik">' +
-        '<span class="kisi-ad">' + kacis(kisiAd) + '</span>' +
-        '<span class="kisi-isyeri">' + kacis(isyeriMetin) + '</span>' +
-        '<span class="kisi-tarih">' + kacis(k.tarih || '-') + '</span>' +
-        surecDurum +
-      '</header>' +
-      '<div class="kisi-icerik"' + (acik ? '' : ' hidden') + '>' +
-        '<table class="tablo-kucuk saglik-tablo">' +
-          '<tr><td>Muayene tarihi</td><td>' + kacis(k.tarih || '-') + '</td></tr>' +
-          '<tr><td>Hekim</td><td>' + kacis(k.doktor || '-') + '</td></tr>' +
-          '<tr><td>Çalışma şekli</td><td>' + kacis(k.calismaSesi || '-') + '</td></tr>' +
-          '<tr><td>Çalışma yasağı</td><td>' + kacis(k.calismaYasagi || 'Yok') + '</td></tr>' +
-          '<tr><td>İzinsizlik günü</td><td>' + kacis(k.izinsizlik || '0') + '</td></tr>' +
-          '<tr><td>Kan grubu</td><td>' + kacis(k.kanGrubu || '-') + '</td></tr>' +
-          '<tr><td>Alerji</td><td>' + kacis(k.alerji || '-') + '</td></tr>' +
-          '<tr><td>Kronik hastalık</td><td>' + kacis(k.kronikHastalik || '-') + '</td></tr>' +
-          '<tr><td>Kullanılan ilaç</td><td>' + kacis(k.ilac || '-') + '</td></tr>' +
-          '<tr><td>Engel durumu</td><td>' + kacis(k.engelDurumu || '-') + '</td></tr>' +
-          '<tr><td>Son muayene</td><td>' + kacis(k.sonMuayene || '-') + '</td></tr>' +
-          '<tr><td>Notlar</td><td>' + kacis(k.notlar || '-') + '</td></tr>' +
-        '</table>' +
-        '<div class="islem-sutun">' +
-          '<button type="button" data-islem="saglik-duzenle" data-id="' + kacis(k.id) + '">Düzenle</button>' +
-          '<button type="button" data-islem="saglik-kapat" data-id="' + kacis(k.id) + '">' + (acik ? 'Gizle' : 'Göster') + '</button>' +
-          (yonetir ? '<button type="button" data-islem="saglik-sil" data-id="' + kacis(k.id) + '" class="dugme tehlike">Sil</button>' : '') +
-        '</div>' +
-      '</div>' +
-    '</section>';
+    var durumRozet = B.rozet(z.durum.ad, z.durum.id === 'uygun' ? 'iyi' : (z.durum.id === 'sevkli' ? 'uyari' : 'tehlike'));
+    return '<tr>' +
+      '<td>' + sira + '</td>' +
+      '<td><b>' + kacis(z.ad) + '</b>' + (z.silinmis ? ' ' + B.rozet('silinmiş personel', 'notr') : '') +
+      (z.sicil ? '<p class="hucre-alt">Sicil: ' + kacis(z.sicil) + '</p>' : '') + '</td>' +
+      '<td>' + kacis(z.isyeri) + (z.isyeriSilinmis ? '<p class="hucre-alt">silinmiş işyeri</p>' : '') + '</td>' +
+      '<td>' + B.tarih(k.tarih) + '</td>' +
+      '<td>' + kacis(saglikKes(k.sonMuayene, 60)) + '</td>' +
+      '<td>' + kacis(saglikKes(k.sevkEdilen, 40)) + '</td>' +
+      '<td>' + durumRozet + '</td>' +
+      '<td class="sag"><div class="dosya-eylem">' +
+        '<button type="button" data-islem="saglik-kapat" data-id="' + kacis(k.id) + '">' + (acik ? 'Gizle' : 'Detay') + '</button>' +
+        (yonetir ? '<button type="button" data-islem="saglik-duzenle" data-id="' + kacis(k.id) + '">Düzenle</button>' : '') +
+        (yonetir ? '<button type="button" class="sil" data-islem="saglik-sil" data-id="' + kacis(k.id) + '">Sil</button>' : '') +
+      '</div></td>' +
+    '</tr>' +
+    (acik ? '<tr class="saglik-detay-satir"><td></td><td colspan="7">' + saglikDetay(k) + '</td></tr>' : '');
   }
 
   function saglikFormu(k) {
@@ -473,10 +483,17 @@
 
   SAYFALAR.saglik = function (hesap) {
     var o = Y.oturum();
-    if (!o) { return '<div class="hata">' + B.bosDurum('Oturum bulunamadı', 'Lütfen giriş yapın.', 'i-kisisel') + '</div>'; }
+    if (!o) { return '<div class="hata">' + B.bosDurum('Oturum bulunamadı', 'Lütfen giriş yapın.', 'i-saglik') + '</div>'; }
     var rol = rolTanimi(o.rol);
     if (rol.id !== 'yonetici' && rol.id !== 'yetkili' && rol.id !== 'goruntuleyici') {
-      return '<div class="hata">' + B.bosDurum('Erişim yok', 'Sağlık kayıtlarını görüntüleme izniniz yok.', 'i-kisisel') + '</div>';
+      return '<div class="hata">' + B.bosDurum('Erişim yok', 'Sağlık kayıtlarını görüntüleme izniniz yok.', 'i-saglik') + '</div>';
+    }
+    if (rol.id !== 'yonetici' && !ISG.depo.saglikYetkiliMi(o.kullaniciId)) {
+      var kendiTalep = ISG.depo.saglikErisimTalepleri().filter(function (t) { return t.kullaniciId === o.kullaniciId; })[0];
+      var yonetici = rol.yonetir;
+      var talepler = yonetici ? ISG.saglikTakip.erisimTalepleri().filter(function (t) { return t.durum === 'bekliyor'; }) : [];
+      return '<section class="sayfa saglik-sayfa"><div class="sayfa-ust"><div class="sayfa-baslik"><span class="kurum">SAĞLIK TAKİBİ</span><h1>Yönetici onayı gerekli</h1><p>Sağlık bilgileri yalnızca yönetici tarafından erişim izni verilen hesaplara açılır.</p></div></div>' +
+        (yonetici ? '<div class="kart"><h2>Bekleyen erişim talepleri</h2>' + (talepler.length ? talepler.map(function (t) { return '<div class="kullanici-satir"><strong>' + kacis(t.kullaniciAd) + '</strong><span>' + kacis(t.eposta) + '</span><button class="dugme ikincil" data-islem="saglik-erisim-ret" data-id="' + kacis(t.id) + '">Reddet</button><button class="dugme birincil" data-islem="saglik-erisim-onay" data-id="' + kacis(t.id) + '">Erişim ver</button></div>'; }).join('') : '<p>Bekleyen talep yok.</p>') + '</div>' : '<div class="kart"><h2>Sağlık verisi erişimi</h2><p>' + (kendiTalep && kendiTalep.durum === 'bekliyor' ? 'Erişim talebiniz yönetici onayı bekliyor.' : (kendiTalep && kendiTalep.durum === 'reddedildi' ? 'Talebiniz reddedildi. Yeniden erişim isteyebilirsiniz.' : 'Sağlık listesini ve kayıtlarını görüntülemek için erişim talep edin.')) + '</p>' + (kendiTalep && kendiTalep.durum === 'bekliyor' ? '' : '<button class="dugme birincil" data-islem="saglik-erisim-talep">Yönetici onayı iste</button>') + '</div>') + '</section>';
     }
 
     var liste;
@@ -486,29 +503,109 @@
         ''
       );
     } catch (hata) {
-      return '<div class="hata">' + B.bosDurum('Kayıtlar okunamadı', (hata && hata.message) || 'Beklenmeyen hata.', 'i-kisisel') + '</div>';
+      return '<div class="hata">' + B.bosDurum('Kayıtlar okunamadı', (hata && hata.message) || 'Beklenmeyen hata.', 'i-saglik') + '</div>';
     }
 
-    var satirHtml = liste.map(function (k) { return saglikSatiri(k, hesap, rol.yonetir === true); }).join('');
-    if (!satirHtml) {
-      satirHtml = '<div class="bos-kart"><p>Sağlık kaydı bulunamadı. İlk kaydı aşağıdan ekleyebilirsiniz.</p></div>';
-    }
+    var kisiInd = {}, isyInd = {};
+    (hesap.personel || []).forEach(function (p) { kisiInd[p.id] = p; });
+    (hesap.isyerleri || []).forEach(function (i) { isyInd[i.id] = i; });
+    var zengin = liste.map(function (k) {
+      var kisi = kisiInd[k.personelId];
+      var isy = isyInd[k.isyeriId];
+      /* Kişi veya işyeri silinmişse kayıt listeden düşmez: silinmeden önce kayda
+         dondurulan ad/sicil okunur, arayüzde "silinmiş personel" rozeti basılır. */
+      return {
+        k: k,
+        ad: kisi ? kisi.adSoyad : (k.personelAd || k.personelId || '-'),
+        sicil: kisi ? (kisi.sicil || '') : (k.personelSicil || ''),
+        isyeri: isy ? isy.ad : (k.isyeriAd || k.isyeriId || '-'),
+        silinmis: !kisi,
+        isyeriSilinmis: !isy,
+        durum: saglikOzet(k)
+      };
+    });
+    /* En yeni muayene tarihi üstte; aynı tarihte ad soyad sıra ile. */
+    zengin.sort(function (a, b) {
+      return String(b.k.tarih || '').localeCompare(String(a.k.tarih || '')) || a.ad.localeCompare(b.ad, 'tr');
+    });
+    var sayilar = { tumu: zengin.length, sevkli: 0, yasakli: 0, uygun: 0 };
+    zengin.forEach(function (z) { sayilar[z.durum.id] = (sayilar[z.durum.id] || 0) + 1; });
+
+    var arama = String(UI.saglikArama || '').toLocaleLowerCase('tr');
+    var sekme = UI.saglikSekme || 'tumu';
+    var filtreli = zengin.filter(function (z) {
+      if (sekme !== 'tumu' && z.durum.id !== sekme) { return false; }
+      if (arama) {
+        return [z.ad, z.sicil, z.isyeri, z.k.tarih, z.k.sonMuayene, z.k.sevkEdilen, z.k.doktor]
+          .join(' ').toLocaleLowerCase('tr').indexOf(arama) >= 0;
+      }
+      return true;
+    });
+
+    var boyut = Number(UI.saglikBoyut) || 25;
+    var sonSayfa = Math.max(1, Math.ceil(filtreli.length / boyut));
+    var sayfa = Math.min(Math.max(1, Number(UI.saglikSayfa) || 1), sonSayfa);
+    var dilim = filtreli.slice((sayfa - 1) * boyut, sayfa * boyut);
+    var satirHtml = dilim.map(function (z, i) {
+      return saglikSatiri(z, (sayfa - 1) * boyut + i + 1, rol.yonetir === true);
+    }).join('');
 
     var duzenlenen = UI.duzenleSaglik ? liste.filter(function (k) { return k.id === UI.duzenleSaglik; })[0] || null : null;
-    var form = rol.id === 'goruntuleyici' ? '' : saglikFormu(duzenlenen);
+    var form = rol.yonetir ? saglikFormu(duzenlenen) : '';
+    if (rol.yonetir && ISG.saglikTakip.erisimTalepleri().some(function (t) { return t.durum === 'bekliyor'; })) {
+      form = '<div class="kart"><h3>Bekleyen erişim talepleri</h3>' + ISG.saglikTakip.erisimTalepleri().filter(function (t) { return t.durum === 'bekliyor'; }).map(function (t) { return '<div class="kullanici-satir"><strong>' + kacis(t.kullaniciAd) + '</strong><span>' + kacis(t.eposta) + '</span><button type="button" class="dugme ikincil" data-islem="saglik-erisim-ret" data-id="' + kacis(t.id) + '">Reddet</button><button type="button" class="dugme birincil" data-islem="saglik-erisim-onay" data-id="' + kacis(t.id) + '">Erişim ver</button></div>'; }).join('') + '</div>' + form;
+    }
 
+    var calismaKitabi = ISG.depo.saglikCalismaKitabi ? ISG.depo.saglikCalismaKitabi() : null;
+    var sekmeAdlari = calismaKitabi && calismaKitabi.sekmeler || ['TAM LİSTE', 'YÜKSEK RİSKLİ MESLEKLER', 'ÇALIŞMASI UYGUN DEĞİLDİR', 'SAĞLIK TARAMALARI EKSİK OLANLAR', 'MALULİYETİ OLANLAR'];
+    var seciliListeSekmesi = UI.saglikListeSekmesi || 0;
+    var calismaSatirlari = calismaKitabi && calismaKitabi.sekmeler[seciliListeSekmesi] ? (calismaKitabi.sekmeler[seciliListeSekmesi].satirlar || []) : [];
+    var calismaTablo = '';
+    if (calismaKitabi) {
+      var basliklar = calismaSatirlari.length ? calismaSatirlari[0] : [];
+      var veriSatirlari = calismaSatirlari.slice(1);
+      var aramaKitap = String(UI.saglikKitapArama || '').toLocaleLowerCase('tr-TR');
+      if (aramaKitap) {
+        veriSatirlari = veriSatirlari.filter(function (r) { return r.join(' ').toLocaleLowerCase('tr-TR').indexOf(aramaKitap) >= 0; });
+      }
+      calismaTablo = '<div class="filtre-cubugu"><input type="search" data-ui="saglikKitapArama" value="' + kacis(UI.saglikKitapArama || '') + '" placeholder="Çalışma kitabında ara..." aria-label="Excel çalışma kitabında ara"><span class="muted">' + B.sayi(veriSatirlari.length) + ' kayıt</span></div>' +
+        '<div class="tablo-kap"><table class="tablo-kucuk"><thead><tr>' + basliklar.map(function (c) { return '<th>' + kacis(c || '') + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        (veriSatirlari.length ? veriSatirlari.map(function (r) { return '<tr>' + basliklar.map(function (_, i) { return '<td>' + kacis(r[i] || '') + '</td>'; }).join('') + '</tr>'; }).join('') : '<tr><td colspan="' + Math.max(1, basliklar.length) + '">' + B.bosDurum('Bu sekmede kayıt yok', 'Arama ölçütünü temizleyin veya Excel çalışma kitabını yeniden yükleyin.', 'i-saglik') + '</td></tr>') +
+        '</tbody></table></div>';
+    }
     return '<section class="sayfa saglik-sayfa">' +
-      sayfaBaslik('SAĞLIK TAKİBİ', 'Personel Sağlık Takibi', 'Muayene kayıtları, çalışma yasağı ve izinsizlik takibi.') +
-      '<div class="grid-iki">' +
-        '<div class="kart">' +
-          '<h3>Kayıtlar</h3>' +
-          satirHtml +
+      sayfaBaslik('SAĞLIK TAKİBİ', 'Personel Sağlık Takibi', 'Muayene kayıtları, sevk ve çalışma yasağı takibi.') +
+      '<div class="kart"><div class="kart-baslik"><div><h2>İşyeri hekimi çalışma kitabı</h2><p>' + (calismaKitabi ? 'Kaynak: ' + kacis(calismaKitabi.dosyaAdi || 'ASKI İş Yeri Hekimi Sağlık Takip 2026–2028') + ' · ' + B.tarih(String(calismaKitabi.yuklemeTarihi || '').slice(0, 10)) : 'ASKI İş Yeri Hekimi Sağlık Takip 2026–2028 · beş sekmeli liste') + '</p></div>' + (rol.yonetir ? '<button class="dugme birincil" data-islem="saglik-xlsx-yukle">' + (calismaKitabi ? 'Excel listesini güncelle' : 'Excel listesini yükle') + '</button>' : '') + '</div><div class="sekme-satir">' + sekmeAdlari.map(function (ad, i) { return '<button type="button" class="sekme' + (i === seciliListeSekmesi ? ' aktif' : '') + '" data-islem="saglik-liste-sekme" data-sekme="' + i + '">' + kacis(ad) + (calismaKitabi && calismaKitabi.sekmeler[i] ? ' <b>' + B.sayi(Math.max(0, calismaKitabi.sekmeler[i].satirlar.length - 1)) + '</b>' : '') + '</button>'; }).join('') + '</div>' + (calismaKitabi ? calismaTablo : '<div class="kart-ic">' + B.bosDurum('Çalışma kitabı henüz yüklenmedi', rol.yonetir ? '“Excel listesini yükle” düğmesini seçin. Dosyanın beş sekmesi sağlık kasasına aktarılacak.' : 'Çalışma kitabı yönetici tarafından yüklendikten sonra burada görünür.', 'i-saglik') + '</div>') + (calismaKitabi && rol.yonetir ? '<p class="muted">Liste bu cihazın korumalı sağlık kasasında saklanır. Genel bulut eşitlemesine eklenmez.</p>' : '') + '</div>' +
+      '<div class="kart">' +
+        '<div class="filtre-cubugu">' +
+          '<input type="search" data-ui="saglikArama" value="' + kacis(UI.saglikArama || '') + '"' +
+            ' placeholder="Personel, sicil, sonuç veya sevk ara..." aria-label="Sağlık kayıtlarında ara">' +
         '</div>' +
-        '<div class="kart">' +
-          '<h3>' + (duzenlenen ? 'Kaydı Düzenle' : 'Yeni Kayıt') + '</h3>' +
-          form +
+        '<div class="sekme-satir">' +
+          [['tumu', 'Tümü'], ['sevkli', 'Sevkli'], ['yasakli', 'Yasaklı'], ['uygun', 'Uygun']].map(function (ikili) {
+            return '<button type="button" class="sekme' + (sekme === ikili[0] ? ' aktif' : '') + '" data-islem="saglik-sekme" data-sekme="' + ikili[0] + '">' +
+              ikili[1] + ' <b>' + B.sayi(sayilar[ikili[0]] || 0) + '</b></button>';
+          }).join('') +
+        '</div>' +
+        '<div class="filtre-ozet">' +
+          '<span><strong>' + B.sayi(filtreli.length) + '</strong> kayıt gösteriliyor</span>' +
+          '<span class="sag-arac"><label class="filtre-etiket" for="saglikBoyut">Sayfada</label>' +
+            '<select id="saglikBoyut" data-ui="saglikBoyut" style="padding:6px 10px;border:1px solid var(--line-strong);border-radius:8px;background:#fff">' +
+              [10, 25, 50, 100].map(function (adet) { return '<option value="' + adet + '"' + (boyut === adet ? ' selected' : '') + '>' + adet + ' kayıt</option>'; }).join('') +
+            '</select></span>' +
+        '</div>' +
+        '<div class="tablo-kap"><table class="tablo-kucuk">' +
+          '<thead><tr><th>#</th><th>Personel</th><th>İşyeri</th><th>Muayene</th><th>Sonuç</th><th>Sevk</th><th>Durum</th><th class="sag">İşlemler</th></tr></thead>' +
+          '<tbody>' + (satirHtml || '<tr><td colspan="8">' + B.bosDurum('Kayıt bulunamadı', 'Filtreleri sıfırlayın ya da yeni sağlık kaydı ekleyin.', 'i-saglik') + '</td></tr>') + '</tbody>' +
+        '</table></div>' +
+        '<div class="filtre-ozet" style="border-top:1px solid var(--line)">' +
+          '<span class="muted">' + (filtreli.length ? ((sayfa - 1) * boyut + 1) + '–' + Math.min(sayfa * boyut, filtreli.length) + ' / ' + B.sayi(filtreli.length) : '0 kayıt') + '</span>' +
+          '<span class="sag-arac">' + B.sayfalama(filtreli.length, sayfa, boyut) + '</span>' +
         '</div>' +
       '</div>' +
+      (form ? '<div class="kart">' +
+        '<h3>' + (duzenlenen ? 'Kaydı Düzenle' : 'Yeni Kayıt') + '</h3>' + form +
+      '</div>' : '') +
     '</section>';
   };
 
