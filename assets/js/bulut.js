@@ -30,6 +30,13 @@
   /* Kendi gönderimimizden sonra olası eşzamanlı değişikliği toplamak için
      yapılan tek çekme gecikmesi. */
   var GONDERME_SONRASI_ARALIK = 1200;
+  /* Koşullu yazma reddedilirse (başka cihaz yazdı) en fazla bu kadar kez
+     "çek – birleştir – yeniden yaz" denenir. */
+  var CAKISMA_DENEME = 2;
+  /* Ardışık hatada katlanarak artan atlama; en yüksek kademe 2^4-1 = 15 tik
+     atlanır (20 sn'lik aralıkla ~5 dk'da bir deneme). */
+  var MAKS_ATLAMA = 4;
+  var ATLAMA_HEDEFI = 0; /* son hesaplanan atlama hedefi (yalnızca ölçüm için) */
 
   var durum = {
     ayar: null,
@@ -50,6 +57,11 @@
   var gondermeZamanlayici = null;
   var cekmeZamanlayici = null;
   var cekmeSonrasiZamanlayici = null;
+  /* Ardışık hata sayısı ve bu yüzden atlanan yoklama turu (geri çekilme). */
+  var ardicHata = 0;
+  var atlananTick = 0;
+  /* Koşullu yazmanın yakaladığı eşzamanlı değişiklik sayısı (tanı/ölçüm). */
+  var cakismaSayisi = 0;
 
   /* ---------- Yardımcılar ---------- */
 
@@ -197,11 +209,23 @@
   function asama(yeni) {
     durum.asama = yeni;
     if (yeni !== 'hata') { durum.hata = ''; }
+    /* Başarılı tur geri çekilmeyi sıfırlar: bağlantı düzeldiği anda
+       yoklama yine yapılandırılan aralığa döner. */
+    if (yeni === 'hazir') { ardicHata = 0; atlananTick = 0; ATLAMA_HEDEFI = 0; }
     bildir();
+  }
+
+  /* Ardışık hata sayısından yoklama atlama hedefi: 1 hata 1 tik, 2 hata 3 tik,
+     3 hata 7 tik ... MAKS_ATLAMA kademesinde donar (katlanarak geri çekilme). */
+  function atlamaHedefi() {
+    return Math.min(MAKS_ATLAMA, Math.pow(2, Math.min(ardicHata, 8)) - 1);
   }
 
   function hataDurumu(hata, sessiz) {
     durum.asama = 'hata';
+    ardicHata = Math.min(8, ardicHata + 1);
+    atlananTick = 0;
+    ATLAMA_HEDEFI = atlamaHedefi();
     durum.hata = (hata && hata.message) || 'Bulut bağlantısı kurulamadı.';
     bildir();
     if (!sessiz && ISG.bicim && typeof ISG.bicim.bildir === 'function') {
@@ -275,6 +299,13 @@
     return '?oda=eq.' + encodeURIComponent(durum.ayar.oda) + '&select=veri,guncelleme';
   }
 
+  /* Ucuz yoklama: satirin yalnizca damgasi istenir. Bulutta degisiklik yoksa
+     tum kayit govdesi (yuzlerce KB olabilir) tekrar indirilmez; tek kac baytlik
+     yanitla tur kapanir. */
+  function damgaYolu() {
+    return '?oda=eq.' + encodeURIComponent(durum.ayar.oda) + '&select=guncelleme';
+  }
+
   /* Gönderimden hemen sonra bir kez çekme: başka bir cihazın eşzamanlı
      değişikliği hızla birleşir. Uzak damga değişmediyse istek yapılmaz. */
   function sonrakiCekmeyiPlanla() {
@@ -325,7 +356,7 @@
 
   /* ---------- Aktarım ---------- */
 
-  function gonder(elle) {
+  function gonder(elle, cakismaDenemesi) {
     if (!hazirMi()) { return Promise.resolve(false); }
     if (istekSuruyor) { return Promise.resolve(false); }
 
@@ -333,14 +364,55 @@
     asama('senkron');
 
     var zaman = new Date().toISOString();
-    var govde = [{ oda: durum.ayar.oda, veri: ISG.depo.al(), guncelleme: zaman }];
+    var govde = ISG.depo.al();
     var gonderilenSurum = durum.degisiklikNo;
+    /* Satirin bizde gorulen son damgasi: kosullu yazmanin referansi. */
+    var gorulen = durum.sonUzakZaman;
 
-    return istek('', {
-      method: 'POST',
-      body: govde,
-      prefer: 'resolution=merge-duplicates,return=minimal'
-    }).then(function () {
+    var istekler;
+    if (gorulen) {
+      /* KOSULLU YAZMA (compare-and-swap): satir yalnizca bizdeki damga henuz
+         yerindeyse guncellenir. Bizim gormedigimiz bir baska cihaz yazdiysa
+         sunucu sifir satir dondurur; boylece onun kayitlari ustumuze yazilmaz.
+         (Eski yontem butun govdeyi kosulsuz upsert ediyor, ezilmeyi yalnizca
+         sonraki birlestirmede toparlayabiliyordu.) */
+      istekler = istek('?oda=eq.' + encodeURIComponent(durum.ayar.oda) +
+        '&guncelleme=eq.' + encodeURIComponent(gorulen) + '&select=guncelleme', {
+        method: 'PATCH',
+        body: { veri: govde, guncelleme: zaman },
+        prefer: 'return=representation'
+      }).then(function (satirlar) {
+        var sayi = Array.isArray(satirlar) ? satirlar.length : 1;
+        return { cakisma: sayi === 0 };
+      });
+    } else {
+      /* Satir henuz yok ya da damgasi bilinmiyor: ilk yazma icin upsert. */
+      istekler = istek('', {
+        method: 'POST',
+        body: [{ oda: durum.ayar.oda, veri: govde, guncelleme: zaman }],
+        prefer: 'resolution=merge-duplicates,return=minimal'
+      }).then(function () { return { cakisma: false }; });
+    }
+
+    return istekler.then(function (sonuc) {
+      if (sonuc.cakisma) {
+        /* Baska cihaz bizden sonra yazdi: once onu cekip birlestir, sonra
+           yeniden dene. Deneme sinirli; asilirsa yerel veri korunur. */
+        istekSuruyor = false;
+        durum.sonUzakZaman = '';
+        cakismaSayisi += 1;
+        var deneme = (cakismaDenemesi || 0) + 1;
+        if (deneme > CAKISMA_DENEME) {
+          durum.kirli = true;
+          kaydetDurum();
+          hataDurumu(new Error('Bulutta eszamanli degisiklik var; tekrar deneyin.'), !elle);
+          return false;
+        }
+        return cek(true).then(function () {
+          return durum.kirli ? gonder(elle, deneme) : true;
+        });
+      }
+
       istekSuruyor = false;
       durum.sonGonderme = zaman;
       durum.sonUzakZaman = zaman;
@@ -359,7 +431,39 @@
     });
   }
 
+  /* Buluttaki kaydi cekip yerelle birlestirir. `sessiz` true iken once yalnizca
+     damga yoklanir; degisiklik yoksa buyuk govde indirilmez. */
   function cek(sessiz) {
+    if (!hazirMi()) { return Promise.resolve(false); }
+    if (istekSuruyor) { return Promise.resolve(false); }
+
+    /* Yerel degisiklik beklersek birlestirme icin govdeye muhtaciz; ayrica
+       elle yapilan istekte icerik hemen tazelenir. */
+    var yoklanabilir = sessiz && !durum.kirli && !!durum.sonUzakZaman;
+    if (!yoklanabilir) { return tamCek(sessiz); }
+
+    var gorulen = durum.sonUzakZaman;
+    istekSuruyor = true;
+    return istek(damgaYolu()).then(function (satirlar) {
+      istekSuruyor = false;
+      var satir = Array.isArray(satirlar) ? satirlar[0] : null;
+      var uzak = satir ? String(satir.guncelleme || '') : '';
+      if (uzak && uzak === gorulen) {
+        /* Bulut zaten bizim surumde: govde indirilmez, pille dostu tur biter. */
+        durum.sonCekme = new Date().toISOString();
+        asama('hazir');
+        kaydetDurum();
+        return false;
+      }
+      return tamCek(sessiz);
+    }).catch(function (hata) {
+      istekSuruyor = false;
+      hataDurumu(hata, sessiz);
+      return false;
+    });
+  }
+
+  function tamCek(sessiz) {
     if (!hazirMi()) { return Promise.resolve(false); }
     if (istekSuruyor) { return Promise.resolve(false); }
 
@@ -459,6 +563,13 @@
     var aralik = Math.max(10, Number(durum.ayar.aralik) || VARSAYILAN_ARALIK);
     cekmeZamanlayici = global.setInterval(function () {
       if (document.hidden || istekSuruyor || !hazirMi()) { return; }
+      /* Ardışık hata varsa yoklama katlanarak seyrekleşir (20→40→80→… s):
+       * erişilemeyen sunucuya sabit ritimde yazılıp pil/veri harcanmaz.
+       * Başarılı bir tur sayacı sıfırlar, ritim hemen eski hızına döner. */
+      var hedef = atlamaHedefi();
+      ATLAMA_HEDEFI = hedef;
+      if (atlananTick < hedef) { atlananTick += 1; return; }
+      atlananTick = 0;
       cek(true);
     }, aralik * 1000);
   }
@@ -651,6 +762,19 @@
     cek: cek,
     gonder: gonder,
     senkronla: senkronla,
+    /* Eşitleme sağlığı ölçümleri: ardışık hata, geri çekilme ve yakalanan
+       eşzamanlı değişiklik (çakışma) sayısı. Ayarlar panelinde de kullanılır. */
+    istatistik: function () {
+      var aralik = durum.ayar ? Math.max(10, Number(durum.ayar.aralik) || VARSAYILAN_ARALIK) : 0;
+      return {
+        ardicHata: ardicHata,
+        atlananTick: atlananTick,
+        atlamaHedefi: ATLAMA_HEDEFI,
+        /* Geri çekilme sonrası fiili yoklama aralığı (saniye). */
+        etkinAralik: aralik ? (ATLAMA_HEDEFI + 1) * aralik : 0,
+        cakisma: cakismaSayisi
+      };
+    },
     /* Siteye gömülü kimlik (bulut-kimlik.js) arayüzü. */
     kimlikUygula: kimlikUygula,
     kimlikVarMi: function () { return !!kimlikOku(); },

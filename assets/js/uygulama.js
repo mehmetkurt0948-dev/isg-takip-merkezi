@@ -2883,8 +2883,23 @@
       a.sql.textContent = ISG.bulut.sqlMetni();
     }
     if (a.durum) {
-      a.durum.textContent = 'Durum: ' + ((bilgi && bilgi.metin) || 'yerel kayıt açık') +
+      var metin = 'Durum: ' + ((bilgi && bilgi.metin) || 'yerel kayıt açık') +
         (bilgi && bilgi.ayrinti ? ' · ' + bilgi.ayrinti : '');
+      /* Eşitleme sağlığı: başka cihazla yakalanan eşzamanlı değişiklik ve
+         ağ hataları yüzünden yavaşlayan yoklama burada görünür. Böylece
+         "kayıtlar neden değişmedi" sorusu tek satırda cevap bulur. */
+      if (acik && typeof ISG.bulut.istatistik === 'function') {
+        var olcu = ISG.bulut.istatistik();
+        var saglik = [];
+        if (olcu.cakisma > 0) {
+          saglik.push(B.sayi(olcu.cakisma) + ' eşzamanlı değişiklik birleştirildi');
+        }
+        if (olcu.ardicHata > 0 && olcu.etkinAralik > 0) {
+          saglik.push('yeniden deneme ' + B.sayi(olcu.etkinAralik) + ' sn sonra');
+        }
+        if (saglik.length) { metin += ' · ' + saglik.join(' · '); }
+      }
+      a.durum.textContent = metin;
     }
     if (a.kes) { a.kes.hidden = !acik; }
     if (a.simdi) { a.simdi.hidden = !acik; }

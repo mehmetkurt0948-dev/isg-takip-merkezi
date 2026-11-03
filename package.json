@@ -12,6 +12,8 @@
     "test:kontrol": "node tools/kontrol.js",
     "test:belge": "node tools/belge-test.js",
     "test:kullanici": "node test/kullanicitest.js",
+    "test:saglik": "node test/sagliktest.js",
+    "test:senkron": "node test/senkrontest.js",
     "ikon": "node tools/ikon.js",
     "liste": "node tools/kontrol-listesi.js",
     "yayin": "node tools/yayin-hazirla.js",
