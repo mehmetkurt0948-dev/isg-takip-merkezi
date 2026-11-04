@@ -37,6 +37,11 @@
      atlanır (20 sn'lik aralıkla ~5 dk'da bir deneme). */
   var MAKS_ATLAMA = 4;
   var ATLAMA_HEDEFI = 0; /* son hesaplanan atlama hedefi (yalnızca ölçüm için) */
+  /* Aynı anda tek istek koşulur. Giriş ekranı gibi "liste taze olmak zorunda"
+     olan yerler, süren isteğin bitmesini bu kadar süre bekler (ms). Açılıştaki
+     ilk indirme tüm kayıt taşır ve mobil bağlantıda birkaç saniye sürebilir. */
+  var BOSLUK_BEKLEME_MS = 20000;
+  var BOSLUK_YOKLAMA_MS = 100;
 
   var durum = {
     ayar: null,
@@ -521,12 +526,42 @@
     });
   }
 
+  /* Süren bir istek (açılıştaki ilk indirme dahil) bittiğinde true ile çözülür.
+     Azami süre dolarsa false ile çözülür; çağıran böylece "bilgi taze değil"
+     diyebilir. Bekleme boyunca yeni istek açılmaz; tek istek kuralı bozulmaz. */
+  function boslugaBekle(azamiMs) {
+    if (!istekSuruyor) { return Promise.resolve(true); }
+    var limit = (typeof azamiMs === 'number' && azamiMs > 0) ? azamiMs : BOSLUK_BEKLEME_MS;
+    var gecen = 0;
+    function yokla() {
+      if (!istekSuruyor) { return Promise.resolve(true); }
+      if (gecen >= limit) { return Promise.resolve(false); }
+      gecen += BOSLUK_YOKLAMA_MS;
+      return new Promise(function (coz) {
+        global.setTimeout(coz, BOSLUK_YOKLAMA_MS);
+      }).then(yokla);
+    }
+    return yokla();
+  }
+
   function senkronla(elle) {
     if (!hazirMi()) {
       if (elle) { hataDurumu(new Error('Önce bulut ayarlarını girin.'), false); }
       return Promise.resolve(false);
     }
-    return cek(!elle).then(function () {
+    /* Eşitleme sürüyorsa istek sessizce düşürülmez, bitmesi beklenir. Aksi
+       hâlde cek() hiçbir şey indirmeden false döndürür, aşağıdaki akış
+       "eşitlendi" sanır ve çağıran (ör. giriş ekranı) bayat yerel listeye
+       bakar; yeni cihazdaki kullanıcı "hesap bulunamadı" görür. */
+    return boslugaBekle().then(function (bosladi) {
+      if (!bosladi) {
+        if (elle) {
+          hataDurumu(new Error('Eşitleme sürüyor; birkaç saniye sonra yeniden deneyin.'), false);
+        }
+        return false;
+      }
+      return cek(!elle);
+    }).then(function () {
       /* Çekme başarısız olduysa durum 'hata' kalır; başarı mesajı yazılmaz. */
       if (durum.asama === 'hata') { return false; }
       /* Uygulanan uzak kayıt zaten sunucuda: yeniden gönderilmez. */
@@ -762,6 +797,8 @@
     cek: cek,
     gonder: gonder,
     senkronla: senkronla,
+    /* "Eşitleme bitsin de sonra oku" demek isteyen yerler için (giriş ekranı). */
+    boslugaBekle: boslugaBekle,
     /* Eşitleme sağlığı ölçümleri: ardışık hata, geri çekilme ve yakalanan
        eşzamanlı değişiklik (çakışma) sayısı. Ayarlar panelinde de kullanılır. */
     istatistik: function () {

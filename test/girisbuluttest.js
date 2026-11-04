@@ -277,19 +277,38 @@ function buluttakiHesap(durum, eposta) {
     'hatalı şifre mesajı bağlantı hatasıyla karıştırılmadı ("' +
     uyariMetni(d.pencere) + '")');
 
-  /* --- Senaryo 5: eşitleme hâlâ sürerken giriş denenirse yanıltıcı hata yok --- */
+  /* --- Senaryo 5: yavaş bağlantı (açılış indirmesi 4 sn sürüyor) ---
+     Kullanıcı indirme bitmeden şifresini yazıp Enter'a bastı. Açılıştaki
+     eşitleme "meşgul" gerekçesiyle düşürülmemeli; indirme biter bitmez giriş
+     İKİNCİ KEZ BASKI GEREKMEDEN tamamlanmalı. (Sahadaki şikâyet: yöneticinin
+     oluşturduğu hesap telefonda "kullanıcı bulunamadı" veriyordu.) */
   const e = pencereKur({ gecikme: 4000 });
   e.durum.satir = bulutSatiri(e.ISG, [BULUT_HESAP]);
   e.coz();
   await uygulamayiBekle(e.pencere, e.ISG);
+  e.durum.istekler = []; /* bundan sonrası: yalnızca giriş sırasında yapılan istekler */
   formuGonder(e.pencere, BULUT_HESAP.eposta, BULUT_HESAP.sifre);
-  await bekle(2600);
-  const uyariE = uyariMetni(e.pencere);
-  ok(!e.ISG.yetki.oturum(), 'eşitleme sürerken oturum açılmadı');
-  ok(uyariE.indexOf('eşitleniyor') >= 0,
-    'süren eşitleme için "bağlantı hatası" değil doğru mesaj gösterildi ("' + uyariE + '")');
-  ok(uyariE.indexOf('Ortak kayda ulaşılamadı') < 0,
-    'süren eşitleme bağlantı hatası gibi sunulmadı');
+  await bekle(1200);
+  const uyariBekleme = uyariMetni(e.pencere);
+  ok(!e.ISG.yetki.oturum(), 'yavaş bağlantıda indirme bitmeden oturum açılmadı');
+  ok(uyariBekleme.indexOf('ortak kayıt denetleniyor') >= 0,
+    'indirme sürerken kullanıcıya bekleme bilgisi verildi ("' + uyariBekleme + '")');
+  ok(uyariBekleme.indexOf('bulunamadı') < 0,
+    'indirme bitmeden "kullanıcı bulunamadı" denmedi ("' + uyariBekleme + '")');
+  let girisE = null;
+  for (let i = 0; i < 60; i += 1) {
+    girisE = e.ISG.yetki.oturum();
+    if (girisE) { break; }
+    await bekle(250);
+  }
+  ok(!!girisE && girisE.kullaniciId === BULUT_HESAP.id,
+    'yavaş bağlantıda ikinci kez basmadan giriş tamamlandı (' +
+    (girisE ? girisE.kullaniciId : 'oturum yok') + ')');
+  const indirmeSayisi = e.durum.istekler.filter(function (s) { return s.indexOf('select=') === 0; }).length;
+  ok(indirmeSayisi === 0,
+    'başarılı açılış indirmesi giriş için yeniden yapılmadı (yeniden indirme: ' + indirmeSayisi + ')');
+  ok(uyariMetni(e.pencere).indexOf('Ortak kayda ulaşılamadı') < 0,
+    'yavaş bağlantı bağlantı hatası gibi sunulmadı');
 
   /* --- Senaryo 6: yeni cihazda şifre sıfırlama hesabı buluttan bulur --- */
   const f = pencereKur({ cevrimdisi: true });

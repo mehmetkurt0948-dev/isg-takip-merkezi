@@ -311,32 +311,57 @@
     return new Promise(function (coz) { setTimeout(coz, ms); });
   }
 
+  var BULUT_BEKLEME_MS = 20000;
+
+  /* Eşitlemenin gerçekten okunup okunmadığı senkronla()'nin dönüş değerinden
+     değil durumundan anlaşılır: meşgul durumunda da false dönebiliyor. */
+  function buluttanCek(BUL) {
+    function siniflandir() {
+      var bilgi = null;
+      try { bilgi = BUL.ozet(); } catch (hata) { bilgi = null; }
+      return (!bilgi || bilgi.asama !== 'hata') ? 'cekildi' : 'hata';
+    }
+    try {
+      return Promise.resolve(BUL.senkronla()).then(siniflandir, function () { return 'hata'; });
+    } catch (hata) {
+      return Promise.resolve('hata');
+    }
+  }
+  function zamanDamgasi(deger) {
+    var t = Date.parse(deger);
+    return isNaN(t) ? 0 : t;
+  }
+
   /* Ortak kayıttan (Supabase) hesapları bir kez çeker.
      Dönen değer: 'cekildi' (bulut okundu), 'yok' (bulut kapalı),
-     'mesgul' (eşitleme hâlâ sürüyor), 'hata'.
-     Açılışta başlayan ilk eşitleme sürüyorsa bitmesi beklenir; aksi hâlde
-     istek çakışır ve gereksiz hata bildirilir. */
-  function hesaplariBuluttanCek(kalanDeneme) {
+     'mesgul' (eşitleme yetişmedi), 'hata' (ulaşılamadı).
+     Açılışta başlayan ilk eşitleme tüm hesap listesini indirir ve mobil
+     bağlantıda birkaç saniye sürebilir. O sırada tek istek kuralı yüzünden
+     yeni istek açılamaz; eski kod bunu "eşitlendi" sanıp bayat yerel listeye
+     bakıyor ve yeni cihazdaki kullanıcıya "hesap bulunamadı" diyordu. Şimdi
+     süren isteğin bitmesi beklenir (azami BULUT_BEKLEME_MS). */
+  function hesaplariBuluttanCek() {
     var BUL = ISG.bulut;
-    var kalan = typeof kalanDeneme === 'number' ? kalanDeneme : 5;
     if (!BUL || typeof BUL.senkronla !== 'function' || typeof BUL.ozet !== 'function') {
       return Promise.resolve('yok');
     }
     var bilgi = BUL.ozet();
     if (!bilgi || bilgi.asama === 'kapali') { return Promise.resolve('yok'); }
-    if (bilgi.asama === 'senkron') {
-      if (kalan > 0) {
-        return bekle(400).then(function () { return hesaplariBuluttanCek(kalan - 1); });
-      }
-      return Promise.resolve('mesgul');
-    }
-    try {
-      return Promise.resolve(BUL.senkronla()).then(function (sonuc) {
-        return sonuc ? 'cekildi' : 'hata';
-      }, function () { return 'hata'; });
-    } catch (hata) {
-      return Promise.resolve('hata');
-    }
+    var oncekiSenkron = zamanDamgasi(bilgi.sonSenkron);
+
+    /* Eski sürüm: bekleme kapısı yok, olduğu kadarını dene. */
+    if (typeof BUL.boslugaBekle !== 'function') { return buluttanCek(BUL); }
+
+    return Promise.resolve(BUL.boslugaBekle(BULUT_BEKLEME_MS)).then(function (bosladi) {
+      if (!bosladi) { return 'mesgul'; }
+      /* Beklerken açılış indirmesi BAŞARIYLA bittiyse liste zaten taze; aynı
+         kaydı iki kez indirmeye gerek yok. İndirme başarısız olduysa sonSenkron
+         ilerlemez ve aşağıda yeniden denenir; aksi hâlde bayat kayıttaki eski
+         şifre yüzünden kullanıcıya "şifre hatalı" denirdi. */
+      var sonrakiSenkron = zamanDamgasi((BUL.ozet() || {}).sonSenkron);
+      if (sonrakiSenkron > oncekiSenkron) { return 'cekildi'; }
+      return buluttanCek(BUL);
+    });
   }
 
   /* Giriş sırasında ortak kayda ulaşılamazsa kullanıcıya ne olduğunu
@@ -354,7 +379,7 @@
   function hesabiBulutlaAra(form, alanlar) {
     var dugme = form.querySelector ? form.querySelector('button[type="submit"]') : null;
     if (dugme) { dugme.disabled = true; }
-    uyariGoster('girisUyari', 'Hesap bu cihazda tanımlı değil; ortak kayıt denetleniyor…');
+    uyariGoster('girisUyari', 'Hesap bu cihazda tanımlı değil; ortak kayıt denetleniyor… bağlantı yavaşsa biraz sürebilir.');
     hesaplariBuluttanCek().then(function (sonuc) {
       if (dugme) { dugme.disabled = false; }
       uyariGoster('girisUyari', '');
@@ -363,7 +388,11 @@
         form.reset();
         girisiTamamla(kullanici);
       } catch (hata) {
-        uyariGoster('girisUyari', hata.message + (BULUT_DENEME_MESAJI[sonuc] || ''));
+        /* Hesap artık yereldeyse sorun yalnızca şifredir; bulut cümlesi
+           eklemek kullanıcıyı yanıltır ("şifre hatalı" ile karışır). */
+        var bulundu = !!D.kullaniciEpostaBul(alanlar.eposta);
+        uyariGoster('girisUyari',
+          hata.message + (bulundu ? '' : (BULUT_DENEME_MESAJI[sonuc] || '')));
       }
     });
   }
@@ -448,7 +477,7 @@
   function kodIsteBuluttan(eposta) {
     var dugme = el('sifirlaGonderDugme');
     if (dugme) { dugme.disabled = true; }
-    uyariGoster('sifirlaUyari', 'Hesap bu cihazda tanımlı değil; ortak kayıt denetleniyor…');
+    uyariGoster('sifirlaUyari', 'Hesap bu cihazda tanımlı değil; ortak kayıt denetleniyor… bağlantı yavaşsa biraz sürebilir.');
     hesaplariBuluttanCek().then(function (sonuc) {
       if (dugme) { dugme.disabled = false; }
       uyariGoster('sifirlaUyari', '');
