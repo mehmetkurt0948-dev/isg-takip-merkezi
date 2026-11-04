@@ -331,6 +331,10 @@
     var t = Date.parse(deger);
     return isNaN(t) ? 0 : t;
   }
+  /* ozet() asla akışı kırmamalı: giriş butonunun engelli kalmasına yol açar. */
+  function sonSenkronuOku(BUL) {
+    try { return zamanDamgasi((BUL.ozet() || {}).sonSenkron); } catch (hata) { return 0; }
+  }
 
   /* Ortak kayıttan (Supabase) hesapları bir kez çeker.
      Dönen değer: 'cekildi' (bulut okundu), 'yok' (bulut kapalı),
@@ -345,9 +349,10 @@
     if (!BUL || typeof BUL.senkronla !== 'function' || typeof BUL.ozet !== 'function') {
       return Promise.resolve('yok');
     }
-    var bilgi = BUL.ozet();
+    var bilgi;
+    try { bilgi = BUL.ozet(); } catch (hata) { bilgi = null; }
     if (!bilgi || bilgi.asama === 'kapali') { return Promise.resolve('yok'); }
-    var oncekiSenkron = zamanDamgasi(bilgi.sonSenkron);
+    var oncekiSenkron = sonSenkronuOku(BUL);
 
     /* Eski sürüm: bekleme kapısı yok, olduğu kadarını dene. */
     if (typeof BUL.boslugaBekle !== 'function') { return buluttanCek(BUL); }
@@ -358,7 +363,7 @@
          kaydı iki kez indirmeye gerek yok. İndirme başarısız olduysa sonSenkron
          ilerlemez ve aşağıda yeniden denenir; aksi hâlde bayat kayıttaki eski
          şifre yüzünden kullanıcıya "şifre hatalı" denirdi. */
-      var sonrakiSenkron = zamanDamgasi((BUL.ozet() || {}).sonSenkron);
+      var sonrakiSenkron = sonSenkronuOku(BUL);
       if (sonrakiSenkron > oncekiSenkron) { return 'cekildi'; }
       return buluttanCek(BUL);
     });
