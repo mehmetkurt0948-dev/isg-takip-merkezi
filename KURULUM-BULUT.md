@@ -104,6 +104,7 @@ Bunu yazılım tarafı doldurup yayınlayacaktır; el ile düzenlemeniz gerekmez
 | Diğer cihazda kayıtlar görünmüyor | Oda kodu farklıdır; her cihaz Bulut panelinde aynı odayı göstermeli (site kimliğinde otomatik). |
 | "relation does not exist" | 2. adımdaki SQL betiği çalıştırılmamıştır. |
 | Cihazda bulutu kapatmak istiyorum | Bulut panelinde **Bağlantıyı kes** — o cihaz açılışta otomatik bağlanmayı bırakır; diğer cihazlar etkilenmez. Yeniden bağlanmak için panele aynı bilgileri girin. |
+| Diğer cihazda "Bu e-posta ile kayıtlı kullanıcı bulunamadı" | Hesap o cihazda hiç açılmamış olabilir. Yeni hesap, hesap değişikliği ve şifre yenileme ortak kayda **anında** yazılır; öbür cihazda birkaç saniye içinde geçerli olur. Yine de bulunamazsa o cihazda Bulut panelindeki **Şimdi eşitle** seçin ya da **Şifremi unuttum**'da e-postayı yazın — hesap ortak kayıttan çekilir. Uyarıda "ortak kayda ulaşılamadı" yazıyorsa o cihazın internet bağlantısı yoktur; "ortak kayıt hâlâ eşitleniyor" yazıyorsa birkaç saniye sonra yeniden deneyin. |
 
 ## Güvenlik notu
 

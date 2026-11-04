@@ -154,6 +154,19 @@ Eşitleme kuralları:
   güvenlik (`auth.uid()` koşullu politika) eklenmelidir.
 - **Bağlantıyı kes** yerel veriyi silmez; yalnızca bu cihazın buluta yazmayı
   bırakmasını sağlar.
+- **Hesap değişiklikleri beklemeden gönderilir.** Yeni hesap eklemek, mevcut
+  hesabı güncellemek/silmek ve e-posta koduyla şifre yenilemek değişikliğin hemen
+  ardından ortak kayda yazmayı tetikler; eşitleme sürüyorsa kısa aralıklarla
+  yeniden denenir. Böylece bir bilgisayarda açılan hesap diğerinde saniyeler
+  içinde kullanılabilir. Gönderilemezse kullanıcı "değişiklik yalnızca bu
+  cihazda" uyarısını görür; veri kaybı olmaz, değişiklik yerelde durur ve
+  sonraki eşitlemede gider.
+- **Hesap bu cihazda tanımlı değilse giriş ve şifre sıfırlama ortak kayda
+  bakar.** E-posta yerelde bulunamazsa oturum hemen reddedilmez; açılış
+  eşitlemesi sürüyorsa onun bitmesi beklenir, sonra ortak kayıt çekilip hesap
+  orada doğrulanır. Ortak kayda da ulaşılamazsa mesaj "kayıtlı hesap yok" ile
+  "ortak kayda ulaşılamadı" / "ortak kayıt hâlâ eşitleniyor" olarak ayrılır;
+  kullanıcı ne yapması gerektiğini anlar.
 
 ### 1.4. Boş açılış, örnek veri ve temizlik
 
@@ -873,6 +886,37 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.18.1 — Giriş ve şifre sıfırlama ortak kaydı da deniyor
+
+- **Eşitleme giriş ekranından önce başlar.** `ISG.uygulama`, giriş katmanı
+  kurulmadan önce `ISG.bulut.baslat()` çağırır (`uygulama.js → erkenBulutBaslat`);
+  temiz bir tarayıcıda hesap listesi ortak kayıttan gelir. Ayar düğmeleri ve
+  durum çubuğu eskisi gibi giriş sonrasında (`bulutBagla`) bağlanır.
+- **Giriş, hesabı ortak kayıtta da arar.** Yerelde hiç bulunmayan bir adres için
+  form reddetmeden önce `giris.js → hesaplariBuluttanCek()` ile ortak kayıt çekilir
+  ve doğrulama yeniden denenir. Eşitleme sürüyorsa (`asama === senkron`) 400 ms
+  aralıklarla en çok 5 kez beklenir, sonra "ortak kayıt hâlâ eşitleniyor" denir.
+  Adres yerelde var ama şifre/pasiflik hatası varsa bulut hiç denenmez —
+  "Şifre hatalı" olduğu gibi söylenir.
+- **Şifre sıfırlama aynı kuralı izler.** `kodIsteBuluttan()` kodu istemeden önce
+  ortak kaydı çeker; hesap hâlâ yoksa "kullanıcı bulunamadı" ile birlikte bağlantı
+  bilgisi gösterilir. Yenilenen şifre `sifreniBulutaGonder()` ile bekleme süresi
+  (`BEKLEME_MS`) dolmadan `ISG.bulut.gonder(false)` üzerinden ortak kayda yazılır;
+  4 deneme de boşa giderse "şifreniz bu cihazda yenilendi, ortak kayda
+  gönderilemedi" uyarısı verilir — şifre bu cihazda geçerlidir ve sıradaki
+  eşitleme turu onu kendiliğinden taşır.
+- **Hesap değişiklikleri bekletilmez.** Yöneticinin hesap eklemesi, düzenlemesi ve
+  silmesi `uygulama.js → hesapBulutaGonder()` ile anında ortak kayda yazılır;
+  ulaşılamazsa "yalnızca bu cihaza yazıldı" uyarısı gösterilir.
+- **Bozuk hesap kaydı engellendi.** `depo.kullaniciKaydet` boş adresi ve yeni
+  kayıtta aynı adrese ikinci hesabı reddeder, `guncelleme` damgası yazar ve
+  `localStorage` yazılamazsa (kota dolu) hata verir; `kullaniciEpostaBul` adresleri
+  boşluksuz karşılaştırır, `kullaniciSifreDegistir` de yazma hatasını yutmaz.
+- **Yeni test: `test/girisbuluttest.js`** — sahte PostgREST (gövde + damga +
+  koşullu PATCH) üzerinde 7 senaryo / 28 doğrulama; `npm run test:giris` ile
+  çalışır. `test/bulutgiristest.js` artık jsdom pencerelerini kapatıp temiz
+  çıkıyor (çalıştırıcıda asılı kalmıyordu).
 
 ### 2.18.0 — Sağlık takibi: tam personel listesi, katlanır form, Excel içe/dışa aktarma
 

@@ -2747,6 +2747,9 @@
             try {
               D.kullaniciSil(id);
               B.bildir('Kullanıcı silindi.', 'basari');
+              /* Silme diğer cihazlarda da geçerli olmalı: gönderilmezse hesap
+                 orada giriş yapılmaya devam eder. */
+              hesapBulutaGonder('Hesap silme');
               ciz();
             } catch (hata) {
               B.bildir(hata.message, 'hata');
@@ -2884,6 +2887,7 @@
       var kullanici = D.kullaniciKaydet(kayit);
       diyalogKapat(el('kullaniciDiyalog'));
       B.bildir(mevcut ? kullanici.adSoyad + ' güncellendi.' : kullanici.adSoyad + ' eklendi; giriş yapabilir.', 'basari');
+      hesapBulutaGonder(mevcut ? 'Hesap güncellemesi' : 'Yeni hesap');
       ciz();
     } catch (hata) {
       uyariGoster('kullaniciUyari', hata.message);
@@ -2894,6 +2898,37 @@
 
   function bulutVarMi() {
     return !!(ISG.bulut && typeof ISG.bulut.ozet === 'function');
+  }
+
+  /* Hesaplar diğer cihazlarda ancak ortak kayda yazılınca geçerli olur: yeni
+     hesap burada gönderilmezse kullanıcının kendi bilgisayarı onu hiç görmez ve
+     giriş "kullanıcı bulunamadı" ile reddedilir. Yazma beklemeden tetiklenir;
+     eşitleme sürüyorsa kısa aralıklarla yeniden denenir. Ulaşılamazsa açıkça
+     bildirilir — kullanıcı diğer cihazda hata arayana kadar sorunu bilmez. */
+  function hesapBulutaGonder(ne) {
+    if (!bulutVarMi()) { return; }
+    var BUL = ISG.bulut;
+    if (typeof BUL.gonder !== 'function') { return; }
+    if (typeof BUL.hazirMi === 'function' && !BUL.hazirMi()) { return; }
+    var deneme = 0;
+    function uyarsin() {
+      B.bildir(ne + ' yalnızca bu cihaza yazıldı; ortak kayda gönderilemedi. ' +
+        'İnternet bağlantısını kurup Ayarlar → Ortak Kayıt eşitlemenizi isteyin.', 'uyari');
+    }
+    function yolla() {
+      deneme += 1;
+      var soz;
+      try { soz = BUL.gonder(false); } catch (hata) { soz = Promise.reject(hata); }
+      Promise.resolve(soz).then(function (basarili) {
+        if (basarili) { return; }
+        if (deneme < 4) { setTimeout(yolla, 700); return; }
+        uyarsin();
+      }, function () {
+        if (deneme < 4) { setTimeout(yolla, 700); return; }
+        uyarsin();
+      });
+    }
+    yolla();
   }
 
   function bulutAlanlari() {
@@ -3067,6 +3102,23 @@
         B.bildir('Bulut bağlantısı kesildi; yerel kayıt sürüyor.', 'basari');
         ciz();
       }, 'Bağlantıyı kes');
+  }
+
+  /* Giriş öncesi bulut: yalnızca eşitleme katmanı çalıştırılır; ayar düğmeleri
+     ve durum çubuğu giriş sonrası `bulutBagla` içinde bağlanır. Kullanıcı
+     hesapları ortak kayıtta tutulduğu için yeni bir tarayıcı/uygulamada hesap
+     listesi ancak buluttan çekilerek görünür (bkz. giris.js -> hesabıBulutlaAra).
+     `baslat` yinelenmeye dayanıklıdır: bağlama tek kez yapılır, zamanlayıcılar
+     yeniden kurulur. */
+  function erkenBulutBaslat() {
+    if (!bulutVarMi()) { return; }
+    try {
+      ISG.bulut.baslat();
+    } catch (hata) {
+      if (global.console && typeof global.console.error === 'function') {
+        global.console.error('[bulut:giris-oncesi]', hata);
+      }
+    }
   }
 
   function bulutBagla() {
@@ -3819,6 +3871,11 @@
     try {
       if (global.localStorage.getItem('isgtakip.menu') === 'kapali') { document.body.classList.add('menu-kapali'); }
     } catch (hata) { /* yok say */ }
+
+    /* Eşitleme giriş ekranından önce başlar: temiz bir tarayıcıda yerel kayıt
+       yalnızca varsayılan hesabı içerir; kayıtlı kullanıcılar ortak kayıttan
+       gelmezse giriş yapılamaz. */
+    erkenBulutBaslat();
 
     if (ISG.giris && typeof ISG.giris.baslat === 'function') {
       var acik = ISG.giris.baslat(girisSonrasi);

@@ -1691,16 +1691,37 @@
     var hedef = String(eposta || '').trim().toLowerCase();
     if (!hedef) { return null; }
     return (depo.al().kullanicilar || []).filter(function (kullanici) {
-      return String(kullanici.eposta || '').toLowerCase() === hedef;
+      /* Eski/uzak kayıtlarda boşluk kalabilen adresler de bulunabilsin. */
+      return String(kullanici.eposta || '').trim().toLowerCase() === hedef;
     })[0] || null;
   };
 
   ISG.depo.kullaniciKaydet = function (kayit) {
     var veri = depo.al();
     kayit.eposta = String(kayit.eposta || '').trim().toLowerCase();
+    if (!kayit.eposta) { throw new Error('Hesap için e-posta adresi zorunludur.'); }
     kayit.isyerleri = Array.isArray(kayit.isyerleri) ? kayit.isyerleri : [];
+    /* Giriş hesabı e-posta ile bulunur: aynı adrese ikinci hesap açılırsa
+       hangisinin kullanılacağı belirsizleşir ve kullanıcı "bulunamadı" görür.
+       Yalnızca yeni kayıtta denetlenir; var olan hesap düzenlenebilir. */
+    if (!kayit.id) {
+      var kopya = (veri.kullanicilar || []).filter(function (mevcut) {
+        return String(mevcut.eposta || '').trim().toLowerCase() === kayit.eposta;
+      })[0];
+      if (kopya) {
+        throw new Error(kayit.eposta + ' adresi "' + (kopya.adSoyad || 'mevcut hesap') +
+          '" hesabında kayıtlı. Aynı adresle ikinci hesap açılamaz.');
+      }
+    }
     var sonuc = kaydetListede(veri.kullanicilar, kayit, 'u');
-    depo.kaydet();
+    /* Eşitleme sırası bu damgaya bakıyor; kayıt sahipsiz kalmasın. */
+    sonuc.guncelleme = new Date().toISOString();
+    /* Yazma başarısızsa (kota dolu) hesap yalnızca bellekte kalmış demektir:
+       cihaz yeniden açılınca hesap yok olur, diğer cihazlar hiç göremez. */
+    if (!depo.kaydet()) {
+      throw new Error('Hesap bu cihazın kayıtlarına yazılamadı; depolama alanı dolmuş olabilir. ' +
+        'Yedek alıp eski kayıtları temizledikten sonra yeniden deneyin.');
+    }
     return sonuc;
   };
 
@@ -1709,7 +1730,10 @@
     if (!kullanici) { return null; }
     kullanici.sifre = String(yeniSifre || '');
     kullanici.sifreDegisim = new Date().toISOString();
-    depo.kaydet();
+    kullanici.guncelleme = kullanici.sifreDegisim;
+    if (!depo.kaydet()) {
+      throw new Error('Şifre bu cihazın kayıtlarına yazılamadı; depolama alanı dolmuş olabilir.');
+    }
     return kullanici;
   };
 

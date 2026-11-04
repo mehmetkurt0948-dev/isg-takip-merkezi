@@ -106,7 +106,10 @@ function girisDene(eposta, sifre) {
   ok(sonuc.basarili, 'eski cihaz: enginozcan1402@gmail.com girisi ' +
     (sonuc.basarili ? 'basarili' : ('BASARISIZ -> ' + sonuc.mesaj)));
 
-  /* --- Senaryo 3: cevrimdisi cihaz (bulut yok) - raporlanan belirti --- */
+  /* --- Senaryo 3: çevrimdışı cihaz (bulut yok) - raporlanan belirti ---
+     Not: arayüzde giriş, yerelde bulunamayan hesap için önce ortak kaydı
+     dener (bkz. test/girisbuluttest.js). Burada doğrulama katmanı doğrudan
+     çağrıldığı için yerel veri yokken hesap reddedilmelidir. */
   ISG.depo.geriYukle(ISG.BOS_VERI());
   sonuc = girisDene('enginozcan1402@gmail.com', '1402');
   ok(!sonuc.basarili, 'cevrimdisi cihaz: yeni kullanici girisi REDDEDILMELI (belirtinin mekanizmasi)');
@@ -117,4 +120,7 @@ function girisDene(eposta, sifre) {
     'cevrimdisi cihaz: yerelde tek hesap var (' + yerelHesaplar.join(', ') + ')');
 
   console.log(process.exitCode ? 'SONUC: FAIL' : 'SONUC: PASS');
+  pencere.close(); /* jsdom zamanlayicilari process'i ayakta tutmasin */
+  process.exit(process.exitCode || 0);
+
 })();

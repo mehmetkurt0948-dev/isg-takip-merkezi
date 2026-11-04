@@ -307,6 +307,95 @@
     return alanlar;
   }
 
+  function bekle(ms) {
+    return new Promise(function (coz) { setTimeout(coz, ms); });
+  }
+
+  /* Ortak kayıttan (Supabase) hesapları bir kez çeker.
+     Dönen değer: 'cekildi' (bulut okundu), 'yok' (bulut kapalı),
+     'mesgul' (eşitleme hâlâ sürüyor), 'hata'.
+     Açılışta başlayan ilk eşitleme sürüyorsa bitmesi beklenir; aksi hâlde
+     istek çakışır ve gereksiz hata bildirilir. */
+  function hesaplariBuluttanCek(kalanDeneme) {
+    var BUL = ISG.bulut;
+    var kalan = typeof kalanDeneme === 'number' ? kalanDeneme : 5;
+    if (!BUL || typeof BUL.senkronla !== 'function' || typeof BUL.ozet !== 'function') {
+      return Promise.resolve('yok');
+    }
+    var bilgi = BUL.ozet();
+    if (!bilgi || bilgi.asama === 'kapali') { return Promise.resolve('yok'); }
+    if (bilgi.asama === 'senkron') {
+      if (kalan > 0) {
+        return bekle(400).then(function () { return hesaplariBuluttanCek(kalan - 1); });
+      }
+      return Promise.resolve('mesgul');
+    }
+    try {
+      return Promise.resolve(BUL.senkronla()).then(function (sonuc) {
+        return sonuc ? 'cekildi' : 'hata';
+      }, function () { return 'hata'; });
+    } catch (hata) {
+      return Promise.resolve('hata');
+    }
+  }
+
+  /* Giriş sırasında ortak kayda ulaşılamazsa kullanıcıya ne olduğunu
+     olduğu gibi anlatır: bağlantı sorunu ile süren eşitleme ayrı mesajdır. */
+  var BULUT_DENEME_MESAJI = {
+    /* Bulut bu cihazda kapalıysa hesap başka bir yere bakılmaz: kayıt yalnızca
+       bu bilgisayarda tutulur, diğer cihazlar onu hiç göremez. */
+    yok: ' Ortak kayıt (bulut) bu cihazda kapalı; hesabın bu bilgisayarda tanımlı olması gerekir.',
+    hata: ' Ortak kayda ulaşılamadı; internet bağlantınızı denetleyip yeniden deneyin.',
+    mesgul: ' Ortak kayıt hâlâ eşitleniyor; birkaç saniye sonra yeniden deneyin.'
+  };
+
+  /* Hesap yerelde bulunamadığında (yeni tarayıcı/uygulama) giriş reddedilmeden
+     önce ortak kayıt denenir: kullanıcı listesi yalnızca bulutta olabilir. */
+  function hesabiBulutlaAra(form, alanlar) {
+    var dugme = form.querySelector ? form.querySelector('button[type="submit"]') : null;
+    if (dugme) { dugme.disabled = true; }
+    uyariGoster('girisUyari', 'Hesap bu cihazda tanımlı değil; ortak kayıt denetleniyor…');
+    hesaplariBuluttanCek().then(function (sonuc) {
+      if (dugme) { dugme.disabled = false; }
+      uyariGoster('girisUyari', '');
+      try {
+        var kullanici = kullaniciDogrula(alanlar.eposta, alanlar.sifre);
+        form.reset();
+        girisiTamamla(kullanici);
+      } catch (hata) {
+        uyariGoster('girisUyari', hata.message + (BULUT_DENEME_MESAJI[sonuc] || ''));
+      }
+    });
+  }
+
+  /* Yenilenen şifre yalnızca bu bilgisayarda kalırsa diğer cihazlarda eski şifre
+     geçerli olmaya devam eder ve kullanıcı "şifre hatalı" görür. Değişiklik
+     beklemeden ortak kayda yazılır; eşitleme sürüyorsa kısa aralıklarla denenir. */
+  function sifreniBulutaGonder() {
+    var BUL = ISG.bulut;
+    if (!BUL || typeof BUL.gonder !== 'function') { return; }
+    if (typeof BUL.hazirMi === 'function' && !BUL.hazirMi()) { return; }
+    var deneme = 0;
+    function uyarsin() {
+      B.bildir('Şifreniz bu cihazda yenilendi; ortak kayda henüz gönderilemedi. ' +
+        'İnternet bağlantınızı denetleyin; giriş yaptıktan sonra eşitleme otomatik sürer.', 'uyari');
+    }
+    function yolla() {
+      deneme += 1;
+      var soz;
+      try { soz = BUL.gonder(false); } catch (hata) { soz = Promise.reject(hata); }
+      Promise.resolve(soz).then(function (basarili) {
+        if (basarili) { return; }
+        if (deneme < 4) { return bekle(700).then(yolla); }
+        uyarsin();
+      }, function () {
+        if (deneme < 4) { return bekle(700).then(yolla); }
+        uyarsin();
+      });
+    }
+    yolla();
+  }
+
   function girisGonder(olay) {
     olay.preventDefault();
     var form = olay.target;
@@ -322,8 +411,53 @@
       form.reset();
       girisiTamamla(kullanici);
     } catch (hata) {
+      /* Hesap yerelde hiç yoksa buluta bakılır; şifre/pasiflik hatasında
+         (hesap yerelde var) bulut denemesi anlamsızdır. */
+      if (!D.kullaniciEpostaBul(alanlar.eposta)) {
+        hesabiBulutlaAra(form, alanlar);
+        return;
+      }
       uyariGoster('girisUyari', hata.message);
     }
+  }
+
+  /* Kodu ister ve sonucu ekranda gösterir. Hesap yerelde yoksa kodGonder
+     "kullanıcı bulunamadı" ile reddeder. */
+  function kodIste(eposta) {
+    var dugme = el('sifirlaGonderDugme');
+    if (dugme) { dugme.disabled = true; }
+    return kodGonder(eposta).then(function (sonuc) {
+      sifirlaAdimi(2);
+      if (sonuc.sonuc.gonderildi) {
+        bilgiGoster(sonuc.kayit.eposta + ' adresine 6 haneli kod gönderildi. Kod ' +
+          KOD_GECERLILIK_DK + ' dakika geçerlidir.');
+      } else {
+        sifirlaKoduGoster(sonuc.kayit);
+        bilgiGoster('E-posta servisi tanımlı değil ya da gönderim başarısız oldu; kod ekranda gösteriliyor. ' +
+          'Kurulumda EmailJS bilgileri girildiğinde kod e-posta ile gönderilir.', true);
+      }
+    }).catch(function (hata) {
+      uyariGoster('sifirlaUyari', hata.message);
+    }).then(function () {
+      if (dugme) { dugme.disabled = false; }
+    });
+  }
+
+  /* Şifre sıfırlamada da girişle aynı kural: hesap bu cihazda tanımlı değilse
+     (yeni tarayıcı, yeni bilgisayar) önce ortak kayıt çekilir, kod sonra istenir. */
+  function kodIsteBuluttan(eposta) {
+    var dugme = el('sifirlaGonderDugme');
+    if (dugme) { dugme.disabled = true; }
+    uyariGoster('sifirlaUyari', 'Hesap bu cihazda tanımlı değil; ortak kayıt denetleniyor…');
+    hesaplariBuluttanCek().then(function (sonuc) {
+      if (dugme) { dugme.disabled = false; }
+      uyariGoster('sifirlaUyari', '');
+      if (!D.kullaniciEpostaBul(eposta)) {
+        uyariGoster('sifirlaUyari', kayitliEpostaIpucu() + (BULUT_DENEME_MESAJI[sonuc] || ''));
+        return;
+      }
+      return kodIste(eposta);
+    });
   }
 
   function sifirlaGonder(olay) {
@@ -339,23 +473,11 @@
       uyariGoster('sifirlaUyari', 'E-posta adresinizi yazın.');
       return;
     }
-    var dugme = el('sifirlaGonderDugme');
-    if (dugme) { dugme.disabled = true; }
-    kodGonder(eposta).then(function (sonuc) {
-      sifirlaAdimi(2);
-      if (sonuc.sonuc.gonderildi) {
-        bilgiGoster(sonuc.kayit.eposta + ' adresine 6 haneli kod gönderildi. Kod ' +
-          KOD_GECERLILIK_DK + ' dakika geçerlidir.');
-      } else {
-        sifirlaKoduGoster(sonuc.kayit);
-        bilgiGoster('E-posta servisi tanımlı değil ya da gönderim başarısız oldu; kod ekranda gösteriliyor. ' +
-          'Kurulumda EmailJS bilgileri girildiğinde kod e-posta ile gönderilir.', true);
-      }
-    }).catch(function (hata) {
-      uyariGoster('sifirlaUyari', hata.message);
-    }).then(function () {
-      if (dugme) { dugme.disabled = false; }
-    });
+    if (!D.kullaniciEpostaBul(eposta)) {
+      kodIsteBuluttan(eposta);
+      return;
+    }
+    kodIste(eposta);
   }
 
   function sifirlaKaydet(olay) {
@@ -382,6 +504,7 @@
       sekmeSec('giris');
       if (epostaGirdi) { epostaGirdi.value = eposta.toLowerCase(); }
       B.bildir('Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.', 'basari');
+      sifreniBulutaGonder();
     } catch (hata) {
       uyariGoster('sifirlaUyari', hata.message);
     }
