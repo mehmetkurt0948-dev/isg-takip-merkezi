@@ -14,7 +14,7 @@
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="assets/css/style.css?v=f675405d">
+  <link rel="stylesheet" href="assets/css/style.css?v=fd96c8bc">
 </head>
 <body class="oturum-yok">
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -624,12 +624,17 @@
         <label class="alan">
           <span>Durum</span>
           <select name="durum">
-            <option value="planlandi">Planlandı</option>
-            <option value="tamamlandi">Tamamlandı</option>
+            <option value="yapilacak">Yapılacak</option>
+            <option value="devam">Devam Ediyor</option>
+            <option value="belgeBekliyor">Belge / Yanıt Bekleniyor</option>
+            <option value="ertelendi">Ertelendi</option>
             <option value="tamamlanmadi">Tamamlanmadı</option>
             <option value="planlanmadi">Planlanmadı</option>
+            <option value="tamamlandi">Tamamlandı</option>
+            <option value="iptal">İptal Edildi</option>
+            <option value="kapsamDisi">Kapsam Dışı</option>
           </select>
-          <small class="alan-ipucu">“Gecikti” seçilmez; takip tarihi geçtiği hâlde tamamlanmayan faaliyet otomatik olarak Gecikti olur.</small>
+          <small class="alan-ipucu">“Gecikti” seçilmez; takip tarihi geçtiği hâlde kapanmayan (tamamlanmayan, iptal edilmeyen) faaliyet otomatik olarak Gecikti olur.</small>
         </label>
         <fieldset class="alan genis plan-ay-alani">
           <legend>Planlanan aylar</legend>
@@ -1183,22 +1188,22 @@
 
   <script src="assets/js/varsayilan-veri.js?v=239b83b7"></script>
   <script src="assets/js/kontrol-listeleri.js?v=430de5a3"></script>
-  <script src="assets/js/depo.js?v=4d6c16a3"></script>
-  <script src="assets/js/bicim.js?v=a82d94fc"></script>
+  <script src="assets/js/depo.js?v=b90aea53"></script>
+  <script src="assets/js/bicim.js?v=df2337ea"></script>
   <script src="assets/js/bulut-kimlik.js?v=c22d436d"></script>
   <script src="assets/js/bulut.js?v=ca99ce81"></script>
-  <script src="assets/js/yetki.js?v=1bc4f36c"></script>
+  <script src="assets/js/yetki.js?v=d8ee18c5"></script>
   <script src="assets/js/saglik-takip.js?v=f6d30d70"></script>
   <script src="assets/js/saglik-toplu.js?v=30fd72d0"></script>
   <script src="assets/js/saglik-calisma-kitabi.js?v=945bb2d9"></script>
   <script src="assets/js/excel.js?v=394d9d94"></script>
   <script src="assets/js/personel-toplu.js?v=c1da8dfb"></script>
-  <script src="assets/js/plan-toplu.js?v=a6430b4f"></script>
+  <script src="assets/js/plan-toplu.js?v=200e3c61"></script>
   <script src="assets/js/sayfalar.js?v=c64892d6"></script>
-  <script src="assets/js/sayfalar-kayit.js?v=346a7aa7"></script>
+  <script src="assets/js/sayfalar-kayit.js?v=72be2dd0"></script>
   <script src="assets/js/sayfalar-rapor.js?v=cd50459b"></script>
   <script src="assets/js/giris.js?v=89968189"></script>
-  <script src="assets/js/uygulama.js?v=8c551278"></script>
+  <script src="assets/js/uygulama.js?v=3ca9a733"></script>
 </body>
 </html>
 

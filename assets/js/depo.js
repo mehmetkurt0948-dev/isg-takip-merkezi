@@ -9,10 +9,14 @@
 
   /* ---------- Alan kuralları ---------- */
 
+  /* acilYenilemeYil: acil durum planının kaç yıl arayla yenileneceği. Yasal
+     sınır tehlike sınıfına göre değişir: çok tehlikeli 2, tehlikeli 4,
+     az tehlikeli 6 yıl. Hesap tek yerden ISG.acilPlanOzeti içinde yapılır
+     (son yenileme + bu değer = en geç yenileme tarihi). */
   ISG.RISK_SINIFLARI = {
     az: { ad: 'Az tehlikeli', temelSaat: 8, yenilemeYil: 3, riskYenilemeYil: 6, acilYenilemeYil: 6 },
     tehlikeli: { ad: 'Tehlikeli', temelSaat: 12, yenilemeYil: 2, riskYenilemeYil: 4, acilYenilemeYil: 4 },
-    cokTehlikeli: { ad: 'Çok tehlikeli', temelSaat: 16, yenilemeYil: 1, riskYenilemeYil: 2, acilYenilemeYil: 4 }
+    cokTehlikeli: { ad: 'Çok tehlikeli', temelSaat: 16, yenilemeYil: 1, riskYenilemeYil: 2, acilYenilemeYil: 2 }
   };
 
   ISG.EGITIM_TURLERI = [
@@ -241,31 +245,60 @@
   };
 
   /* ---------- Çalışma planı durumları ----------
-     Kullanıcı dört durumdan birini kaydeder: Planlandı / Tamamlandı /
-     Tamamlanmadı / Planlanmadı. "Gecikti" hiçbir zaman elle seçilmez;
-     takip tarihi geçtiği hâlde tamamlanmamış faaliyet için ISG.planDurumu
-     tarafından otomatik türetilir. Eski kayıtlardaki "takvimde" değeri
-     "planlandi" karşılığıdır ve yüklemede bu ada göçtürülür. */
+     Kullanıcı dokuz durumdan birini kaydeder. Onuncu durum olan "Gecikti"
+     hiçbir zaman elle seçilmez: takip tarihi geçtiği hâlde kapanmamış
+     faaliyet için ISG.planDurumu tarafından otomatik türetilir.
+     Kapanmış sayılan durumlar (tamamlandi, iptal, kapsamDisi) gecikmez,
+     panelde görev üretmez ve "bekleyen" sayacına girmez.
+     Eski kayıtlardaki "takvimde" (v7) ve "planlandi" (beşli sürüm) değerleri
+     "yapilacak" karşılığıdır ve yüklemede bu ada göçtürülür. */
   ISG.PLAN_DURUMLARI = {
-    planlandi: { ad: 'Planlandı', sinif: 'bilgi', secilebilir: true },
-    tamamlandi: { ad: 'Tamamlandı', sinif: 'iyi', secilebilir: true },
+    yapilacak: { ad: 'Yapılacak', sinif: 'bilgi', secilebilir: true },
+    devam: { ad: 'Devam Ediyor', sinif: 'bilgi', secilebilir: true },
+    belgeBekliyor: { ad: 'Belge / Yanıt Bekleniyor', sinif: 'uyari', secilebilir: true },
+    ertelendi: { ad: 'Ertelendi', sinif: 'uyari', secilebilir: true },
     tamamlanmadi: { ad: 'Tamamlanmadı', sinif: 'tehlike', secilebilir: true },
-    gecikti: { ad: 'Gecikti', sinif: 'tehlike', secilebilir: false },
-    planlanmadi: { ad: 'Planlanmadı', sinif: 'notr', secilebilir: true }
+    planlanmadi: { ad: 'Planlanmadı', sinif: 'notr', secilebilir: true },
+    tamamlandi: { ad: 'Tamamlandı', sinif: 'iyi', secilebilir: true, kapanis: true },
+    iptal: { ad: 'İptal Edildi', sinif: 'notr', secilebilir: true, kapanis: true },
+    kapsamDisi: { ad: 'Kapsam Dışı', sinif: 'notr', secilebilir: true, kapanis: true },
+    gecikti: { ad: 'Gecikti', sinif: 'tehlike', secilebilir: false }
   };
   /* Form kutusundaki seçenekler (sıralı); "Gecikti" türetildiği için yoktur. */
-  ISG.PLAN_DURUM_SECIMLERI = ['planlandi', 'tamamlandi', 'tamamlanmadi', 'planlanmadi'];
+  ISG.PLAN_DURUM_SECIMLERI = ['yapilacak', 'devam', 'belgeBekliyor', 'ertelendi',
+    'tamamlanmadi', 'planlanmadi', 'tamamlandi', 'iptal', 'kapsamDisi'];
   /* Filtrelerde gösterilen sıralı liste; türetilmiş "Gecikti" başta gelir. */
-  ISG.PLAN_DURUM_FILTRELERI = ['gecikti', 'planlandi', 'tamamlandi', 'tamamlanmadi', 'planlanmadi'];
+  ISG.PLAN_DURUM_FILTRELERI = ['gecikti'].concat(ISG.PLAN_DURUM_SECIMLERI);
+  /* Kapanmış durumlar: iş akışı biter, gecikme aranmaz. */
+  ISG.PLAN_DURUM_KAPALI = ['tamamlandi', 'iptal', 'kapsamDisi'];
+  /* Takip edilmeyen durumlar: yıl kartlarının kısa listesinde gösterilmez. */
+  ISG.PLAN_DURUM_TAKIPSIZ = ['planlanmadi', 'iptal', 'kapsamDisi'];
   /* Eski sürüm kayıtlarında biriken durum adları → güncel karşılıkları. */
-  var PLAN_DURUM_ESKI = { takvimde: 'planlandi' };
+  var PLAN_DURUM_ESKI = {
+    takvimde: 'yapilacak',
+    planlandi: 'yapilacak',
+    bekliyor: 'belgeBekliyor',
+    Gecikti: 'yapilacak'
+  };
 
-  /* Kayıtlı durumu güncel beşli kümeye çevirir. Tanınmayan değer faaliyetin
-     açık kaldığı varsayımıyla "planlandi" kabul edilir. */
+  /* Kayıtlı durumu güncel onlu kümeye çevirir. Tanınmayan değer faaliyetin
+     açık kaldığı varsayımıyla "yapilacak" kabul edilir; türetilmiş "gecikti"
+     hiçbir zaman saklanmaz. */
   ISG.planDurumNormal = function (durum) {
     var id = String(durum || '').trim();
     if (PLAN_DURUM_ESKI[id]) { return PLAN_DURUM_ESKI[id]; }
-    return ISG.PLAN_DURUMLARI[id] && id !== 'gecikti' ? id : 'planlandi';
+    var tanim = ISG.PLAN_DURUMLARI[id];
+    return tanim && tanim.secilebilir ? id : 'yapilacak';
+  };
+
+  /* Kapanmış durum mu? (tamamlandı / iptal / kapsam dışı) */
+  ISG.planDurumKapanmis = function (durum) {
+    return ISG.PLAN_DURUM_KAPALI.indexOf(ISG.planDurumNormal(durum)) > -1;
+  };
+
+  /* Durum yıl kartının kısa listesinde izlenmiyor mu? */
+  ISG.planDurumTakipsiz = function (durum) {
+    return ISG.PLAN_DURUM_TAKIPSIZ.indexOf(ISG.planDurumNormal(durum)) > -1;
   };
 
   ISG.RISK_ROLLERI = [
@@ -384,29 +417,34 @@
   };
 
   /* Görünen durum = kayıtlı durum + zaman. Tek kural: takip tarihi geçtiği
-     hâlde faaliyet tamamlanmamışsa görünür durum "Gecikti"dir. Rozet, filtre,
+     hâlde faaliyet kapanmamışsa görünür durum "Gecikti"dir. Kapanmış
+     (tamamlandı / iptal / kapsam dışı) kayıtlar gecikmez. Rozet, filtre,
      sayaç ve tablo satırı rengi bu tek fonksiyondan beslenir.
      `satirSinifi`: renkli sold çerçeve + açık zemin (uygulama.js çiziminde). */
   ISG.planDurumu = function (plan) {
     var kayitli = ISG.planDurumNormal(plan && plan.durum);
     var vade = ISG.planVade(plan);
-    var tamamlandi = kayitli === 'tamamlandi';
-    var id = (!tamamlandi && vade.id === 'gecikti') ? 'gecikti' : kayitli;
-    var tanim = ISG.PLAN_DURUMLARI[id] || ISG.PLAN_DURUMLARI.planlandi;
+    var kapali = ISG.PLAN_DURUM_KAPALI.indexOf(kayitli) > -1;
+    var id = (!kapali && vade.id === 'gecikti') ? 'gecikti' : kayitli;
+    var tanim = ISG.PLAN_DURUMLARI[id] || ISG.PLAN_DURUMLARI.yapilacak;
     var satirSinifi = '';
     if (id === 'gecikti' || id === 'tamamlanmadi') { satirSinifi = 'satir-tehlike'; }
-    else if (!tamamlandi && (vade.id === 'bugun' || vade.id === 'yaklasan')) { satirSinifi = 'satir-uyari'; }
+    else if (kayitli === 'iptal' || kayitli === 'kapsamDisi') { satirSinifi = 'satir-notr'; }
+    else if (!kapali && (vade.id === 'bugun' || vade.id === 'yaklasan')) { satirSinifi = 'satir-uyari'; }
     return {
       id: id,
       ad: tanim.ad,
       sinif: tanim.sinif,
       kayitliDurum: kayitli,
       kayitliAd: (ISG.PLAN_DURUMLARI[kayitli] || tanim).ad,
-      tamamlandi: tamamlandi,
+      tamamlandi: kayitli === 'tamamlandi',
+      kapali: kapali,
+      bekleyen: !kapali,
+      takipsiz: ISG.PLAN_DURUM_TAKIPSIZ.indexOf(kayitli) > -1,
       kalan: vade.kalan,
       vade: vade.id,
-      vadeAd: tamamlandi ? '' : vade.ad,
-      vadeSinif: tamamlandi ? '' : vade.sinif,
+      vadeAd: kapali ? '' : vade.ad,
+      vadeSinif: kapali ? '' : vade.sinif,
       satirSinifi: satirSinifi,
       uyari: satirSinifi !== ''
     };
@@ -573,7 +611,10 @@
     (veri.planlar || []).forEach(function (plan) {
       /* Tarihsiz (Planlanmadı) ve tamamlanan faaliyet panelde iş üretmez;
          "Tamamlanmadı" kayıtlar izlenmeye devam eder. */
-      if (!plan.takipTarihi || ISG.planDurumNormal(plan.durum) === 'tamamlandi') { return; }
+      /* Tarihsiz (Planlanmadı) ve kapanmış faaliyetler panelde iş üretmez;
+         "Tamamlanmadı", "Devam Ediyor", "Belge bekliyor" ve "Ertelendi"
+         kayıtlar izlenmeye devam eder. */
+      if (!plan.takipTarihi || ISG.planDurumKapanmis(plan.durum)) { return; }
       gorevEkle(liste, kapsam, {
         id: 'g_plan_' + plan.id,
         isyeriId: plan.isyeriId,
@@ -771,11 +812,12 @@
       });
     }
 
-    /* v8: çalışma planı durumları beşli kümeye indirilir (Planlandı,
-       Tamamlandı, Tamamlanmadı, Planlanmadı + türetilmiş Gecikti). Eski
-       kayıtlardaki "takvimde" → "planlandi"; türetilmiş "Gecikti" hiçbir
-       zaman saklanmaz. Kayıtlar burada yerinde düzeltilir, sonraki kaydet()
-       değerleri kalıcı hâle getirir. */
+    /* v8: çalışma planı durumları tek sözlüğe indirilir. v9: sözlük on duruma
+       genişler (Yapılacak, Devam Ediyor, Belge/Yanıt Bekleniyor, Ertelendi,
+       Tamamlanmadı, Planlanmadı, Tamamlandı, İptal Edildi, Kapsam Dışı +
+       türetilmiş Gecikti). Eski kayıtlardaki "takvimde" ve "planlandi"
+       değerleri "yapilacak" olur; türetilmiş "Gecikti" hiçbir zaman saklanmaz.
+       Kayıtlar burada yerinde düzeltilir, sonraki kaydet() kalıcı hâle getirir. */
     (veri.planlar || []).forEach(function (plan) {
       var onceki = plan.durum;
       plan.durum = ISG.planDurumNormal(plan.durum);
@@ -1613,9 +1655,10 @@
   };
 
   /* Tek tuşla durum değiştirme. "Gecikti" türetilmiş bir durumdur; buradan
-     verilmez, bu yüzden kaydedilmez. "Tamamlandı" dışında tamamlanma tarihi
-     temizlenir — faaliyet yeniden takvime alındığında gecikme gecikmeden
-     sonraki güne doğru hesaplanır ve panelde iş tekrar görünür. */
+     verilmez, bu yüzden kaydedilmez. Yalnızca "Tamamlandı" tamamlanma tarihi
+     alır; diğer durumlarda tarih temizlenir — faaliyet yeniden takvime
+     alındığında gecikme sonraki güne doğru hesaplanır ve panelde iş tekrar
+     görünür. */
   ISG.depo.planDurumDegistir = function (id, durum) {
     var yeni = ISG.planDurumNormal(durum);
     var veri = depo.al();

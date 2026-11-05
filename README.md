@@ -365,6 +365,20 @@ yeni sekmede açılmasıyla yapılır; sekme açılamazsa dosya indirilir. Belge
 ve boyut denetimi `ISG.depo.ekSil` / `ISG.BELGE_SINIRI` üzerinden yürür; kota
 dolarsa kayıt geri alınır ve kullanıcı uyarılır.
 
+Çalışma planı durumu (`planlar[].durum`) dokuz kaydedilen artı bir türetilmiş
+değerden oluşur: `yapilacak`, `devam`, `belgeBekliyor`, `ertelendi`,
+`tamamlanmadi`, `planlanmadi`, `tamamlandi`, `iptal`, `kapsamDisi` ve
+`gecikti`. Kalıcı olarak yalnızca ilk dokuzu yazılır; `gecikti` (Gecikti)
+`ISG.planDurumu(plan)` tarafından "takip tarihi geçmiş, kayıt kapanmamış"
+varsayımıyla üretilir. Tek tanım kaynağı `ISG.PLAN_DURUMLARI`dır
+(`ad` / `sinif` / `secilebilir` / `kapanis`); biçim tarafındaki karşılıkları
+`bicim.js` durum eşlemesi taşır. Kapanmış durumlar `ISG.PLAN_DURUM_KAPALI`
+(tamamlandı, iptal, kapsam dışı), yıl kartının kısa listesinde gösterilmeyenler
+`ISG.PLAN_DURUM_TAKIPSIZ` (planlanmadı, iptal, kapsam dışı) ile belirlenir.
+Eski kayıtlardaki `takvimde`, `planlandi`, `bekliyor` ve elle yazılmış
+`Gecikti` değerleri ilk açılışta `ISG.planDurumNormal` ile güncel ada döner;
+veri anahtarı (`isgtakip.v4`) değişmez.
+
 ## 6. Hızlı başlangıç
 
 ```powershell
@@ -886,6 +900,33 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.20.0 — Çalışma planı durumu on seçenekli yeni modele göç etti
+
+- **Dokuzu kaydedilen, biri türetilmiş.** `ISG.PLAN_DURUMLARI` tek tanım
+  kaynağı: Yapılacak, Devam Ediyor, Belge / Yanıt Bekleniyor, Ertelendi,
+  Tamamlanmadı, Planlanmadı, Tamamlandı, İptal Edildi, Kapsam Dışı. Onuncu
+  durum **Gecikti** hiçbir zaman saklanmaz; takip tarihi geçtiği hâlde
+  kapanmamış faaliyet için `ISG.planDurumu(plan)` üretir.
+- **Renk kodu yerine rozet.** Satır rengi durumu tek başına anlatmıyor:
+  iptal / kapsam dışı kayıtlar `satir-notr`, vadesi bugün veya 14 gün içinde
+  olan açık kayıtlar `satir-uyari`, Gecikti ile Tamamlanmadı `satir-tehlike`
+  alır; durumun kendisi rozetten okunur, hücrenin altında vade bilgisi ve
+  kayıtlı durum farklıysa "Kayıtlı durum: …" satırı yer alır.
+- **Menüden atama, tek tuşla.** "Diğer durumlar" menüsü kayıttaki durum
+  dışındaki sekiz seçeneği listeler ve doğrudan yazar; tamamlanma tarihi
+  yalnızca "Tamamlandı" seçildiğinde üretilir.
+- **Sessiz göç.** `takvimde`, `planlandi`, `bekliyor` ve eski türetilmiş
+  `Gecikti` değerleri ilk açılışta güncel ada döner (`ISG.planDurumNormal`);
+  `isgtakip.v4` anahtarı ve yedek biçimi değişmez.
+- **Sayımlar tek yerden.** Panel görevleri, yıl kartları, KPI kartları ve
+  Excel dışa aktarımı kapanmış durumu `ISG.PLAN_DURUM_KAPALI` üzerinden,
+  yıl kartının kısa listesini `ISG.PLAN_DURUM_TAKIPSIZ` üzerinden sayar.
+- **Onay kuyruğu iş yeri kayıtlarında da çalışıyor.** Risk ekibi ve acil
+  durum planı iş yeri kimliğiyle tutulduğu için talep eskisi o listede
+  bulunamıyordu; denetim artık eylem adına göre iş yeri kaydına yönelir
+  (`ISYERI_KAYIT_EYLEMLERI`), onaylanan işlem gerçek depoda uygulanır ve
+  bilgi kutusu "kuyruğa alındı" / "kaydedildi" ayrımını doğru bildirir.
 
 ### 2.19.0 — "Mevzuat ve kapsam" sayfası yerleşik kapsam kataloğuyla açılıyor
 

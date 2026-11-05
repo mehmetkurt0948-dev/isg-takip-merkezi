@@ -498,11 +498,11 @@
 
     var PLAN_SABLONU = [
       { faaliyet: 'İSG yıllık çalışma planının gözden geçirilmesi', sorumlu: 'İşveren vekili', ay: 1, gun: 15, durum: 'tamamlandi' },
-      { faaliyet: 'Acil durum tatbikatı planla ve kaydet', sorumlu: 'İSG uzmanı', ay: 3, gun: 20, durum: 'planlandi' },
+      { faaliyet: 'Acil durum tatbikatı planla ve kaydet', sorumlu: 'İSG uzmanı', ay: 3, gun: 20, durum: 'yapilacak' },
       { faaliyet: 'İlk yardımcı ihtiyacı ve belge yenilemeleri', sorumlu: 'İşyeri hekimi', ay: 5, gun: 10, durum: 'tamamlanmadi' },
       { faaliyet: 'Periyodik kontrol ve ölçümlerin tamamlanması', sorumlu: 'Bakım şefi', ay: 7, gun: 5, durum: 'tamamlandi' },
-      { faaliyet: 'Yıllık eğitim planının uygulanması', sorumlu: 'İSG uzmanı', ay: 9, gun: 1, durum: 'planlandi' },
-      { faaliyet: 'Yıl sonu İSG değerlendirme raporu', sorumlu: 'İşveren vekili', ay: 12, gun: 20, durum: 'planlandi' }
+      { faaliyet: 'Yıllık eğitim planının uygulanması', sorumlu: 'İSG uzmanı', ay: 9, gun: 1, durum: 'yapilacak' },
+      { faaliyet: 'Yıl sonu İSG değerlendirme raporu', sorumlu: 'İşveren vekili', ay: 12, gun: 20, durum: 'yapilacak' }
     ];
 
     function yilTarihi(ay, gunNo) {

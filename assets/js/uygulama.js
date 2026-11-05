@@ -75,6 +75,23 @@
     diyalogAc(el('onayDiyalog'));
   }
 
+  /* Kaydetme sonrası kullanıcıya iki durum ayrı ayrı söylenir: kayıt doğrudan
+     yazıldı mı, yoksa yönetici onayına mı gönderildi. Onay bekleyen işlemlerde
+     "kaydedildi" demek yanıltıcı olduğu için (kullanıcı ekranda değişim görmediğinde
+     işlemin hiç yapılmadığını sanıyor) bekleme durumu uyarı olarak gösterilir ve
+     o işyerindeki diğer bekleyen taleplerin sayısı da eklenir. Başarı mesajında
+     kayıt kimliği yazılır; çoklu kayıt karışıklığı bu sayede ayrışır. */
+  function onayBildir(etiket, sonuc) {
+    if (sonuc && sonuc.bekliyor) {
+      var isyeriId = sonuc.talep && sonuc.talep.isyeriId ? sonuc.talep.isyeriId : '';
+      var kalan = (isyeriId && typeof D.talepBekleyenSayisi === 'function') ?
+        Math.max(D.talepBekleyenSayisi(isyeriId) - 1, 0) : 0;
+      return etiket + ' talebi yönetici onayına gönderildi; onaylanınca ekrana yansır.' +
+        (kalan ? ' Bu işyerinde bekleyen ' + kalan + ' talep daha var.' : '');
+    }
+    return etiket + ' kaydedildi.' + (sonuc && sonuc.id ? ' Kayıt kimliği: ' + sonuc.id + '.' : '');
+  }
+
   function aktifSayfa() {
     var anahtar = String(global.location.hash || '#panel').replace('#', '').split('?')[0];
     return SAYFA_BILGI[anahtar] ? anahtar : 'panel';
@@ -905,7 +922,7 @@
          ve türetilmiş "Gecikti" kayda dönük seçim olarak gösterilir. */
       form.elements.durum.value = ISG.planDurumNormal(kayit.durum);
     } else {
-      form.elements.durum.value = 'planlandi';
+      form.elements.durum.value = 'yapilacak';
       form.elements.takipTarihi.value = B.bugunIso();
     }
     diyalogAc(el('planDiyalog'), form.elements.faaliyet);
@@ -2347,8 +2364,13 @@
       case 'talep-onayla':
         onayIste('Talep onaylansın mı?', 'Onaylanan değişiklik kayda hemen uygulanır. Bu işlem geri alınamaz.', function () {
           try {
-            ISG.yetki.talepOnayla(id, 'Onaylandı');
-            B.bildir('Talep onaylandı ve kayda uygulandı.', 'basari');
+            var sonuc = ISG.yetki.talepOnayla(id, 'Onaylandı');
+            /* Onay gerçekten kuyruktan düştü mü ve kayıt hangi kimliğe yazıldı:
+               çoklu kayıt karışıklığını ayırmak için kullanıcıya bildirilir. */
+            var kalan = ISG.depo.talepBekleyenSayisi ? ISG.depo.talepBekleyenSayisi() : 0;
+            B.bildir('Talep onaylandı ve kayda uygulandı.' +
+              (sonuc && sonuc.id ? ' Kayıt kimliği: ' + sonuc.id + '.' : '') +
+              ' Bekleyen talep: ' + kalan + '.', 'basari');
           } catch (hata) {
             B.bildir(hata.message, 'hata');
           }
@@ -2702,9 +2724,20 @@
         B.bildir('Faaliyet tamamlanmadı olarak işaretlendi.', 'uyari');
         ciz();
         break;
+      /* Satır içi "Diğer durumlar" menüsü: dokuz durumdan biri seçilir. */
+      case 'plan-durum-ata': {
+        var yeniDurum = String(dugme.getAttribute('data-durum') || '');
+        var durumTanim = ISG.PLAN_DURUMLARI[yeniDurum];
+        if (!durumTanim || !durumTanim.secilebilir) { break; }
+        D.planDurumDegistir(id, yeniDurum);
+        B.bildir('Durum güncellendi: ' + durumTanim.ad,
+          durumTanim.sinif === 'iyi' ? 'basari' : (durumTanim.sinif === 'tehlike' ? 'uyari' : 'basari'));
+        ciz();
+        break;
+      }
       case 'plan-geri-al':
-        D.planDurumDegistir(id, 'planlandi');
-        B.bildir('Faaliyet yeniden planlandı olarak işaretlendi.', 'basari');
+        D.planDurumDegistir(id, 'yapilacak');
+        B.bildir('Faaliyet yeniden takvime alındı (Yapılacak).', 'basari');
         ciz();
         break;
       case 'plan-filtre':
@@ -3534,7 +3567,7 @@
       if (veriForm.sonDegerlendirme && sinif) {
         enGec = ISG.yilEkle(veriForm.sonDegerlendirme, sinif.riskYenilemeYil);
       }
-      D.riskEkipKaydet(veriForm.isyeriId, {
+      var sonuc = D.riskEkipKaydet(veriForm.isyeriId, {
         sonDegerlendirme: veriForm.sonDegerlendirme,
         enGecYenileme: enGec,
         isveren: veriForm.isveren,
@@ -3545,7 +3578,7 @@
         birim: veriForm.birim
       });
       diyalogKapat(el('riskEkipDiyalog'));
-      B.bildir('Risk değerlendirmesi ekibi kaydedildi.', 'basari');
+      B.bildir(onayBildir('Risk değerlendirmesi ekibi', sonuc), sonuc && sonuc.bekliyor ? 'uyari' : 'basari');
       ciz();
     });
 
@@ -3565,10 +3598,11 @@
         aciklama: veriForm.aciklama || ''
       };
       var eskiId = veriForm.uyeId || '';
+      var sonuc = null;
       if (veriForm.kaynak === 'acil') {
-        D.acilEkipEkle(veriForm.isyeriId, veriForm.rol, ad, veriForm.personelId || '', ek);
+        sonuc = D.acilEkipEkle(veriForm.isyeriId, veriForm.rol, ad, veriForm.personelId || '', ek);
       } else {
-        D.riskEkipUyeEkle(veriForm.isyeriId, veriForm.rol, ad, veriForm.personelId || '', ek);
+        sonuc = D.riskEkipUyeEkle(veriForm.isyeriId, veriForm.rol, ad, veriForm.personelId || '', ek);
       }
       /* Düzenleme sırasında görev grubu değiştiyse eski kayıt kaldırılır (mükerrer olmasın). */
       if (eskiId && veriForm.eskiRol && veriForm.eskiRol !== veriForm.rol) {
@@ -3577,7 +3611,7 @@
         else { D.riskEkipUyeSil(veriForm.isyeriId, veriForm.eskiRol, secim); }
       }
       diyalogKapat(el('ekipUyeDiyalog'));
-      B.bildir('Ekip üyesi kaydedildi.', 'basari');
+      B.bildir(onayBildir('Ekip üyesi', sonuc), sonuc && sonuc.bekliyor ? 'uyari' : 'basari');
       ciz();
       /* Acil durum planı diyaloğu açıksa ekip listesi anında güncellenir. */
       if (veriForm.kaynak === 'acil') { acilPlanEkipTazele(veriForm.isyeriId); }
@@ -3585,13 +3619,13 @@
 
     formuBagla('acilPlanForm', function (form) {
       var veriForm = formVerisi(form);
-      D.acilPlanKaydet(veriForm.isyeriId, {
+      var plan = D.acilPlanKaydet(veriForm.isyeriId, {
         hazirlanma: veriForm.hazirlanma,
         sonYenileme: veriForm.sonYenileme,
         tatbikat: veriForm.tatbikat
       });
       diyalogKapat(el('acilPlanDiyalog'));
-      B.bildir('Acil durum planı kaydedildi.', 'basari');
+      B.bildir(onayBildir('Acil durum planı', plan), plan && plan.bekliyor ? 'uyari' : 'basari');
       ciz();
     });
   }

@@ -505,6 +505,18 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .kpi-izgara.kpi-izgara-alti { grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); }
 /* Takip kartındaki gecikmiş faaliyet satırı da aynı kırmızıyı taşır. */
 .plan-satir.plan-gecikti { background: #fdf4f3; border-radius: 8px; padding-left: 8px; }
+/* İzlenmeyen kayıtlar (iptal / kapsam dışı) soluk görünür: iş bitmiş, takvim dışı. */
+.tablo-kap tbody tr.satir-notr > td { background: #f6f8fb; color: var(--ink-soft); }
+.tablo-kap tbody tr.satir-notr > td:first-child { box-shadow: inset 3px 0 0 #c7d2df; }
+.tablo-kap tbody tr.satir-notr:hover > td { background: #eef2f7; }
+/* Satır içi durum menüsü: seçenekler satır içinde açılır, tablo dışında
+   taşma/kırpılma üretmez. Buton stilleri `.dosya-eylem`den miras alınır. */
+.durum-menu { display: inline-block; }
+.durum-menu > summary { cursor: pointer; list-style: none; font-size: 12px; color: var(--brand); white-space: nowrap; }
+.durum-menu > summary::-webkit-details-marker { display: none; }
+.durum-menu > summary::after { content: " \25BE"; }
+.durum-menu[open] > summary::after { content: " \25B4"; }
+.durum-menu-liste { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 
 /* Sağlık takibi: satır içi detay açılımı. */
 .saglik-detay-satir > td { background: #f7fafc; padding: 12px 16px 16px; }

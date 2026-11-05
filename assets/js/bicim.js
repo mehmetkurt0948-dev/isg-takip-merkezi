@@ -58,8 +58,10 @@
       gecerli: 'iyi', yaklasiyor: 'uyari', suresiDoldu: 'tehlike', yok: 'notr',
       acik: 'tehlike', izlemede: 'uyari', kapali: 'iyi',
       var: 'iyi', eksik: 'tehlike', incelenmedi: 'uyari',
-      tamamlandi: 'iyi', planlandi: 'bilgi', tamamlanmadi: 'tehlike',
-      gecikti: 'tehlike', planlanmadi: 'notr',
+      yapilacak: 'bilgi', devam: 'bilgi', belgeBekliyor: 'uyari', ertelendi: 'uyari',
+      tamamlandi: 'iyi', tamamlanmadi: 'tehlike', planlanmadi: 'notr',
+      iptal: 'notr', kapsamDisi: 'notr', gecikti: 'tehlike',
+      planlandi: 'bilgi', takvimde: 'bilgi',
       dogrulama: 'uyari', geciken: 'tehlike', bugun: 'uyari', tarihsiz: 'notr',
       bekliyor: 'uyari', kabul: 'iyi'
     };

@@ -222,22 +222,22 @@
      Böylece türeyen "Gecikti" hem kartta, hem filtrede, hem tabloda aynı
      sayıyı verir. "Bugün" bir durum değil takvim kısayoludur. */
   function planOzet(liste) {
-    var ozet = { planlandi: 0, tamamlandi: 0, tamamlanmadi: 0, gecikti: 0, planlanmadi: 0,
-      toplam: liste.length, bekleyen: 0, bugun: 0 };
+    var ozet = { toplam: liste.length, bekleyen: 0, bugun: 0, kapanan: 0 };
+    ISG.PLAN_DURUM_FILTRELERI.forEach(function (id) { ozet[id] = 0; });
     var bugunIso = B.bugunIso();
     liste.forEach(function (plan) {
       var durum = ISG.planDurumu(plan);
       ozet[durum.id] = (ozet[durum.id] || 0) + 1;
-      if (!durum.tamamlandi) {
-        ozet.bekleyen += 1;
-        if (plan.takipTarihi === bugunIso) { ozet.bugun += 1; }
-      }
+      if (durum.kapali) { ozet.kapanan += 1; return; }
+      ozet.bekleyen += 1;
+      if (plan.takipTarihi === bugunIso) { ozet.bugun += 1; }
     });
     return ozet;
   }
 
-  /* Durum filtresi: beş durum + "Bugün" kısayolu. Karttan ya da kutudan
-     seçilir; liste, kart sayıları ve tablo aynı fonksiyonla süzülür. */
+  /* Durum filtresi: türetilmiş Gecikti + dokuz kayıtlı durum + "Bugün"
+     kısayolu. Karttan ya da kutudan seçilir; liste, kart sayıları ve tablo
+     aynı fonksiyonla süzülür. */
   function planDurumSecici() {
     var aktif = String(UI.planDurum || '');
     var secenekler = '<option value=""' + (aktif ? '' : ' selected') + '>Tüm durumlar</option>' +
@@ -253,7 +253,7 @@
   function planDurumaGore(plan, filtre) {
     if (!filtre) { return true; }
     var durum = ISG.planDurumu(plan);
-    if (filtre === 'bugun') { return !durum.tamamlandi && plan.takipTarihi === B.bugunIso(); }
+    if (filtre === 'bugun') { return !durum.kapali && plan.takipTarihi === B.bugunIso(); }
     return durum.id === filtre;
   }
 
@@ -326,14 +326,30 @@
         (plan.tamamlanmaTarihi ? '<span class="hucre-alt">Tamamlandı: ' + B.tarih(plan.tamamlanmaTarihi) + '</span>' : '') + '</td>' +
       '<td>' + B.rozet(durum.ad, durum.sinif) + durumAlt + '</td>' +
       '<td class="sag"><div class="dosya-eylem">' +
-        (durum.tamamlandi
+        (durum.kapali
           ? '<button type="button" data-islem="plan-geri-al" data-id="' + kacis(plan.id) + '">Takvime geri al</button>'
           : '<button type="button" data-islem="plan-tamamla" data-id="' + kacis(plan.id) + '">Tamamlandı</button>' +
             '<button type="button" data-islem="plan-tamamlanmadi" data-id="' + kacis(plan.id) + '">Tamamlanmadı</button>') +
+        planDurumMenu(plan) +
         '<button type="button" data-islem="plan-duzenle" data-id="' + kacis(plan.id) + '">Düzenle</button>' +
         '<button type="button" class="sil" data-islem="plan-sil" data-id="' + kacis(plan.id) + '">Sil</button>' +
       '</div></td>' +
     '</tr>';
+  }
+
+
+  /* Satır içi durum menüsü: dokuz durumun tamamı kaydin üstünden değiştirilebilir.
+     Butonlar veri-islem üzerinden merkezi yetki/bildirim akışına bağlanır;
+     "Gecikti" türetilmiş olduğu için listede yer almaz. */
+  function planDurumMenu(plan) {
+    var kayitli = ISG.planDurumNormal(plan.durum);
+    var butonlar = ISG.PLAN_DURUM_SECIMLERI.filter(function (id) { return id !== kayitli; })
+      .map(function (id) {
+        return '<button type="button" data-islem="plan-durum-ata" data-id="' + kacis(plan.id) +
+          '" data-durum="' + id + '">' + kacis(ISG.PLAN_DURUMLARI[id].ad) + '</button>';
+      }).join('');
+    return '<details class="durum-menu"><summary>Diğer durumlar</summary>' +
+      '<div class="durum-menu-liste">' + butonlar + '</div></details>';
   }
 
 
@@ -400,7 +416,7 @@
   function yillikPlanKartlari(hesap, isyerleri, yil) {
     return isyerleri.map(function (isyeri) {
       var kayitlar = planSirala(ISG.kapsamda(hesap, isyeri.id, 'planlar').filter(function (plan) {
-        return plan.durum !== 'planlanmadi' && yilaGore(plan, yil);
+        return !ISG.planDurumTakipsiz(plan.durum) && yilaGore(plan, yil);
       }));
       var yilRozet = yil ? B.rozet(yil + ' yılı', 'notr') : B.rozet(kayitlar.length + ' faaliyet', 'notr');
       return '<div class="plan-kart">' +
@@ -472,13 +488,14 @@
         '<div class="kart-ic"><div class="plan-izgara-kucuk">' + ilkYardimKartlari(hesap, isyerleri) + '</div></div>' +
       '</section>' +
 
+      /* On durumdan en çok izlenen altısı kartta; tamamı durum kutusunda. */
       '<div class="kpi-izgara kpi-izgara-alti">' +
-        P.kpi({ baslik: 'Gecikti', ikon: 'i-alert', deger: B.sayi(ozet.gecikti), alt: 'Tarihi geçti, tamamlanmadı', sinif: 'tehlike', islem: 'plan-durum-filtre', filtre: 'gecikti' }) +
-        P.kpi({ baslik: 'Tamamlanmadı', ikon: 'i-close', deger: B.sayi(ozet.tamamlanmadi), alt: 'Yapılmadı olarak işaretli', sinif: 'tehlike', islem: 'plan-durum-filtre', filtre: 'tamamlanmadi' }) +
-        P.kpi({ baslik: 'Planlandı', ikon: 'i-calendar', deger: B.sayi(ozet.planlandi), alt: 'Vadesi beklenen faaliyet', sinif: 'bilgi', islem: 'plan-durum-filtre', filtre: 'planlandi' }) +
-        P.kpi({ baslik: 'Tamamlandı', ikon: 'i-check', deger: B.sayi(ozet.tamamlandi), alt: 'Bekleyen iş: ' + B.sayi(ozet.bekleyen), sinif: 'iyi', islem: 'plan-durum-filtre', filtre: 'tamamlandi' }) +
-        P.kpi({ baslik: 'Planlanmadı', ikon: 'i-flag', deger: B.sayi(ozet.planlanmadi), alt: 'Takip tarihi belirleyin', sinif: 'soluk', islem: 'plan-durum-filtre', filtre: 'planlanmadi' }) +
+        P.kpi({ baslik: 'Gecikti', ikon: 'i-alert', deger: B.sayi(ozet.gecikti), alt: 'Tarihi geçti, kapanmadı', sinif: 'tehlike', islem: 'plan-durum-filtre', filtre: 'gecikti' }) +
         P.kpi({ baslik: 'Bugün', ikon: 'i-clock', deger: B.sayi(ozet.bugun), alt: 'Bugün ödenecek iş', sinif: 'uyari', islem: 'plan-durum-filtre', filtre: 'bugun' }) +
+        P.kpi({ baslik: 'Yapılacak', ikon: 'i-calendar', deger: B.sayi(ozet.yapilacak), alt: 'Henüz başlanmayan faaliyet', sinif: 'bilgi', islem: 'plan-durum-filtre', filtre: 'yapilacak' }) +
+        P.kpi({ baslik: 'Devam Ediyor', ikon: 'i-plan', deger: B.sayi(ozet.devam), alt: 'Çalışma sürüyor', sinif: 'bilgi', islem: 'plan-durum-filtre', filtre: 'devam' }) +
+        P.kpi({ baslik: 'Belge / Yanıt Bekleniyor', ikon: 'i-flag', deger: B.sayi(ozet.belgeBekliyor), alt: 'Karşı taraftan haber bekleniyor', sinif: 'uyari', islem: 'plan-durum-filtre', filtre: 'belgeBekliyor' }) +
+        P.kpi({ baslik: 'Tamamlandı', ikon: 'i-check', deger: B.sayi(ozet.tamamlandi), alt: 'Bekleyen iş: ' + B.sayi(ozet.bekleyen), sinif: 'iyi', islem: 'plan-durum-filtre', filtre: 'tamamlandi' }) +
       '</div>' +
 
       '<section class="kart"><div class="kart-baslik"><div><h2>Yıllık çalışma planı</h2>' +

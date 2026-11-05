@@ -282,6 +282,31 @@
     return null;
   }
 
+  /* ---------- İşyeri bazlı kayıtlar: risk ekibi ve acil durum planı ----------
+     Bu iki liste kayıt kimliğiyle değil işyeri kimliğiyle tutulur: her işyeri
+     için tek kayıt vardır ve eylemin ilk argümanı işyeri kimliğidir. kayitBul()
+     yalnızca kendi kimliği olan listelerde aradığı için bu eylemlerde kayıt
+     bulunamaz; sürüm denetimi "Kayıt artık bulunmuyor" deyip Onayla düğmesini
+     çalışmaz hâle getirirdi. Arama ve denetim bu yüzden eylem adına göre
+     işyeri kaydına yönlendirilir. */
+  var ISYERI_KAYIT_EYLEMLERI = {
+    riskEkipKaydet: 'riskEkipleri', riskEkipUyeEkle: 'riskEkipleri', riskEkipUyeSil: 'riskEkipleri',
+    acilPlanKaydet: 'acilPlanlar', acilEkipEkle: 'acilPlanlar', acilEkipSil: 'acilPlanlar'
+  };
+
+  /* Üye ekleme/silme eylemleri işyeri kaydını yerinde değiştirir; gönderilen
+     veride (işyeri, görev, ad, ...) kaydın tamamı yoktur. Bu eylemlerde
+     "talep sonra kayıt değişti mi" denetimi yapılmaz: uygulama tek alanı
+     güncellediği için eski değerin üzerine yazma riski yoktur. */
+  var ISYERI_YERINDE_EYLEMLER = {
+    riskEkipUyeEkle: 1, riskEkipUyeSil: 1, acilEkipEkle: 1, acilEkipSil: 1
+  };
+
+  function isyeriKayitBul(listeAdi, isyeriId) {
+    if (!listeAdi || !isyeriId || typeof ISG.ilgiliKayit !== 'function') { return null; }
+    return ISG.ilgiliKayit(D.al(), listeAdi, isyeriId) || null;
+  }
+
   function kayitIsyeri(kayit) {
     if (!kayit) { return ''; }
     if (kayit.isyeriId) { return kayit.isyeriId; }
@@ -383,7 +408,11 @@
     var isyeri = (D.al().isyerleri || []).filter(function (kayit) { return kayit.id === isyeriId; })[0];
     var kayitId = kayitKimligi(args);
     var tur = islemTuru(ad, kayitId);
-    var mevcut = kayitId ? kayitBul(kayitId) : null;
+    /* Risk ekibi ve acil durum planında args[0] işyeri kimliğidir: eski değer
+       işyeri kaydından okunur, böylece yönetici gerçek değişikliği görür. */
+    var isyeriListe = ISYERI_KAYIT_EYLEMLERI[ad] || '';
+    var mevcut = isyeriListe ? isyeriKayitBul(isyeriListe, kayitId || isyeriId) : (kayitId ? kayitBul(kayitId) : null);
+    if (isyeriListe) { kayitId = kayitId || isyeriId; tur = mevcut ? 'guncelle' : 'ekle'; }
     var talep = D.talepKaydet({
       kullaniciId: o.kullaniciId,
       kullaniciAd: o.adSoyad,
@@ -394,6 +423,7 @@
       modul: SAYFA_ESLEME[ad] || 'panel',
       sayfa: SAYFA_ESLEME[ad] || 'panel',
       kayitId: kayitId,
+      kayitTur: isyeriListe ? 'isyeri' : 'kayit',
       islemTuru: tur,
       eskiKayit: mevcut ? kopyala(mevcut) : null,
       yeniKayit: tur === 'sil' ? null : kopyala(args[0]),
@@ -426,18 +456,43 @@
     return talepler().filter(function (talep) { return talep.durum === 'bekliyor'; }).length;
   }
 
+  /* Talebin kaydettiği eylemi yönetici kararından sonra asil depo üzerinden
+     çalıştırır. Eylem bulunamazsa ya da hata verirse onay tamamlanmaz; böylece
+     "onaylandı" görünen ama veriye yazmamış talep kalmaz. */
   function talepUygula(talep) {
-    if (!talep || !talep.eylem || !talep.eylem.ad) { return false; }
+    if (!talep || !talep.eylem || !talep.eylem.ad) {
+      throw new Error('Talebin uygulanacak eylemi bulunamadı; talep uygulanmadı.');
+    }
     var asil = orijinal[talep.eylem.ad] || D[talep.eylem.ad];
-    if (typeof asil !== 'function') { return false; }
-    asil.apply(D, talep.eylem.args || []);
-    return true;
+    if (typeof asil !== 'function') {
+      throw new Error('Talebin eylemi depoda tanımlı değil: ' + talep.eylem.ad);
+    }
+    var sonuc = asil.apply(D, talep.eylem.args || []);
+    return (sonuc && typeof sonuc === 'object') ? kopyala(sonuc) : true;
   }
 
   /* Kayıt sürüm denetimi: talep oluşturulduktan sonra kayıt başka bir kullanıcı
-     tarafından değiştirildiyse eski değerin üzerine yazılmaz. */
+     tarafından değiştirildiyse eski değerin üzerine yazılmaz. Risk ekibi ve acil
+     durum planı işyeri kimliğiyle tutulduğu için arama işyeri kaydından yapılır. */
   function surumDenetle(talep) {
-    if (!talep || !talep.kayitId) { return; }
+    if (!talep) { return; }
+    var isyeriListe = ISYERI_KAYIT_EYLEMLERI[(talep.eylem && talep.eylem.ad) || ''] || '';
+    if (isyeriListe) {
+      if (ISYERI_YERINDE_EYLEMLER[(talep.eylem && talep.eylem.ad) || '']) { return; }
+      var guncelIsyeri = isyeriKayitBul(isyeriListe, talep.kayitId);
+      if (talep.islemTuru === 'ekle') {
+        if (guncelIsyeri) { throw new Error('Kayıt bu arada oluşturulmuş; talep uygulanmadı.'); }
+        return;
+      }
+      if (!guncelIsyeri) { throw new Error('Kayıt artık bulunmuyor; talep uygulanmadı.'); }
+      if (!talep.eskiKayit) { return; }
+      if (JSON.stringify(guncelIsyeri) !== JSON.stringify(talep.eskiKayit)) {
+        throw new Error('Kayıt talep oluşturulduktan sonra değişti; eski değerin üzerine yazılmadı. ' +
+          'Talebi reddedip güncel kayıt üzerinden yeni talep isteyin.');
+      }
+      return;
+    }
+    if (!talep.kayitId) { return; }
     var guncel = kayitBul(talep.kayitId);
     if (talep.islemTuru === 'ekle') {
       if (guncel) { throw new Error('Aynı kayıt bu arada oluşturulmuş; talep uygulanmadı.'); }

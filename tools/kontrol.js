@@ -1469,7 +1469,7 @@ function bekle(ms) {
   /* Arayüz akışı: aynı faaliyet iş yerinde zaten kayıtlı → mükerrer sayılır. */
   const planTestEski = ISG.depo.planKaydet({
     isyeriId: 'iy5', yil: PLAN_YILI, faaliyet: 'Temel iş sağlığı ve güvenliği eğitimi',
-    sorumlu: 'İGU', durum: 'planlandi', takipTarihi: PLAN_YILI + '-03-15', sira: 1
+    sorumlu: 'İGU', durum: 'yapilacak', takipTarihi: PLAN_YILI + '-03-15', sira: 1
   }).id;
 
   ISG.uygulama.planTopluOnizle(planSatirlari, PLAN_YILI + '-yillik-plan.xlsx', 'iy5');
@@ -1544,7 +1544,7 @@ function bekle(ms) {
     const ekipman = planYeni.filter((p) => p.faaliyet === 'Acil durum ekipmanı kontrolü')[0] || {};
     const tatbikat = planYeni.filter((p) => p.faaliyet === 'Yangın ve tahliye tatbikatı')[0] || {};
     return JSON.stringify(ekipman.aylar) === '[1,4]' && ekipman.anaBaslik === 'Acil Durumlar' &&
-      ekipman.sorumlu === 'Bakım Sorumlusu' && ekipman.durum === 'planlandi' && ekipman.kaynak === 'Excel' &&
+      ekipman.sorumlu === 'Bakım Sorumlusu' && ekipman.durum === 'yapilacak' && ekipman.kaynak === 'Excel' &&
       ekipman.yil === PLAN_YILI && tatbikat.siraExcel === '1.2' && ISG.planAylari(tatbikat).join() === '7';
   })(), JSON.stringify(planYeni.map((p) => [p.faaliyet, p.aylar, p.anaBaslik])));
   kontrol('Diğer iş yerlerinin planlarına dokunulmadı',
@@ -2836,6 +2836,92 @@ function bekle(ms) {
     ISG.tcMaskele('12345678901') === '123******01', ISG.tcMaskele('12345678901'));
   kontrol('Yönetici tam kimlik numarasını görür',
     ISG.tcGoster('12345678901') === '12345678901');
+
+  /* ---------- 26) Çalışma planı: on durumlu sözlük ---------- */
+  console.log('\n26) Çalışma planı: on durumlu sözlük, göç ve satır içi durum menüsü');
+  {
+    const D = ISG.PLAN_DURUMLARI;
+    const anahtarlar = Object.keys(D);
+    kontrol('On durum tanimlidir', anahtarlar.length === 10, anahtarlar.join(','));
+    kontrol('Dokuz durum secilebilir, Gecikti secilemez',
+      ISG.PLAN_DURUM_SECIMLERI.length === 9 && D.gecikti.secilebilir === false &&
+      ISG.PLAN_DURUM_SECIMLERI.every((id) => D[id].secilebilir === true));
+    kontrol('Filtre listesi on durumu siralar (Gecikti basta)',
+      ISG.PLAN_DURUM_FILTRELERI.length === 10 && ISG.PLAN_DURUM_FILTRELERI[0] === 'gecikti',
+      ISG.PLAN_DURUM_FILTRELERI.join(','));
+    kontrol('Goc: takvimde/planlandi/Gecikti/taninmasiz → yapilacak',
+      ISG.planDurumNormal('takvimde') === 'yapilacak' && ISG.planDurumNormal('planlandi') === 'yapilacak' &&
+      ISG.planDurumNormal('Gecikti') === 'yapilacak' && ISG.planDurumNormal('askida') === 'yapilacak' &&
+      ISG.planDurumNormal('') === 'yapilacak');
+    kontrol('Goc: bekliyor → belgeBekliyor', ISG.planDurumNormal('bekliyor') === 'belgeBekliyor');
+    kontrol('Kapanmis durumlar: tamamlandi, iptal, kapsamDisi',
+      ISG.planDurumKapanmis('tamamlandi') && ISG.planDurumKapanmis('iptal') &&
+      ISG.planDurumKapanmis('kapsamDisi') && !ISG.planDurumKapanmis('devam') &&
+      !ISG.planDurumKapanmis('ertelendi') && !ISG.planDurumKapanmis('tamamlanmadi'));
+
+    const dun = new Date();
+    dun.setDate(dun.getDate() - 4);
+    const padIki = (n) => String(n).padStart(2, '0');
+    const gecmisIso = dun.getFullYear() + '-' + padIki(dun.getMonth() + 1) + '-' + padIki(dun.getDate());
+    const kapanmamis = ['yapilacak', 'devam', 'belgeBekliyor', 'ertelendi', 'tamamlanmadi'];
+    kontrol('Kapanmamis bes durum gecmis tarihte Gecikti olur',
+      kapanmamis.every((d) => ISG.planDurumu({ durum: d, takipTarihi: gecmisIso }).id === 'gecikti'),
+      kapanmamis.map((d) => ISG.planDurumu({ durum: d, takipTarihi: gecmisIso }).id).join(','));
+    kontrol('Kapanmis durumlar gecikmez',
+      ISG.planDurumu({ durum: 'iptal', takipTarihi: gecmisIso }).id === 'iptal' &&
+      ISG.planDurumu({ durum: 'kapsamDisi', takipTarihi: gecmisIso }).id === 'kapsamDisi' &&
+      ISG.planDurumu({ durum: 'tamamlandi', takipTarihi: gecmisIso }).id === 'tamamlandi');
+    kontrol('Satir renkleri: iptal/kapsamDisi soluk, geciken kirmizi',
+      ISG.planDurumu({ durum: 'iptal', takipTarihi: gecmisIso }).satirSinifi === 'satir-notr' &&
+      ISG.planDurumu({ durum: 'kapsamDisi', takipTarihi: gecmisIso }).satirSinifi === 'satir-notr' &&
+      ISG.planDurumu({ durum: 'devam', takipTarihi: gecmisIso }).satirSinifi === 'satir-tehlike');
+
+    const formSecenek = doc.querySelectorAll('#planForm select[name="durum"] option');
+    kontrol('Plan formu dokuz durumu ayni sirada gosterir',
+      formSecenek.length === 9 &&
+      Array.prototype.map.call(formSecenek, (o) => o.value).join(',') === ISG.PLAN_DURUM_SECIMLERI.join(','),
+      Array.prototype.map.call(formSecenek, (o) => o.value).join(','));
+
+    doc.getElementById('planAy').value = 'tumu';
+    doc.getElementById('planAy').dispatchEvent(new window.Event('change', { bubbles: true }));
+    await bekle(140);
+    const durumKutusu = doc.querySelector('select[data-ui="planDurum"]');
+    kontrol('Durum filtre kutusu: Tumu + 10 durum + Bugun',
+      durumKutusu && durumKutusu.options.length === 12, durumKutusu ? durumKutusu.options.length : 'kutu yok');
+    const kpiKartlari = doc.querySelectorAll('[data-islem="plan-durum-filtre"]');
+    kontrol('Alti durum karti cizildi ve gecerli anahtar tasir',
+      kpiKartlari.length === 6 && Array.prototype.every.call(kpiKartlari, (kart) => {
+        const filtre = kart.getAttribute('data-filtre');
+        return filtre === 'bugun' || !!D[filtre];
+      }), String(kpiKartlari.length));
+
+    const satirMenuleri = doc.querySelectorAll('#planTablo .durum-menu');
+    kontrol('Plan satirlarinda durum menusu var', satirMenuleri.length > 0, String(satirMenuleri.length));
+    const menuDugmeleri = satirMenuleri.length
+      ? satirMenuleri[0].querySelectorAll('[data-islem="plan-durum-ata"]') : [];
+    kontrol('Menu, kayitli durum disindaki sekiz durumu sunar',
+      menuDugmeleri.length === 8, String(menuDugmeleri.length));
+
+    const hedefPlan = ISG.depo.al().planlar.filter((p) => ISG.planDurumNormal(p.durum) !== 'devam')[0];
+    kontrol('Durum degistirilecek plan bulundu', !!hedefPlan);
+    if (hedefPlan) {
+      const atamaDugmesi = doc.querySelector(
+        '[data-islem="plan-durum-ata"][data-id="' + hedefPlan.id + '"][data-durum="devam"]');
+      kontrol('Menude "Devam Ediyor" dugmesi var', !!atamaDugmesi);
+      if (atamaDugmesi) {
+        atamaDugmesi.click();
+        await bekle(180);
+      }
+      const atanan = ISG.depo.al().planlar.filter((p) => p.id === hedefPlan.id)[0];
+      kontrol('Menuden atanan durum kayda yazildi', atanan.durum === 'devam', atanan.durum);
+      kontrol('Atama tamamlanma tarihi uretmez', !atanan.tamamlanmaTarihi, String(atanan.tamamlanmaTarihi));
+      kontrol('Atama kalici yazima gecti',
+        String(window.localStorage.getItem(ISG.depo.anahtar)).indexOf('"durum":"devam"') > -1);
+      ISG.depo.planDurumDegistir(hedefPlan.id, 'gecikti');
+      kontrol('Turetilmis "gecikti" kaydedilemez → yapilacak',
+        ISG.depo.al().planlar.filter((p) => p.id === hedefPlan.id)[0].durum === 'yapilacak');
+    }
+  }
 
   console.log('\nSonuç: ' + gecen + ' geçti, ' + hata + ' başarısız');
   dom.window.close();

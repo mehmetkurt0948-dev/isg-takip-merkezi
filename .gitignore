@@ -22,3 +22,12 @@ yedek-saglik/
 # Saglik aktarim ciktilari (kisisel saglik verisi icerir)
 saglik-analiz.txt
 saglik-yazim.txt
+
+# Calisma plani refactoru oncesi alinan canli veri yedekleri
+yedek-plan/
+
+# Gecici calisma/teshis dizini ve daginik ara ciktilari
+_tmp-plan/
+test/d_dbg_*
+-ara.txt
+test-baseline.txt
