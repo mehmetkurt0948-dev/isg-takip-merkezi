@@ -780,6 +780,9 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .mevzuat-satir strong { display: block; font-size: 13px; font-weight: 600; line-height: 1.4; }
 .mevzuat-satir small { display: block; margin-top: 3px; color: var(--ink-mute); font-size: 11px; }
 .mevzuat-satir p { margin-top: 5px; color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+/* Kapsam satırı: yerleşik katalogda her başlığın kimleri kapsadığını yazar. */
+.mevzuat-satir small.mevzuat-kapsam { color: var(--ink-soft); line-height: 1.5; margin-top: 4px; }
+.mevzuat-satir small.mevzuat-kapsam b { color: var(--ink); font-weight: 600; }
 .prose { color: var(--ink-soft); font-size: 13px; line-height: 1.7; display: grid; gap: 10px; }
 .prose strong { color: var(--ink); }
 .link-dis { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; }

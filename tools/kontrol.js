@@ -2036,13 +2036,50 @@ function bekle(ms) {
   console.log('\n15) Mevzuat ve kapsam');
   await sayfaAc('#mevzuat');
   kontrol('20 mevzuat başlığı', doc.querySelectorAll('.mevzuat-satir').length === 20, String(doc.querySelectorAll('.mevzuat-satir').length));
+  kontrol('Her başlıkta kapsam satırı var', doc.querySelectorAll('.mevzuat-satir small.mevzuat-kapsam').length === 20,
+    String(doc.querySelectorAll('.mevzuat-satir small.mevzuat-kapsam').length));
+  kontrol('Kapsam metni kimlerin kapsamda olduğunu yazıyor',
+    /Kapsam:/.test(metin('#gorunum')) && /kapsam dışıdır/.test(metin('#gorunum')));
+  kontrol('Katalog başlıkları kapsam/dayanak alanlarını taşıyor',
+    ISG.MEVZUAT_KATALOGU().length === 20 &&
+    ISG.MEVZUAT_KATALOGU().every((m) => !!m.id && !!m.baslik && !!m.dayanak && !!m.kapsam && !!m.ozet));
   kontrol('Dış bağlantı güvenli', (doc.querySelector('.link-dis') || {}).rel === 'noopener noreferrer');
   ISG.ui.mevzuatArama = 'gürültü';
   ISG.uygulama.ciz();
   await bekle(80);
   kontrol('Mevzuat araması filtreliyor', doc.querySelectorAll('.mevzuat-satir').length === 1, String(doc.querySelectorAll('.mevzuat-satir').length));
+  ISG.ui.mevzuatArama = 'kapsam dışıdır';
+  ISG.uygulama.ciz();
+  await bekle(80);
+  kontrol('Arama kapsam metninde de çalışıyor', doc.querySelectorAll('.mevzuat-satir').length === 1,
+    String(doc.querySelectorAll('.mevzuat-satir').length));
+  ISG.ui.mevzuatArama = '';
+  ISG.ui.mevzuatKategori = 'Standart';
+  ISG.uygulama.ciz();
+  await bekle(80);
+  kontrol('Kategori filtresi çalışıyor', doc.querySelectorAll('.mevzuat-satir').length === 1,
+    String(doc.querySelectorAll('.mevzuat-satir').length));
   ISG.ui.mevzuatArama = '';
   ISG.ui.mevzuatKategori = '';
+
+  /* Yerleşik katalog: cihazda kayıtlı başlık yokken liste boş kalmamalı.
+     Katalog okunur ama veriye yazılmaz (kayıt sayılmaz). */
+  const kayitliMevzuat = ISG.depo.al().mevzuat;
+  kayitliMevzuat.length = 0;
+  ISG.uygulama.ciz();
+  await bekle(100);
+  kontrol('Kayıt yokken yerleşik katalog gösterilir', doc.querySelectorAll('.mevzuat-satir').length === 20,
+    String(doc.querySelectorAll('.mevzuat-satir').length));
+  kontrol('Yerleşik katalog bilgisi görünür', /Yerleşik mevzuat kataloğu/.test(metin('#gorunum')), metin('#gorunum').slice(0, 80));
+  kontrol('Yerleşik katalog mevzuat sayacını da dolduruyor', /20 başlıkta kapsam/.test(metin('#gorunum')),
+    (metin('#gorunum').match(/\d+ başlıkta kapsam/) || [''])[0]);
+  const bosKatalogYazildi = ISG.depo.al().mevzuat.length;
+  kontrol('Katalog veriye yazılmıyor', bosKatalogYazildi === 0, String(bosKatalogYazildi));
+  await demoYukle();
+  await sayfaAc('#mevzuat');
+  kontrol('Demo yüklendikten sonra kayıtlı 20 başlık görünür', doc.querySelectorAll('.mevzuat-satir').length === 20,
+    String(doc.querySelectorAll('.mevzuat-satir').length));
+  kontrol('Kayıtlı başlıkta yerleşik katalog uyarısı yok', !/Yerleşik mevzuat kataloğu/.test(metin('#gorunum')));
 
   console.log('\n16) Menü, rozetler ve yapı');
   await sayfaAc('#panel');

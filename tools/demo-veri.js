@@ -602,28 +602,9 @@
       }
     ];
 
-    var mevzuat = [
-      { id: 'm01', baslik: 'İş Sağlığı ve Güvenliği Kanunu', kategori: 'Kanun', dayanak: '6331 sayılı Kanun', durum: 'incelendi', ozet: 'İşveren yükümlülükleri, risk değerlendirmesi, eğitim ve kurul esasları.' },
-      { id: 'm02', baslik: 'İSG Risk Değerlendirmesi Yönetmeliği', kategori: 'Yönetmelik', dayanak: 'RG 29.12.2012 / 28512', durum: 'incelendi', ozet: 'Risk değerlendirmesi ekip yapısı, yenileme süreleri ve dokümantasyon.' },
-      { id: 'm03', baslik: 'İSG Kurulları Hakkında Yönetmelik', kategori: 'Yönetmelik', dayanak: 'RG 18.01.2013 / 28532', durum: 'incelendi', ozet: '50 ve üzeri çalışan işyerlerinde kurul, aylık toplantı ve karar takibi.' },
-      { id: 'm04', baslik: 'Çalışanların İSG Eğitimlerinin Usul ve Esasları', kategori: 'Yönetmelik', dayanak: 'RG 15.05.2013 / 28648', durum: 'incelendi', ozet: 'Tehlike sınıfına göre eğitim süreleri ve yenileme aralıkları.' },
-      { id: 'm05', baslik: 'İşyeri Hekimi ve İSG Uzmanlarının Görevleri', kategori: 'Yönetmelik', dayanak: 'RG 20.07.2013 / 28713', durum: 'gozdenGecir', ozet: 'Görevlendirme, çalışma süreleri ve İSG-KATİP bildirimleri.' },
-      { id: 'm06', baslik: 'Acil Durumlar Hakkında Yönetmelik', kategori: 'Yönetmelik', dayanak: 'RG 18.06.2013 / 28681', durum: 'incelendi', ozet: 'Acil durum planı, ekipler, tatbikat ve yenileme yükümlülüğü.' },
-      { id: 'm07', baslik: 'İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları', kategori: 'Yönetmelik', dayanak: 'RG 25.04.2013 / 28628', durum: 'incelendi', ozet: 'Periyodik kontrol sıklıkları ve yetkili kontrol firmaları.' },
-      { id: 'm08', baslik: 'Kişisel Koruyucu Donanım Yönetmeliği', kategori: 'Yönetmelik', dayanak: 'RG 02.07.2013 / 28695', durum: 'incelendi', ozet: 'KKD seçimi, zimmet, kullanım ve bakım yükümlülükleri.' },
-      { id: 'm09', baslik: 'Sağlık ve Güvenlik İşaretleri Yönetmeliği', kategori: 'Yönetmelik', dayanak: 'RG 23.12.2003 / 25325', durum: 'incelendi', ozet: 'Uyarı, yasak, emir ve acil çıkış işaretlerinin standardı.' },
-      { id: 'm10', baslik: 'Yangın Söndürme Sistemleri ve Ekipmanları', kategori: 'Tebliğ', dayanak: 'Binaların Yangından Korunması Hakkında Yönetmelik', durum: 'incelendi', ozet: 'Söndürücü cihaz sayısı, yerleşimi ve kontrol periyotları.' },
-      { id: 'm11', baslik: 'Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik', kategori: 'Yönetmelik', dayanak: 'RG 12.08.2013 / 28733', durum: 'gozdenGecir', ozet: 'GBF, etiketleme, maruziyet ölçümü ve depolama kuralları.' },
-      { id: 'm12', baslik: 'Gürültü Yönetmeliği', kategori: 'Yönetmelik', dayanak: 'RG 28.07.2013 / 28721', durum: 'incelendi', ozet: 'Maruziyet sınır değerleri, ölçüm ve korunma önlemleri.' },
-      { id: 'm13', baslik: 'Titreşim Yönetmeliği', kategori: 'Yönetmelik', dayanak: 'RG 22.08.2013 / 28743', durum: 'incelendi', ozet: 'El-kol ve tüm vücut titreşimi maruziyet değerleri.' },
-      { id: 'm14', baslik: 'Elle Taşıma İşleri Yönetmeliği', kategori: 'Yönetmelik', dayanak: 'RG 24.07.2013 / 28717', durum: 'incelendi', ozet: 'Ergonomik risk değerlendirmesi ve yardımcı ekipman kullanımı.' },
-      { id: 'm15', baslik: 'Ekranlı Araçlarla Çalışmalar Yönetmeliği', kategori: 'Yönetmelik', dayanak: 'RG 16.07.2013 / 28709', durum: 'incelendi', ozet: 'Ofis ergonomisi, göz muayenesi ve ara verme düzeni.' },
-      { id: 'm16', baslik: 'Yapı İşlerinde Sağlık ve Güvenlik Yönetmeliği', kategori: 'Yönetmelik', dayanak: 'RG 05.10.2013 / 28786', durum: 'gozdenGecir', ozet: 'İskele, kazı, yüksekte çalışma ve koordinatör yükümlülükleri.' },
-      { id: 'm17', baslik: 'İş Kazası ve Meslek Hastalığı Bildirim Usulleri', kategori: 'Tebliğ', dayanak: 'SGK 2018/24 Genelge', durum: 'incelendi', ozet: 'Üç iş günü içinde bildirim ve e-bildirge işlemleri.' },
-      { id: 'm18', baslik: 'İşyerlerinde İşveren ve Çalışan Temsilcisi Görevleri', kategori: 'Yönetmelik', dayanak: 'RG 31.01.2013 / 28554', durum: 'incelendi', ozet: 'Çalışan temsilcisi seçimi, yetkileri ve desteklenmesi.' },
-      { id: 'm19', baslik: 'İSG Veri Analizi ve Yıllık Değerlendirme Rehberi', kategori: 'Rehber', dayanak: 'İSGGM yayını', durum: 'gozdenGecir', ozet: 'Kaza oranları, DÖF kapanma süresi ve performans göstergeleri.' },
-      { id: 'm20', baslik: 'ISO 45001 İş Sağlığı ve Güvenliği Yönetim Sistemi', kategori: 'Standart', dayanak: 'TS ISO 45001:2018', durum: 'incelendi', ozet: 'Tehlike tanımlama, uygunluk değerlendirmesi ve sürekli iyileştirme.' }
-    ];
+    /* Mevzuat kataloğu tek kaynaktan gelir: assets/js/varsayilan-veri.js
+       (ISG.MEVZUAT_KATALOGU). Böylece demo ve yayın aynı başlıkları görür. */
+    var mevzuat = ISG.MEVZUAT_KATALOGU();
 
     return {
       surum: 4,

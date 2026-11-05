@@ -1,7 +1,7 @@
 # Otonom Geliştirme Raporu — İSG Takip Merkezi
 
 **Tarih:** 2026-11-04  
-**Sürüm:** 2.18.1 (yayın paketi yenilendi)  
+**Sürüm:** 2.19.0 (yayın paketi yenilendi)  
 **Canlı adres:** https://mehmetkurt0948-dev.github.io/isg-takip-merkezi/  
 **Kapsam:** Yetkilendirme ve yönetici onay mekanizması, çalışma planında yıl/ay seçimi,
 çoklu personel veri modeli, dosya kontrolü işyeri bağının korunması, KVKK maskeleme.
@@ -50,6 +50,12 @@ güncellemeye geçirildi ve **T.C. kimlik numarası** listede maskelenmeye başl
 > `assets/js/sayfalar-rapor.js` (ortak `SAYFALAR.ekipListesi`), `index.html`
 > (yetki listesi `secim-listesi`, plan diyaloğu `#acilPlanEkip`), `assets/css/style.css`
 > (onay kutusu hizalama kuralları), `tools/kontrol.js` (13 yeni kontrol).
+>
+> **§14 sonrası ek değişiklikler:** `assets/js/varsayilan-veri.js`
+> (`ISG.MEVZUAT_KATALOGU`, 20 başlık + `kapsam` alanı), `assets/js/sayfalar-rapor.js`
+> (`mevzuatKaynagi`, `Kapsam:` satırı, kapsam araması), `assets/css/style.css`
+> (`.mevzuat-kapsam`), `tools/demo-veri.js` (katalog tek kaynak),
+> `tools/kontrol.js` (§15'e 14 kontrol).
 
 ---
 
@@ -389,5 +395,69 @@ personel davranışının aynısı isteniyordu.
 `--denetle` → güncel. `node tools/kontrol.js` → **736 geçti, 0 başarısız**
 (13 yeni kontrol). `belge-test` 27, `kullanicitest / sagliktest /
 sagliktoplutest / senkrontest / girisbuluttest` → hepsi geçti.
+
+## 14. Mevzuat ve kapsam sayfası: yerleşik kapsam kataloğu (kullanıcı isteği)
+
+**İstek:** "Mevzuat kapsam" bölümünün canlı sitedeki `Mevzuat ve kapsam` sayfasına
+eklenmesi.
+
+**Durum tespiti:** Sayfa `assets/js/sayfalar-rapor.js → SAYFALAR.mevzuat` içinde
+zaten vardı; ancak listeyi yalnızca `hesap.mevzuat` dizisinden okuyordu. Bu dizi
+`ISG.BOS_VERI()` içinde **boş** açılıyor ve arayüzde mevzuat başlığı **ekleme
+yolu yok** (kayıt/dışa aktarma akışı bulunmuyor). Sonuç: canlı sitede sayfa her
+zaman "0 başlık / Başlık bulunamadı" görünüyordu. Ekteki `İsg takip merkezi chat
+cpt` klasöründe ise kod yok — yalnızca `README.md` ve boş `site/`, `sources/`
+klasörleri var (kaynak, ChatGPT oturumu istediği için alınamamış). Bu yüzden
+kapsam içeriği projenin kendi mevzuat kataloğundan (eski `tools/demo-veri.js`
+dizisi) üretilip **kalıcı katalog** hâline getirildi.
+
+### 14.1 Yapılan değişiklikler
+
+| Dosya | Değişiklik |
+|---|---|
+| `assets/js/varsayilan-veri.js` | Yeni `ISG.MEVZUAT_KATALOGU()`: 20 başlık (1 kanun, 14 yönetmelik, 2 tebliğ, 1 rehber, 1 standart) ve her başlıkta `kapsam` alanı |
+| `assets/js/sayfalar-rapor.js` | `mevzuatKaynagi()` yardımcısı: kayıtlı başlık varsa onu, yoksa yerleşik kataloğu okur (veriye yazmaz); satırlarda `Kapsam:` alt satırı; sayaç, kategori listesi ve "gözden geçir" sayısı tek kaynaktan; aramaya `kapsam` alanı eklendi |
+| `assets/css/style.css` | `.mevzuat-satir small.mevzuat-kapsam` ve içindeki `b` için stil (mevcut `.mevzuat-satir small` kuralını ezer) |
+| `tools/demo-veri.js` | Kendi mevzuat dizisi kaldırıldı; `ISG.MEVZUAT_KATALOGU()` çağrılıyor (demo ile yayın aynı başlıkları görür) |
+| `tools/kontrol.js` | §15'e 14 yeni kontrol (kapsam satırı, kapsam araması, kategori filtresi, yerleşik katalog davranışı) |
+
+### 14.2 Kapsam alanı ne yazıyor?
+
+Her başlık üç bilgi taşıyor: `dayanak` (RG tarih/sayı veya standart no), `ozet`
+(tek cümlelik yükümlülük) ve **`kapsam`** (kimlerin kapsamda olduğu). Örnek:
+
+- `m01` **6331** — çalışanı olan tüm kamu/özel işyerleri; ev hizmetleri, TSK,
+  genel kolluk, MİT faaliyetleri ve afet-acil müdahale faaliyetleri **kapsam dışı**.
+- `m02` **Risk Değerlendirmesi Yönetmeliği** — tüm çalışanlar (alt işveren, geçici
+  çalışan, stajyer dahil); yenileme çok tehlikeli 2 / tehlikeli 4 / az tehlikeli 6 yıl.
+- `m03` **İSG Kurulları** — 50 ve üzeri çalışanı olan sürekli işler; alt işveren
+  çalışanları sayıya eklenir, eşik altında çalışan temsilcisi.
+- `m20` **ISO 45001** — gönüllü standart; sözleşme veya müşteri şartıyla bağlayıcı.
+
+Katalog bir uygunluk belgesi sayılmıyor: sayfadaki mevcut uyarı metni korunarak
+"güncel birleştirilmiş metinler Resmî Gazete / Mevzuat Bilgi Sistemi üzerinden
+doğrulanmalıdır" bilgisi duruyor.
+
+### 14.3 Davranış kuralları
+
+- **Katalog veriye yazılmaz.** `hesap.mevzuat` boş kalır; yedek, dışa aktarma ve
+  bulut eşitlemesi katalogla şişmez. Kayıt geldiğinde (ileride başlık ekleme
+  eklenirse) sayfa otomatik olarak kayıtlı listeye döner.
+- **Kullanıcıya görünür bilgi.** Yerleşik katalog kullanılıyorsa sayfada
+  "Yerleşik mevzuat kataloğu" açıklaması ve "Liste yerleşik katalogdan geliyor"
+  ifadesi çıkar; kayıtlı başlık varsa bu ifadeler kaybolur.
+- **Boş açılış kuralı bozulmadı.** `ISG.BOS_VERI()` hâlâ boş açılır; §0b
+  testlerindeki "tüm kayıt listeleri boş" kontrolü geçmeye devam ediyor.
+
+**Test (kontrol.js §15):** 20 satır; her satırda `small.mevzuat-kapsam`; "Kapsam:"
+ve "kapsam dışıdır" metni; katalog kayıtlarının `id/baslik/dayanak/kapsam/ozet`
+alanları; "gürültü" araması 1 satır; "kapsam dışıdır" araması 1 satır (kapsam
+metni taranıyor); `Standart` kategorisi 1 satır; kayıt yokken yerleşik katalog 20
+satır + uyarı metni + sayaç; mevzuat dizisinin **boş kalması** (veriye yazılmıyor);
+demo yeniden yüklenince yerleşik uyarının kaybolması.
+
+**Doğrulama:** `node tools/kontrol.js` → **747 geçti, 0 başarısız**;
+`node tools/belge-test.js` → geçti; `node tools/varlik-surum.js --denetle` → güncel.
+
 
 

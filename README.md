@@ -887,6 +887,22 @@ Notlar:
 
 ## 10. Bu sürümde neler değişti?
 
+### 2.19.0 — "Mevzuat ve kapsam" sayfası yerleşik kapsam kataloğuyla açılıyor
+
+- **Boş açılışta da dolu kapsam listesi.** Sayfa kayıtlı başlık yokken
+  `ISG.MEVZUAT_KATALOGU()` (`assets/js/varsayilan-veri.js`) kataloğunu okur:
+  6331 sayılı Kanun ve bağlı yönetmeliklerden **20 başlık**. Katalog veriye
+  yazılmaz; yedek, dışa aktarma ve bulut eşitlemesine girmez. Yerleşik katalog
+  kullanıldığında sayfada "Yerleşik mevzuat kataloğu" bilgisi görünür.
+- **Her başlıkta "Kapsam" satırı.** Katalog kayıtlarına `kapsam` alanı eklendi:
+  hangi işyerleri/çalışanlar kapsamda (alt işveren, geçici çalışan, stajyer dahil),
+  hangi faaliyetler kapsam dışı (ev hizmetleri, TSK, genel kolluk, MİT), yenileme
+  süreleri gibi kısa kapsam notları listelenir.
+- **Arama kapsam metnini de tarıyor.** Arama kutusu artık `kapsam` alanında da
+  eşleşir; kategori filtresi ve "gözden geçir" sayacı aynı kaynaktan beslenir.
+- **Tek kaynak.** `tools/demo-veri.js` kendi mevzuat dizisini taşımıyor,
+  `ISG.MEVZUAT_KATALOGU()` çağırıyor; demo ile yayın aynı başlıkları görür.
+
 ### 2.18.1 — Giriş ve şifre sıfırlama ortak kaydı da deniyor
 
 - **Eşitleme giriş ekranından önce başlar.** `ISG.uygulama`, giriş katmanı

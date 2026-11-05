@@ -390,26 +390,39 @@
 
   /* ---------- Mevzuat ve kapsam ---------- */
 
+  /* Kayıtlı mevzuat başlığı yoksa sayfa yerleşik kataloğu gösterir; böylece boş
+     açılan cihazda "Mevzuat ve kapsam" listesi boş kalmaz. Katalog veriye yazılmaz,
+     yalnızca okunur (kayıt değildir). */
+  function mevzuatKaynagi(hesap) {
+    var kayitli = (hesap && hesap.mevzuat) || [];
+    if (kayitli.length) { return { liste: kayitli, yerlesik: false }; }
+    var katalog = typeof ISG.MEVZUAT_KATALOGU === 'function' ? ISG.MEVZUAT_KATALOGU() : [];
+    return { liste: katalog, yerlesik: katalog.length > 0 };
+  }
+
   SAYFALAR.mevzuat = function () {
     var hesap = veri();
+    var kaynak = mevzuatKaynagi(hesap);
+    var basliklar = kaynak.liste;
     var kategoriler = [];
-    (hesap.mevzuat || []).forEach(function (madde) {
+    basliklar.forEach(function (madde) {
       if (kategoriler.indexOf(madde.kategori) < 0) { kategoriler.push(madde.kategori); }
     });
     var arama = String(UI.mevzuatArama || '').toLocaleLowerCase('tr');
-    var liste = (hesap.mevzuat || []).filter(function (madde) {
+    var liste = basliklar.filter(function (madde) {
       if (UI.mevzuatKategori && madde.kategori !== UI.mevzuatKategori) { return false; }
-      if (arama && [madde.baslik, madde.dayanak, madde.ozet].join(' ').toLocaleLowerCase('tr').indexOf(arama) < 0) { return false; }
+      if (arama && [madde.baslik, madde.dayanak, madde.kapsam, madde.ozet].join(' ').toLocaleLowerCase('tr').indexOf(arama) < 0) { return false; }
       return true;
     });
     var isyeri = ISG.isyeriBul(hesap, UI.kapsam) || (hesap.isyerleri || []).filter(function (i) { return i.ana; })[0] || (hesap.isyerleri || [])[0];
-    var gozdenGecir = (hesap.mevzuat || []).filter(function (m) { return m.durum === 'gozdenGecir'; }).length;
+    var gozdenGecir = basliklar.filter(function (m) { return m.durum === 'gozdenGecir'; }).length;
 
     var satirlar = liste.map(function (madde, sira) {
       return '<div class="mevzuat-satir">' +
         '<span class="mevzuat-no">' + (sira + 1) + '</span>' +
         '<div><strong>' + kacis(madde.baslik) + '</strong>' +
           '<small>' + kacis(madde.kategori) + ' · ' + kacis(madde.dayanak) + '</small>' +
+          (madde.kapsam ? '<small class="mevzuat-kapsam"><b>Kapsam:</b> ' + kacis(madde.kapsam) + '</small>' : '') +
           '<p>' + kacis(madde.ozet) + '</p></div>' +
         B.rozet(madde.durum === 'gozdenGecir' ? 'Gözden geçir' : 'İncelendi', madde.durum === 'gozdenGecir' ? 'uyari' : 'iyi') +
       '</div>';
@@ -420,13 +433,18 @@
 
       '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
         '<h2>Mevzuattan işyeri takibine</h2>' +
-        '<p class="muted">' + B.sayi((hesap.mevzuat || []).length) + ' başlıkta kapsam, dayanak ve belge takibi. Son kaynak kontrolü: ' + B.tarih(hesap.ayarlar.sonMevzuatKontrolu) + '.</p>' +
+        '<p class="muted">' + B.sayi(basliklar.length) + ' başlıkta kapsam, dayanak ve belge takibi.' +
+          (kaynak.yerlesik ? ' Liste yerleşik katalogdan geliyor.' : '') +
+          ' Son kaynak kontrolü: ' + B.tarih(hesap.ayarlar.sonMevzuatKontrolu) + '.</p>' +
       '</div><div class="kart-ic">' +
         '<div class="prose">' +
           '<p>Bu katalog bir uygunluk belgesi değildir. Resmî kaynak özetleri ve rehberler incelendi; güncel birleştirilmiş metinlerin tamamına erişilemedi. ' +
             'Her başlığın teyit durumu aşağıdadır. Mevzuat değişiklikleri otomatik izlenmez. Sağlık verileri ve kişisel dosyalar için bu ortak kayıt ekranını kullanmayın. ' +
             'Yenileme tarihleri kaydettiğiniz belge tarihi ve tehlike sınıfından hesaplanır; olay ve faaliyet kaynaklı erken yenileme gerekebilir.</p>' +
         '</div>' +
+        (kaynak.yerlesik ? '<p class="bolum-aciklama" style="margin-top:10px"><strong>Yerleşik mevzuat kataloğu.</strong> ' +
+          'Bu cihazda kayıtlı mevzuat başlığı yok; liste 6331 sayılı Kanun ve bağlı yönetmeliklerin kapsam özetiyle açıldı. ' +
+          'Katalog kayıt sayılmaz, yedeğe ve dışa aktarıma girmez. Kapsam kararı sizin işyerinize aitse kontrol maddesi açıp gerekçesini yazın.</p>' : '') +
         '<div class="filtre-cubugu" style="padding:16px 0 0;border-bottom:0;margin-top:10px">' +
           '<select data-ui="mevzuatKategori" aria-label="Kategori filtresi"><option value="">Tüm başlıklar</option>' +
             kategoriler.map(function (kategori) {
