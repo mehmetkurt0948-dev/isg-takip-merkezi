@@ -1193,13 +1193,28 @@
       form.elements.hazirlanma.value = kayit.hazirlanma || '';
       form.elements.sonYenileme.value = kayit.sonYenileme || '';
       form.elements.tatbikat.value = kayit.tatbikat || '';
-      (kayit.ekip || []).forEach(function (uye) {
-        var alan = { 'Acil durum koordinatörü': 'ekip_koordinator', 'Yangın söndürme ekibi': 'ekip_yangin', 'İlk yardım ekibi': 'ekip_ilkyardim', 'Tahliye / arama kurtarma': 'ekip_tahliye' }[uye.rol];
-        if (alan && form.elements[alan]) { form.elements[alan].value = uye.ad || ''; }
-      });
     }
+    acilPlanEkipCiz(isyeriId);
     eklerCiz('acil', isyeriId, 'acilPlanBelgeListe', 'acilPlanBelgeOzet');
     diyalogAc(el('acilPlanDiyalog'), form.elements.hazirlanma);
+  }
+
+  /* Plan diyaloğundaki ekip bölümü: her görev için kişi listesi ve "Kişi ekle"
+     düğmeleri. Risk değerlendirmesindeki çoklu personel düzeniyle aynıdır; böylece
+     aynı göreve (ör. işyeri hekimi) birden fazla kişi kaydedilebilir. */
+  function acilPlanEkipCiz(isyeriId) {
+    var kutu = el('acilPlanEkip');
+    if (!kutu) { return; }
+    kutu.innerHTML = ISG.sayfalar.ekipListesi('acil', isyeriId, ISG.ACIL_ROLLERI, function (rol) {
+      var kayit = ISG.ilgiliKayit(veri(), 'acilPlanlar', isyeriId);
+      return ISG.depo.acilEkipUyeleri(kayit, rol.ad);
+    }, 'Kişi eklenmedi');
+  }
+
+  /* Plan diyaloğu açıkken ekip değişikliği yapılırsa liste tazelenir. */
+  function acilPlanEkipTazele(isyeriId) {
+    var diyalog = el('acilPlanDiyalog');
+    if (diyalog && diyalog.open) { acilPlanEkipCiz(isyeriId); }
   }
 
   /* ---------- Ekip üyesi ekleme ---------- */
@@ -1295,6 +1310,7 @@
       else { D.riskEkipUyeSil(isyeriId, rol, temiz); }
       B.bildir('Ekip üyesi kaldırıldı.', 'basari');
       ciz();
+      if (kaynak === 'acil') { acilPlanEkipTazele(isyeriId); }
     }, 'Kaldır');
   }
 
@@ -2836,10 +2852,10 @@
 
   function isyeriKutulari(seciliIds, tumuMu) {
     var isyerleri = veri().isyerleri || [];
-    var liste = ['<label class="satir-secenek"><input type="checkbox" class="kullanici-isyeri" value="__tumu"' +
+    var liste = ['<label><input type="checkbox" class="kullanici-isyeri" value="__tumu"' +
       (tumuMu ? ' checked' : '') + '><span><strong>Tüm işyerleri</strong><small>Yeni açılan işyerleri de kapsar</small></span></label>'];
     isyerleri.forEach(function (isyeri) {
-      liste.push('<label class="satir-secenek"><input type="checkbox" class="kullanici-isyeri" value="' + B.kacis(isyeri.id) + '"' +
+      liste.push('<label><input type="checkbox" class="kullanici-isyeri" value="' + B.kacis(isyeri.id) + '"' +
         (tumuMu || seciliIds.indexOf(isyeri.id) >= 0 ? ' checked' : '') + '>' +
         '<span><strong>' + B.kacis(isyeri.ad) + '</strong><small>' + B.kacis(isyeri.bolum || isyeri.sehir || '—') + '</small></span></label>');
     });
@@ -3547,6 +3563,8 @@
       diyalogKapat(el('ekipUyeDiyalog'));
       B.bildir('Ekip üyesi kaydedildi.', 'basari');
       ciz();
+      /* Acil durum planı diyaloğu açıksa ekip listesi anında güncellenir. */
+      if (veriForm.kaynak === 'acil') { acilPlanEkipTazele(veriForm.isyeriId); }
     });
 
     formuBagla('acilPlanForm', function (form) {
@@ -3556,16 +3574,8 @@
         sonYenileme: veriForm.sonYenileme,
         tatbikat: veriForm.tatbikat
       });
-      [
-        ['Acil durum koordinatörü', veriForm.ekip_koordinator],
-        ['Yangın söndürme ekibi', veriForm.ekip_yangin],
-        ['İlk yardım ekibi', veriForm.ekip_ilkyardim],
-        ['Tahliye / arama kurtarma', veriForm.ekip_tahliye]
-      ].forEach(function (satir) {
-        D.acilEkipEkle(veriForm.isyeriId, satir[0], satir[1]);
-      });
       diyalogKapat(el('acilPlanDiyalog'));
-      B.bildir('Acil durum planı ve ekip kaydedildi.', 'basari');
+      B.bildir('Acil durum planı kaydedildi.', 'basari');
       ciz();
     });
   }

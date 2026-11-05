@@ -171,6 +171,22 @@
     }).join('') + '</div>';
   }
 
+  /* Görev grubu listesi: risk kartı, acil durum kartı ve acil plan diyaloğu aynı
+     düzeni kullanır. `uyelerAl` verilen roldeki kişi listesini döndürür. */
+  function ekipListesi(kaynak, isyeriId, roller, uyelerAl, bosMetin) {
+    return '<div class="rol-list">' + roller.map(function (rol) {
+      var uyeler = uyelerAl(rol) || [];
+      var anahtar = kaynak === 'acil' ? rol.ad : rol.id;
+      return '<div class="rol-satir"><span class="rol-ad">' + kacis(rol.ad) + '</span>' +
+        rolOzeti(uyeler, bosMetin) +
+        ekipAraclari(kaynak, isyeriId, anahtar, uyeler) + '</div>' +
+        uyeAltSatirlari(kaynak, isyeriId, anahtar, uyeler);
+    }).join('') + '</div>';
+  }
+
+  /* Diyalog ve kartlar aynı listeyi üretir; tek kaynak korunur. */
+  SAYFALAR.ekipListesi = ekipListesi;
+
   function riskKarti(isyeri, hesap) {
     var kayit = ISG.ilgiliKayit(hesap, 'riskEkipleri', isyeri.id);
     var ozet = ISG.riskEkipOzeti(kayit);
@@ -194,13 +210,9 @@
           '<p class="bolum-baslik">Risk değerlendirmesi ekibi</p>' +
           (ozet.eksik ? B.rozet(ozet.eksik + ' rol eksik', 'tehlike') : B.rozet('Ekip tam', 'iyi')) +
         '</div>' +
-        '<div class="rol-list">' + ISG.RISK_ROLLERI.map(function (rol) {
-          var uyeler = ISG.depo.riskEkipUyeleri(kayit, rol.id);
-          return '<div class="rol-satir"><span class="rol-ad">' + kacis(rol.ad) + '</span>' +
-            rolOzeti(uyeler) +
-            ekipAraclari('risk', isyeri.id, rol.id, uyeler) + '</div>' +
-            uyeAltSatirlari('risk', isyeri.id, rol.id, uyeler);
-        }).join('') + '</div>' +
+        ekipListesi('risk', isyeri.id, ISG.RISK_ROLLERI, function (rol) {
+          return ISG.depo.riskEkipUyeleri(kayit, rol.id);
+        }) +
         '<p style="margin-top:8px"><button type="button" class="dugme ince" data-islem="ekip-uye" ' +
           'data-kaynak="risk" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') +
           'Ekip üyesi ekle</button></p>' +
@@ -296,13 +308,9 @@
           '<p class="bolum-baslik">Acil durum planı hazırlama ekibi</p>' +
           (ekip.length ? B.rozet(ekip.length + ' kişi', 'iyi') : B.rozet('Kişi eklenmedi', 'tehlike')) +
         '</div>' +
-        '<div class="rol-list">' + ekipRolleri.map(function (rol) {
-          var uyeler = ekip.filter(function (k) { return k.rol === rol.ad; });
-          return '<div class="rol-satir"><span class="rol-ad">' + kacis(rol.ad) + '</span>' +
-            rolOzeti(uyeler, 'Kişi eklenmedi') +
-            ekipAraclari('acil', isyeri.id, rol.ad, uyeler) + '</div>' +
-            uyeAltSatirlari('acil', isyeri.id, rol.ad, uyeler);
-        }).join('') + '</div>' +
+        ekipListesi('acil', isyeri.id, ekipRolleri, function (rol) {
+          return ekip.filter(function (k) { return k.rol === rol.ad; });
+        }, 'Kişi eklenmedi') +
         '<p style="margin-top:8px"><button type="button" class="dugme ince" data-islem="ekip-uye" ' +
           'data-kaynak="acil" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') +
           'Ekip üyesi ekle</button></p>' +

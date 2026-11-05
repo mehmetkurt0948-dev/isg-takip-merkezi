@@ -14,7 +14,7 @@
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="assets/css/style.css?v=abdfa803">
+  <link rel="stylesheet" href="assets/css/style.css?v=420bca63">
 </head>
 <body class="oturum-yok">
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -387,7 +387,7 @@
         </label>
         <fieldset class="alan genis">
           <legend>Yetkili olduğu işyerleri</legend>
-          <div class="rol-kutulari" id="kullaniciIsyerleri"></div>
+          <div class="secim-listesi" id="kullaniciIsyerleri"></div>
         </fieldset>
       </div>
       <p class="form-ipucu">Yeni kullanıcıda şifre zorunludur. Düzenlemede şifre boş bırakılırsa mevcut şifre korunur.</p>
@@ -1017,23 +1017,12 @@
           <span>Son tatbikat</span>
           <input type="date" name="tatbikat">
         </label>
-        <label class="alan">
-          <span>Acil durum koordinatörü</span>
-          <input type="text" name="ekip_koordinator" list="kisiler" maxlength="80">
-        </label>
-        <label class="alan">
-          <span>Yangın söndürme ekibi</span>
-          <input type="text" name="ekip_yangin" list="kisiler" maxlength="80">
-        </label>
-        <label class="alan">
-          <span>İlk yardım ekibi</span>
-          <input type="text" name="ekip_ilkyardim" list="kisiler" maxlength="80">
-        </label>
-        <label class="alan">
-          <span>Tahliye / arama kurtarma</span>
-          <input type="text" name="ekip_tahliye" list="kisiler" maxlength="80">
-        </label>
       </div>
+      <fieldset class="alan genis" style="margin-bottom:12px">
+        <legend>Plan hazırlama ekibi</legend>
+        <div id="acilPlanEkip"></div>
+        <p class="alan-ipucu" style="margin-top:8px">Her göreve birden fazla kişi ekleyebilirsiniz (ör. iki işyeri hekimi). Kişileri işyeri personelinden seçebilir, belge bilgilerini ekip üyesi penceresinde kaydedebilirsiniz.</p>
+      </fieldset>
       <section class="belge-kutu" aria-labelledby="acilPlanBelgeBaslik">
         <div class="belge-ust">
           <div>
@@ -1192,7 +1181,7 @@
 
   <script src="assets/js/varsayilan-veri.js?v=c807637f"></script>
   <script src="assets/js/kontrol-listeleri.js?v=430de5a3"></script>
-  <script src="assets/js/depo.js?v=a24ad5ec"></script>
+  <script src="assets/js/depo.js?v=33b95c0f"></script>
   <script src="assets/js/bicim.js?v=18930ff4"></script>
   <script src="assets/js/bulut-kimlik.js?v=c22d436d"></script>
   <script src="assets/js/bulut.js?v=ca99ce81"></script>
@@ -1205,9 +1194,9 @@
   <script src="assets/js/plan-toplu.js?v=0f07de95"></script>
   <script src="assets/js/sayfalar.js?v=c64892d6"></script>
   <script src="assets/js/sayfalar-kayit.js?v=3d87e3b8"></script>
-  <script src="assets/js/sayfalar-rapor.js?v=72ecc8fe"></script>
+  <script src="assets/js/sayfalar-rapor.js?v=55441545"></script>
   <script src="assets/js/giris.js?v=89968189"></script>
-  <script src="assets/js/uygulama.js?v=c5e58d89"></script>
+  <script src="assets/js/uygulama.js?v=11e13936"></script>
 </body>
 </html>
 

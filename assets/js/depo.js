@@ -380,12 +380,17 @@
     var son = kayit && (kayit.sonYenileme || kayit.hazirlanma);
     var enGec = son ? ISG.yilEkle(son, sinif.acilYenilemeYil) : '';
     var kalan = ISG.gunFarki(enGec);
+    /* Ekip üyeleri tek biçimde (rol adı + kimlik) okunur: eski kayıtlardaki
+       rol kimliği ya da nesne biçimli ekip alanı görünümde kaybolmaz. */
+    var ekip = kayit && ISG.depo && typeof ISG.depo.acilEkipUyeleri === 'function'
+      ? ISG.depo.acilEkipUyeleri(kayit)
+      : ((kayit && kayit.ekip) || []);
     return {
       son: son || '',
       enGec: enGec,
       kalan: kalan,
       sinif: sinif,
-      ekip: (kayit && kayit.ekip) || []
+      ekip: ekip
     };
   };
 
@@ -1746,16 +1751,44 @@
     else { delete kayit.uyeIdleri[rol]; }
   }
 
+  /* Acil durum planı ekip alanı her zaman dizi olmalı. Çok eski kayıtlarda alan
+     rol→ad eşlemesi (nesne) olarak tutulmuştu; veri kaybı olmadan diziye çevrilir.
+     Görev adı da hem rol kimliği ('hekim') hem rol adı ('İşyeri hekimi') biçiminde
+     yazılmış olabilir; karşılaştırmalar tek biçime indirilir. */
+  function acilEkipHazirla(kayit) {
+    if (!kayit) { return []; }
+    var ham = kayit.ekip;
+    if (Array.isArray(ham)) { return ham; }
+    var liste = [];
+    if (ham && typeof ham === 'object') {
+      Object.keys(ham).forEach(function (rol) {
+        var ad = String(ham[rol] || '').trim();
+        if (ad) { liste.push({ rol: rol, ad: ad, personelId: '' }); }
+      });
+    }
+    kayit.ekip = liste;
+    return liste;
+  }
+
+  function acilRolAdi(deger) {
+    var metin = String(deger || '');
+    var bulunan = (ISG.ACIL_ROLLERI || []).filter(function (rol) {
+      return rol.id === metin || rol.ad === metin;
+    })[0];
+    return bulunan ? bulunan.ad : metin;
+  }
+
   /* Acil durum planındaki üyeler; kimliği olmayan eski kayıtlara geçici kimlik verilir. */
   ISG.depo.acilEkipUyeleri = function (kayit, rol) {
-    if (!kayit || !Array.isArray(kayit.ekip)) { return []; }
-    return kayit.ekip.map(function (uye, sira) {
-      if (rol && uye.rol !== rol) { return null; }
+    if (!kayit) { return []; }
+    var hedef = rol ? acilRolAdi(rol) : '';
+    return acilEkipHazirla(kayit).map(function (uye, sira) {
       var kopya = {};
       Object.keys(uye).forEach(function (alan) { kopya[alan] = uye[alan]; });
       kopya.id = uye.id || ('eski-acil-' + sira);
+      kopya.rol = acilRolAdi(uye.rol);
       return kopya;
-    }).filter(function (uye) { return !!uye; });
+    }).filter(function (uye) { return !hedef || uye.rol === hedef; });
   };
 
   ISG.depo.riskEkipKaydet = function (isyeriId, alanlar) {
@@ -1856,13 +1889,15 @@
       kayit = { isyeriId: isyeriId, hazirlanma: '', sonYenileme: '', tatbikat: '', ekip: [] };
       veri.acilPlanlar.push(kayit);
     }
-    kayit.ekip = kayit.ekip || [];
+    var ekip = acilEkipHazirla(kayit);
     var temiz = String(ad || '').trim();
     if (!temiz) { depo.kaydet(); return kayit; }
-    var yeni = uyeNesnesi(rol, temiz, personelId, ek);
+    /* Görev adı tek biçimde (rol adı) yazılır; eski rol kimliği de kabul edilir. */
+    var rolAdi = acilRolAdi(rol);
+    var yeni = uyeNesnesi(rolAdi, temiz, personelId, ek);
     var anahtar = uyeAnahtari(yeni);
-    var eslesen = kayit.ekip.filter(function (uye) {
-      return uye.rol === rol && uyeAnahtari(uye) === anahtar;
+    var eslesen = ekip.filter(function (uye) {
+      return acilRolAdi(uye.rol) === rolAdi && uyeAnahtari(uye) === anahtar;
     })[0];
     if (eslesen) {
       Object.keys(yeni).forEach(function (alan) {
@@ -1870,7 +1905,7 @@
         eslesen[alan] = yeni[alan];
       });
     } else {
-      kayit.ekip.push(yeni);
+      ekip.push(yeni);
     }
     depo.kaydet();
     return kayit;
@@ -1881,19 +1916,20 @@
     var veri = depo.al();
     var kayit = ISG.ilgiliKayit(veri, 'acilPlanlar', isyeriId);
     if (!kayit) { return null; }
-    var ekip = kayit.ekip || [];
+    var ekip = acilEkipHazirla(kayit);
+    var rolAdi = acilRolAdi(rol);
     /* Kimliği olmayan eski kayıtlar silinirken kimlik kazanır; böylece tek üye
        kaldırılırken rolün tamamı yanlışlıkla silinmez. */
     if (secim) {
       var bulunan = null;
       ekip.forEach(function (uye) {
-        if (uye.rol !== rol) { return; }
+        if (acilRolAdi(uye.rol) !== rolAdi) { return; }
         if (!uye.id) { uye.id = ISG.yeniId('uy'); }
         if (!bulunan && uyeEslesir(uye, secim)) { bulunan = uye; }
       });
       kayit.ekip = bulunan ? ekip.filter(function (uye) { return uye !== bulunan; }) : ekip;
     } else {
-      kayit.ekip = ekip.filter(function (uye) { return uye.rol !== rol; });
+      kayit.ekip = ekip.filter(function (uye) { return acilRolAdi(uye.rol) !== rolAdi; });
     }
     depo.kaydet();
     return kayit;

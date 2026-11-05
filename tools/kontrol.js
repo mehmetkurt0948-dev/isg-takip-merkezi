@@ -862,13 +862,49 @@ function bekle(ms) {
   await bekle(80);
   kontrol('Acil plan diyalogu açıldı', doc.getElementById('acilPlanDiyalog').open === true);
   const acilForm = doc.getElementById('acilPlanForm');
+  kontrol('Plan diyaloğunda çoklu ekip düzenleyicisi var',
+    !!doc.getElementById('acilPlanEkip') && doc.querySelectorAll('#acilPlanEkip .rol-satir').length === 10,
+    String(doc.querySelectorAll('#acilPlanEkip .rol-satir').length));
+  kontrol('Plan diyaloğu tek kişilik ekip alanı içermiyor',
+    !acilForm.elements.ekip_koordinator && !acilForm.elements.ekip_hekim,
+    'ekip_koordinator=' + String(!!acilForm.elements.ekip_koordinator));
+  /* Plan diyaloğundan aynı göreve iki kişi: risk değerlendirmesindeki çoklu
+     personel davranışının acil durum planında da çalıştığının regresyon testi. */
+  const planEkle = async (rol, ad) => {
+    doc.querySelector('#acilPlanEkip [data-islem="ekip-uye"][data-kaynak="acil"][data-isyeri="iy1"][data-rol="' + rol + '"]').click();
+    await bekle(80);
+    const form = doc.getElementById('ekipUyeForm');
+    form.elements.ad.value = ad;
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await bekle(120);
+  };
+  kontrol('Plan diyaloğu ekip ekleme düğmesi var',
+    !!doc.querySelector('#acilPlanEkip [data-islem="ekip-uye"][data-kaynak="acil"][data-isyeri="iy1"][data-rol="İşyeri hekimi"]'));
+  await planEkle('İşyeri hekimi', 'Dr. Ayla Yıldız');
+  await planEkle('İşyeri hekimi', 'Dr. Barış Taşdemir');
+  const acilKayit = ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy1');
+  kontrol('Acil planda aynı göreve iki hekim kaydedildi',
+    acilKayit.ekip.filter((u) => u.rol === 'İşyeri hekimi').length === 2,
+    JSON.stringify(acilKayit.ekip.map((u) => u.rol + ':' + u.ad)));
+  kontrol('Plan diyaloğu ekibi anında tazelendi',
+    /2 kişi/.test(metin('#acilPlanEkip')),
+    metin('#acilPlanEkip').slice(0, 120));
   acilForm.elements.sonYenileme.value = '2026-02-01';
-  acilForm.elements.ekip_koordinator.value = 'Barış Taşdemir';
   acilForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   await bekle(120);
-  const acilKayit = ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy1');
   kontrol('Acil plan yenileme kaydedildi', acilKayit.sonYenileme === '2026-02-01');
-  kontrol('Acil ekip üyesi eklendi', acilKayit.ekip.some((u) => u.ad === 'Barış Taşdemir'));
+  kontrol('Acil ekip üyeleri plan kaydında korundu',
+    ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy1').ekip.filter((u) => u.rol === 'İşyeri hekimi').length === 2);
+
+  /* Eski kayıt biçimleri: nesne (rol→ad) ve rol kimliği ile yazılmış görev adı. */
+  const eskiEkipKaydi = { isyeriId: 'iy1', ekip: { hekim: 'Dr. Eski Kayıt' } };
+  kontrol('Eski nesne biçimli acil ekip okunuyor',
+    ISG.depo.acilEkipUyeleri(eskiEkipKaydi, 'İşyeri hekimi').length === 1);
+  kontrol('Eski acil ekip dizisine çevrildi', Array.isArray(eskiEkipKaydi.ekip));
+  kontrol('Rol kimliğiyle yazılmış üye görünüyor',
+    ISG.depo.acilEkipUyeleri({ ekip: [{ rol: 'hekim', ad: 'Dr. Kimlik' }] }, 'İşyeri hekimi').length === 1);
+  kontrol('Farklı görev grubu ayrı kalıyor',
+    ISG.depo.acilEkipUyeleri({ ekip: [{ rol: 'hekim', ad: 'Dr. Kimlik' }] }, 'İlk yardım ekibi').length === 0);
 
   console.log('\n12a) Risk ve acil durum ekleri');
   const ekIcerik = 'data:text/plain;base64,' + Buffer.from('İSG belgesi').toString('base64');
@@ -931,8 +967,8 @@ function bekle(ms) {
   kontrol('Acil durum destek rolleri listeleniyor', doc.querySelectorAll('.risk-kart .rol-satir').length === 60,
     String(doc.querySelectorAll('.risk-kart .rol-satir').length));
   kontrol('Acil planda ekip üyesi düğmeleri var',
-    doc.querySelectorAll('[data-islem="ekip-uye"][data-kaynak="acil"]').length === 66,
-    String(doc.querySelectorAll('[data-islem="ekip-uye"][data-kaynak="acil"]').length));
+    doc.querySelectorAll('#gorunum [data-islem="ekip-uye"][data-kaynak="acil"]').length === 66,
+    String(doc.querySelectorAll('#gorunum [data-islem="ekip-uye"][data-kaynak="acil"]').length));
   doc.querySelector('[data-islem="ekip-uye"][data-kaynak="acil"][data-isyeri="iy2"][data-rol="Destek elemanı"]').click();
   await bekle(80);
   const acilEkleForm = doc.getElementById('ekipUyeForm');
@@ -1955,6 +1991,18 @@ function bekle(ms) {
   const kullaniciForm = doc.getElementById('kullaniciForm');
   const yetkiKutulari = Array.from(doc.querySelectorAll('#kullaniciIsyerleri .kullanici-isyeri'));
   kontrol('İşyeri yetki kutuları dolduruldu', yetkiKutulari.length > 1, String(yetkiKutulari.length));
+  /* Yetki listesi hizası: kutular liste kutusunun (.secim-listesi) içinde,
+     etiketler tek tip satır; eski `satir-secenek` sınıfı kalmadı. */
+  const yetkiListe = doc.getElementById('kullaniciIsyerleri');
+  kontrol('Yetki listesi secim-listesi kabında', !!yetkiListe && yetkiListe.classList.contains('secim-listesi'),
+    yetkiListe ? yetkiListe.className : 'yok');
+  kontrol('Yetki satırlarında eski hizasız sınıf yok', doc.querySelectorAll('#kullaniciIsyerleri .satir-secenek').length === 0,
+    String(doc.querySelectorAll('#kullaniciIsyerleri .satir-secenek').length));
+  kontrol('Her yetki kutusu kendi etiketi içinde',
+    yetkiKutulari.every((kutu) => kutu.closest('label') === kutu.parentElement &&
+      !!kutu.parentElement.querySelector('strong')));
+  kontrol('Yetki etiketleri ad + açıklama taşıyor',
+    yetkiKutulari.every((kutu) => !!kutu.parentElement.querySelector('span > strong')));
   kullaniciForm.elements.adSoyad.value = 'Regresyon Kullanıcısı';
   kullaniciForm.elements.eposta.value = 'regresyon.kullanicisi@ornek.com';
   kullaniciForm.elements.rol.value = 'yetkili';

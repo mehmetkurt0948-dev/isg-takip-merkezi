@@ -44,6 +44,13 @@ güncellemeye geçirildi ve **T.C. kimlik numarası** listede maskelenmeye başl
 | `assets/css/style.css` | Ay seçim ızgarası, çoklu personel alt satırları, onay eski/yeni tablosu ve ret gerekçesi alanı stilleri; **rol satırı düzen düzeltmesi** (etiket sıkışması/sarması) |
 | `tools/kontrol.js` | Yeni test bölümleri (22–25), güncellenmiş rol/buton sayıları ve düzen regresyon testleri |
 
+> **§13 sonrası ek değişiklikler:** `assets/js/depo.js` (acil ekip normalizasyonu:
+> `acilEkipHazirla`, `acilRolAdi`, `acilEkipUyeleri/Ekle/Sil`), `assets/js/uygulama.js`
+> (acil plan diyaloğunda çoklu ekip düzenleyicisi, `isyeriKutulari` yeni markup),
+> `assets/js/sayfalar-rapor.js` (ortak `SAYFALAR.ekipListesi`), `index.html`
+> (yetki listesi `secim-listesi`, plan diyaloğu `#acilPlanEkip`), `assets/css/style.css`
+> (onay kutusu hizalama kuralları), `tools/kontrol.js` (13 yeni kontrol).
+
 ---
 
 ## 3. Yetkilendirme ve yönetici onay mekanizması
@@ -319,4 +326,68 @@ parça ve tam yazılır, kişi alt satırında "Belge sınıfı: A" etiketi gör
 → **723 geçti, 0 başarısız**; `node tools/belge-test.js` → 27 geçti;
 `kullanicitest / sagliktest / sagliktoplutest / senkrontest / girisbuluttest`
 → hepsi 0. `npm run yayin` → 28 dosya.
+
+## 13. Ek düzeltme (kullanıcı bildirimi): yetki kutuları hizası + acil planda çoklu ekip
+
+### 13.1 Kullanıcılar / Yetkiler — işaretleme kayması
+
+**Belirti:** Yeni kullanıcı diyaloğundaki "Yetkili olduğu işyerleri" listesinde
+onay kutuları satırın sağına kayıyor, uzun işyeri adlarında kutu bir alt satıra
+düşüyor ve etiketler tek hizada durmuyordu (ekli görsel).
+
+**Kök neden:** Liste kapsayıcısı `rol-kutulari`, satırlar `satir-secenek`
+sınıfını kullanıyordu ve bu iki sınıfın **hiçbir CSS kuralı yoktu**. Kutular bu
+yüzden satır içi (inline) akışa düşüyordu. Dahası kapsayıcı `fieldset.alan`
+içindeydi; `.alan input { width: 100% }` kuralı onay kutularını da tam satır
+genişliğine açıyor, işaret ile etiketin yerini bozuyordu.
+
+**Çözüm:**
+- Kapsayıcı, projede zaten var olan `.secim-listesi` bileşenine bağlandı
+  (`index.html` → `class="secim-listesi"`); satırlardaki `satir-secenek` sınıfı
+  kaldırıldı, her kutu kendi `<label>` + `<strong>`/`<small>` yapısında.
+- `.alan` bloğundan **sonra** gelen yeni kurallar (`style.css`):
+  onay kutusu `15×15`, `flex: none`, `width:auto`; etiket `display:flex` +
+  `align-items:flex-start`; ad ve açıklama `span` içinde alt alta.
+  Böylece işaretler tek sütunda hizalanır, açıklama taşmaz.
+- `isyeriKutulari()` (uygulama.js) markup'ı yeni yapıya göre sadeleştirildi.
+
+### 13.2 Acil Durum Planı — aynı göreve birden fazla kişi
+
+**Belirti:** "Acil durum planı" diyaloğunda görev başına tek isim alanı vardı
+(koordinatör, yangın, ilk yardım, tahliye). Aynı göreve ikinci kişi (ör. ikinci
+bir işyeri hekimi) bu diyalogdan eklenemiyordu; risk değerlendirmesindeki çoklu
+personel davranışının aynısı isteniyordu.
+
+**Çözüm:**
+- `acilPlanDiyalog` içindeki dört tek kişilik metin alanı kaldırıldı; yerine
+  `#acilPlanEkip` çoklu ekip düzenleyicisi geldi. Risk kartındaki satır düzeni
+  ortak yardımcıya taşındı: `SAYFALAR.ekipListesi()` (`sayfalar-rapor.js`) hem
+  risk kartı, hem acil kartı, hem plan diyaloğu için **tek kaynak**.
+- Plan diyaloğu `ACIL_ROLLERI`nin **10 görev grubunu** da listeler; her satırda
+  kişi özeti ("N kişi"), "Kişi ekle" ve kişi başına "Düzenle / Kaldır" bulunur.
+  Kişi ekleme/silme sonrası diyalog listesi anında tazelenir
+  (`acilPlanEkipTazele`).
+- `acilPlanForm` gönderimi artık yalnızca tarihleri kaydeder
+  (`D.acilPlanKaydet`); ekip üyeleri plan kaydı sırasında **silinmez**.
+- Depo katmanı sağlamlaştırıldı (`depo.js`):
+  `acilEkipHazirla()` çok eski kayıtlardaki **nesne** biçimli ekip alanını
+  (rol→ad) diziye çevirir; `acilRolAdi()` hem rol kimliğini (`hekim`) hem rol
+  adını (`İşyeri hekimi`) aynı görev kabul eder. `acilEkipEkle/Sil/Uyeleri` ve
+  `ISG.acilPlanOzeti` bu köprüyü kullanır — eski kayıtlarda kayıtlı kişiler
+  görünümde kaybolmaz.
+
+**Test (kontrol.js §12, §12b, §14):**
+- Plan diyaloğunda 10 görev satırı var, tek kişilik `ekip_*` alanı kalmadı.
+- Plan diyaloğundan aynı göreve iki hekim eklendi → `ekip` içinde 2 kayıt,
+  liste anında "2 kişi" gösteriyor, plan kaydından sonra üyeler korunuyor.
+- Eski nesne biçimli ekip dizisine çevriliyor; rol kimliğiyle yazılmış üye
+  doğru görev grubunda görünüyor, başka gruba sızmıyor.
+- Yetki listesi `secim-listesi` kabında, `satir-secenek` kalmadı, her kutu kendi
+  etiketi içinde ve etiketler `strong` + `small` taşıyor.
+
+**Doğrulama:** `node tools/varlik-surum.js` → `?v=` damgaları yenilendi;
+`--denetle` → güncel. `node tools/kontrol.js` → **736 geçti, 0 başarısız**
+(13 yeni kontrol). `belge-test` 27, `kullanicitest / sagliktest /
+sagliktoplutest / senkrontest / girisbuluttest` → hepsi geçti.
+
 

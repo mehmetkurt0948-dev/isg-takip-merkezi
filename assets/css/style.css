@@ -830,6 +830,32 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .alan .alan-ipucu { color: var(--ink-mute); font-size: 11px; }
 .form-izgara { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .form-izgara .genis { grid-column: 1 / -1; }
+/* Kullanıcı yetkileri (işyeri onay kutuları): `.alan input` kuralı tüm alanları
+   %100 genişlettiği için onay kutuları satırı kaplıyor ve işaretler kayıyordu.
+   Bu blok `.alan`dan sonra gelir; kutular sabit boyutta kalır, etiketler sola
+   hizalı tek sütunda akar. */
+.alan .secim-listesi input[type="checkbox"],
+.secim-listesi input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  flex: none;
+  margin: 1px 0 0;
+  padding: 0;
+  accent-color: var(--brand);
+}
+.alan .secim-listesi label,
+.secim-listesi label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+.secim-listesi label > span { display: grid; gap: 2px; min-width: 0; }
+.secim-listesi label strong { font-size: 12.5px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.secim-listesi label small { color: var(--ink-mute); font-size: 11px; font-weight: 400; }
 .onay-alani { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
 .onay-alani input { width: 17px; height: 17px; accent-color: var(--brand); }
 .onay-alani span { color: var(--ink-soft); font-weight: 500; }
