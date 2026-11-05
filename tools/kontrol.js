@@ -2605,6 +2605,30 @@ function bekle(ms) {
     (acilKalici.ekip || []).filter((u) => u.rol === 'İlk yardım ekibi').length === 2,
     String((acilKalici.ekip || []).filter((u) => u.rol === 'İlk yardım ekibi').length));
 
+  /* Düzen bozulması regresyonu: çoklu grupta rol satırı isim listesini tekrar
+     etmemeli (etiket sıkışıp dikey kırıntıya dönüşüyordu), kişi sayısı yazmalı. */
+  const cokluAcilSatir = Array.from(doc.querySelectorAll('.risk-kart .rol-satir'))
+    .filter((satir) => {
+      const ozet = satir.querySelector('b');
+      return ozet && /^\d+ kişi$/.test(ozet.textContent.trim());
+    })[0];
+  kontrol('Çoklu grupta rol satırı kişi sayısı gösterir',
+    !!cokluAcilSatir && !/Üçüncü Kişi/.test(cokluAcilSatir.textContent),
+    cokluAcilSatir ? cokluAcilSatir.textContent.trim() : 'yok');
+  kontrol('Rol satırında isim listesi tekrar etmez',
+    Array.from(doc.querySelectorAll('.risk-kart .rol-satir')).every((satir) => {
+      const ozet = satir.querySelector('b');
+      return !ozet || ozet.textContent.indexOf(', ') === -1;
+    }));
+  const rolEtiketiTam = Array.from(doc.querySelectorAll('.risk-kart .rol-satir .rol-ad'))
+    .filter((etiket) => etiket.textContent.trim() === 'İş güvenliği uzmanı')[0];
+  kontrol('Rol etiketi tek parça ve tam yazılır', !!rolEtiketiTam,
+    rolEtiketiTam ? rolEtiketiTam.textContent.trim() : 'yok');
+
+  await sayfaAc('#risk');
+  kontrol('Kişi alt satırında belge sınıfı etiketli görünür', /Belge sınıfı: A/.test(metin('#gorunum')),
+    metin('#gorunum').match(/Belge sınıfı: A/) ? 'Belge sınıfı: A' : 'yok');
+
   console.log('\n24) Onay mekanizması: sürüm, kendini onaylama, çift uygulama');
   const hedefKisi = ISG.depo.al().personel.filter((p) => p.isyeriId === 'iy1')[0];
   kontrol('Test için iy1 personeli bulundu', !!hedefKisi);

@@ -122,6 +122,14 @@
     }).join('') + '</div>';
   }
 
+  /* Görev grubu özeti: tek kişide ad, çok kişide "N kişi" (ayrıntılar alt satırlarda). */
+  function rolOzeti(uyeler, bosMetin) {
+    var liste = uyeler || [];
+    if (!liste.length) { return '<b class="yok">' + kacis(bosMetin || 'Kişi kaydedilmedi') + '</b>'; }
+    if (liste.length === 1) { return '<b>' + kacis(liste[0].ad || '—') + '</b>'; }
+    return '<b>' + liste.length + ' kişi</b>';
+  }
+
   /* Görev grubu araçları: her rol için bir "ekle" düğmesi; tek kişi varsa
      rol satırından kaldırma, birden çok kişi varsa kişi başına kaldırma. */
   function ekipAraclari(kaynak, isyeriId, rol, uyeler) {
@@ -142,8 +150,8 @@
     if (!uyeler || uyeler.length < 2) { return ''; }
     return '<div class="rol-uyeler">' + uyeler.map(function (uye, sira) {
       var ek = [];
-      if (uye.belgeSinifi) { ek.push(uye.belgeSinifi); }
-      if (uye.belgeNo) { ek.push('Belge: ' + uye.belgeNo); }
+      if (uye.belgeSinifi) { ek.push('Belge sınıfı: ' + uye.belgeSinifi); }
+      if (uye.belgeNo) { ek.push('Belge no: ' + uye.belgeNo); }
       if (uye.gecerlilik) { ek.push('Geçerlilik: ' + B.tarih(uye.gecerlilik)); }
       if (uye.sicil) { ek.push('Sicil: ' + uye.sicil); }
       return '<div class="rol-uye">' +
@@ -188,9 +196,8 @@
         '</div>' +
         '<div class="rol-list">' + ISG.RISK_ROLLERI.map(function (rol) {
           var uyeler = ISG.depo.riskEkipUyeleri(kayit, rol.id);
-          var adlar = uyeler.map(function (uye) { return uye.ad; }).join(', ');
           return '<div class="rol-satir"><span class="rol-ad">' + kacis(rol.ad) + '</span>' +
-            (uyeler.length ? '<b>' + kacis(adlar) + '</b>' : '<b class="yok">Kişi kaydedilmedi</b>') +
+            rolOzeti(uyeler) +
             ekipAraclari('risk', isyeri.id, rol.id, uyeler) + '</div>' +
             uyeAltSatirlari('risk', isyeri.id, rol.id, uyeler);
         }).join('') + '</div>' +
@@ -291,9 +298,8 @@
         '</div>' +
         '<div class="rol-list">' + ekipRolleri.map(function (rol) {
           var uyeler = ekip.filter(function (k) { return k.rol === rol.ad; });
-          var adlar = uyeler.map(function (uye) { return uye.ad; }).join(', ');
           return '<div class="rol-satir"><span class="rol-ad">' + kacis(rol.ad) + '</span>' +
-            (uyeler.length ? '<b>' + kacis(adlar) + '</b>' : '<b class="yok">Kişi eklenmedi</b>') +
+            rolOzeti(uyeler, 'Kişi eklenmedi') +
             ekipAraclari('acil', isyeri.id, rol.ad, uyeler) + '</div>' +
             uyeAltSatirlari('acil', isyeri.id, rol.ad, uyeler);
         }).join('') + '</div>' +

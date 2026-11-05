@@ -34,6 +34,15 @@ güncellemeye geçirildi ve **T.C. kimlik numarası** listede maskelenmeye başl
 
 | Dosya | Değişiklik |
 |---|---|
+| `assets/js/depo.js` | `dosyaKaydet` ve `planKaydet` kısmi güncelleme; çoklu personel modeli (`uyeListe`, üye kimlikleri, `riskEkipUyeleri` / `acilEkipUyeleri`, seçimli silme); `talepDurum`; `talepKarar` karar veren kimliği; `ISG.tcMaskele` / `ISG.tcGoster`; `ACIL_ROLLERI` 5 → 10 görev grubu |
+| `assets/js/yetki.js` | Talep gövdesi (modül, kayıtId, işlemTuru, eskiKayit, yeniKayit); `surumDenetle`; kendini onaylama engeli; "uygulanıyor" kilidi (çift uygulama engeli); karar veren kimliği denetim kaydına |
+| `assets/js/sayfalar-rapor.js` | Onay ekranında modül/kayıt/işlem bilgisi, eski-yeni değer tablosu, ret gerekçesi alanı; risk ve acil kartlarında çoklu personel listesi (kişi başına düzenle/kaldır); `rolOzeti` ile rol satırı özeti (tek kişide ad, çok kişide "N kişi") ve etiketli belge alanları |
+| `assets/js/sayfalar-kayit.js` | Plan sayfasında **ay seçici** (Ocak–Aralık + Tüm aylar) ve ay filtresi, "ayı belirsiz" bilgisi |
+| `assets/js/sayfalar.js` | Personel listesinde T.C. kimlik numarası maskeleme |
+| `assets/js/uygulama.js` | Dosya düzenleme formunda işyeri seçeneği garantisi; ekip üyesi diyaloğunda çoklu üye + belge alanları; plan diyaloğunda 12 aylık seçim ızgarası ve yıl varsayılanı; talep reddinde gerekçe okuma |
+| `index.html`, `404.html` | Ekip üyesi formuna `uyeId/eskiRol/eskiAd` ve belge alanları; varlık sürüm damgaları |
+| `assets/css/style.css` | Ay seçim ızgarası, çoklu personel alt satırları, onay eski/yeni tablosu ve ret gerekçesi alanı stilleri; **rol satırı düzen düzeltmesi** (etiket sıkışması/sarması) |
+| `tools/kontrol.js` | Yeni test bölümleri (22–25), güncellenmiş rol/buton sayıları ve düzen regresyon testleri |
 
 ---
 
@@ -83,6 +92,14 @@ politikası yazılamaz: istemci tüm gövdeyi indirir. Bu nedenle:
 - Plan sayfasına **"Plan ayı"** seçicisi eklendi (Tüm aylar + Ocak…Aralık).
   Yıl seçicisi zaten vardı; ikisi birlikte çalışır.
 - Filtre, kaydın `aylar` dizisinde (yoksa `ay` alanında) seçilen ayı arar.
+- Plan diyaloğunda **12 aylık seçim ızgarası** artık gerçekten üretiliyor
+  (önceden boş bir `<div>` idi); yıl alanı kayıttan / ekrandaki yıldan / içinde
+  bulunulan yıldan doldurulur, birden çok ay işaretlenebilir.
+- **Plan kaydı kısmi güncellenir:** düzenleme sırasında formda olmayan `yil`,
+  `aylar`, `anaBaslik` alanları korunur (önceden kayıt bütünüyle değiştiği için
+  yıl/ay bilgisi kayboluyordu).
+- Ayı belirlenemeyen kayıtlar silinmez/taşınmaz; "Tüm aylar" görünümünde listelenir
+  ve arayüz "ayı belirsiz" bilgisini gösterir.
 
 ---
 
@@ -128,6 +145,17 @@ politikası yazılamaz: istemci tüm gövdeyi indirir. Bu nedenle:
 
 **Çözüm:**
 - `dosyaKaydet` **kısmi güncelleme** yapar: gönderilmeyen alanlar korunur, boş
+  `isyeriId` gönderimi bağı koparmaz, `no` korunur.
+- `dosyaAc` kaydın işyeri seçeneklerde yoksa o seçeneği listeye ekleyip seçili getirir.
+- İşyeri değişikliği yalnızca kullanıcı açıkça farklı işyeri seçerse uygulanır.
+
+**Test (kontrol.js §22):** madde açılır → durum/açıklama/tarih değiştirilir →
+kaydedilir → `isyeriId`, `sablon`, `no` aynı kalır, mükerrer kayıt oluşmaz, boş
+işyeri gönderimi bağı koparmaz, diskteki (localStorage) kayıt da doğrudur. **Geçti.**
+
+**Not:** Bu hatadan önce bozulmuş kayıtlar (sablon alanı zaten kaybolmuş olanlar)
+otomatik onarılmadı; hangi listeye ait oldukları veri içinde bilinmiyor. Gerekirse
+ilgili işyerinde hazır liste yeniden uygulanabilir (mükerrer maddeler atlanır).
 
 ---
 
@@ -247,35 +275,48 @@ henüz tamamlanmadan çalıştırıldığı içindi; push sonrası doğrulama **
   koparmaz. Bu hatadan önce bozulmuş maddeler için hazır listeyi yeniden
   uygulayabilirsiniz (mükerrerler atlanır).
 - Personel listesinde kimlik numarası maskeli görünür; tam değer yönetici hesabında.
+- Risk/acil kartlarında çoklu grupta rol satırı **"N kişi"** yazar; kişiler alt
+  satırlarda numaralı listelenir, belge alanları etiketli görünür ("Belge sınıfı: A",
+  "Belge no: …", "Geçerlilik: …", "Sicil: …").
 
+---
 
-  `isyeriId` gönderimi bağı koparmaz, `no` korunur.
-- `dosyaAc` kaydın işyeri seçeneklerde yoksa o seçeneği listeye ekleyip seçili getirir.
-- İşyeri değişikliği yalnızca kullanıcı açıkça farklı işyeri seçerse uygulanır.
+## 12. Ek düzeltme (kullanıcı bildirimi): ekip rol satırı düzeni
 
-**Test (kontrol.js §22):** madde açılır → durum/açıklama/tarih değiştirilir →
-kaydedilir → `isyeriId`, `sablon`, `no` aynı kalır, mükerrer kayıt oluşmaz, boş
-işyeri gönderimi bağı koparmaz, diskteki (localStorage) kayıt da doğrudur. **Geçti.**
+**Belirti:** Risk Değerlendirmesi kartında "İş güvenliği uzmanı" gibi bir görev
+grubunda birden çok kişi varken rol etiketi sıkışıp dikey harf kırıntısına
+dönüşüyor, isim listesi ve alt satır bilgileri üst üste biniyordu. Ayrıca kişi
+alt satırlarında yalnızca "A" gibi çıplak bir belge sınıfı harfi görünüyordu.
 
-**Not:** Bu hatadan önce bozulmuş kayıtlar (sablon alanı zaten kaybolmuş olanlar)
-otomatik onarılmadı; hangi listeye ait oldukları veri içinde bilinmiyor. Gerekirse
-ilgili işyerinde hazır liste yeniden uygulanabilir (mükerrer maddeler atlanır).
+**Kök neden:**
+1. `.rol-satir .rol-ad { flex: 1; min-width: 0; }` — rol etiketi esneyen tek öğeydi;
+   satırdaki uzun isim listesi (`b`) ve düğme grubu yer kapladığında etiket
+   sıfıra kadar sıkışıp harf harf alt satıra kırılıyordu (görseldeki dikey
+   "İs / 9 gü / uzma" kırıntıları).
+2. Rol satırında isimler virgülle birleştirilip yazılıyor, aynı isimler alt
+   satırlarda tekrar listeleniyordu (gereksiz kalabalık).
+3. `rol-uye` satırında belge sınıfı etiketsiz (`A`) yazılıyordu.
 
-  Ayı belirlenemeyen kayıtlar silinmez/taşınmaz; "Tüm aylar" görünümünde listelenir
-  ve arayüz "ayı belirsiz" bilgisini gösterir.
-- Plan diyaloğunda **12 aylık seçim ızgarası** artık gerçekten üretiliyor
-  (önceden boş bir `<div>` idi); yıl alanı kayıttan / ekrandaki yıldan / içinde
-  bulunulan yıldan doldurulur, birden çok ay işaretlenebilir.
-- **Plan kaydı kısmi güncellenir:** düzenleme sırasında formda olmayan `yil`,
-  `aylar`, `anaBaslik` alanları korunur (önceden kayıt bütünüyle değiştiği için
-  yıl/ay bilgisi kayboluyordu).
+**Çözüm:**
+- `.rol-satir` artık **sarılabilir** (`flex-wrap: wrap`); `.rol-ad` esnemiyor
+  (`flex: 0 0 auto`), isim özeti `flex: 1 1 150px` + `overflow-wrap: anywhere`.
+  Böylece etiket her zaman tek parça okunur, uzun isimler alt satıra iner ve
+  düğmeler sağda kalır.
+- Yeni `rolOzeti()` yardımcısı: tek kişide ad, çok kişide **"N kişi"** özeti
+  (ayrıntılar alt satırlarda). İsim listesi tekrarı kaldırıldı.
+- `.rol-uye` satırında belge bilgisi kendi satırına alındı
+  (`.rol-uye .kucuk { flex: 1 1 100% }`) ve etiketlendi
+  ("Belge sınıfı: A", "Belge no: …").
+- Dar ekranlar için `rol-uyeler` girintisi azaltıldı.
 
-| `assets/js/depo.js` | `dosyaKaydet` ve `planKaydet` kısmi güncelleme; çoklu personel modeli (`uyeListe`, üye kimlikleri, `riskEkipUyeleri` / `acilEkipUyeleri`, seçimli silme); `talepDurum`; `talepKarar` karar veren kimliği; `ISG.tcMaskele` / `ISG.tcGoster`; `ACIL_ROLLERI` 5 → 10 görev grubu |
-| `assets/js/yetki.js` | Talep gövdesi (modül, kayıtId, işlemTuru, eskiKayit, yeniKayit); `surumDenetle`; kendini onaylama engeli; "uygulanıyor" kilidi (çift uygulama engeli); karar veren kimliği denetim kaydına |
-| `assets/js/sayfalar-rapor.js` | Onay ekranında modül/kayıt/işlem bilgisi, eski-yeni değer tablosu, ret gerekçesi alanı; risk ve acil kartlarında çoklu personel listesi (kişi başına düzenle/kaldır) |
-| `assets/js/sayfalar-kayit.js` | Plan sayfasında **ay seçici** (Ocak–Aralık + Tüm aylar) ve ay filtresi, "ayı belirsiz" bilgisi |
-| `assets/js/sayfalar.js` | Personel listesinde T.C. kimlik numarası maskeleme |
-| `assets/js/uygulama.js` | Dosya düzenleme formunda işyeri seçeneği garantisi; ekip üyesi diyaloğunda çoklu üye + belge alanları; plan diyaloğunda 12 aylık seçim ızgarası ve yıl varsayılanı; talep reddinde gerekçe okuma |
-| `index.html`, `404.html` | Ekip üyesi formuna `uyeId/eskiRol/eskiAd` ve belge alanları; varlık sürüm damgaları |
-| `assets/css/style.css` | Ay seçim ızgarası, çoklu personel alt satırları, onay eski/yeni tablosu ve ret gerekçesi alanı stilleri |
-| `tools/kontrol.js` | Yeni test bölümleri (22–25) ve güncellenmiş rol/buton sayıları |
+**Test (kontrol.js §23):** çoklu grupta rol satırı "N kişi" gösterir, rol
+satırında virgüllü isim listesi tekrar etmez, "İş güvenliği uzmanı" etiketi tek
+parça ve tam yazılır, kişi alt satırında "Belge sınıfı: A" etiketi görünür.
+**Geçti.**
+
+**Doğrulama:** `node tools/varlik-surum.js` → `?v=` damgaları yenilendi;
+`node tools/varlik-surum.js --denetle` → güncel. `node tools/kontrol.js`
+→ **723 geçti, 0 başarısız**; `node tools/belge-test.js` → 27 geçti;
+`kullanicitest / sagliktest / sagliktoplutest / senkrontest / girisbuluttest`
+→ hepsi 0. `npm run yayin` → 28 dosya.
+

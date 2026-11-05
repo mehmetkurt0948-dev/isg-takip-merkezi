@@ -754,14 +754,17 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .mini-kutu { padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fafbfd; }
 .mini-kutu span { display: block; color: var(--ink-mute); font-size: 10px; line-height: 1.3; }
 .mini-kutu b { display: block; margin-top: 4px; font-size: 12.5px; font-weight: 700; }
-.rol-list { display: grid; gap: 6px; }
-.rol-satir { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfe; font-size: 12px; }
+.rol-list { display: grid; gap: 6px; min-width: 0; }
+/* Rol satırı: rol etiketi asla sıkışmaz (eski `flex:1` etiketi dikey kırıntıya
+   çeviriyordu); isim listesi gerekirse alt satıra sarılır, düğmeler sağda kalır. */
+.rol-satir { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfe; font-size: 12px; min-width: 0; }
 .rol-satir span { color: var(--ink-soft); }
 .rol-satir b { font-weight: 600; }
 .rol-satir .yok { color: var(--ink-mute); font-weight: 400; font-style: italic; }
-.rol-satir .rol-ad { flex: 1; min-width: 0; }
-.rol-satir .rol-arac { display: flex; gap: 6px; flex: none; }
-.rol-satir .rol-arac .dugme { padding: 4px 8px; font-size: 11.5px; line-height: 1.2; }
+.rol-satir .rol-ad { flex: 0 0 auto; min-width: 0; overflow-wrap: break-word; }
+.rol-satir > b { flex: 1 1 150px; min-width: 0; overflow-wrap: anywhere; }
+.rol-satir .rol-arac { display: flex; gap: 6px; flex: none; margin-left: auto; }
+.rol-satir .rol-arac .dugme { padding: 4px 8px; font-size: 11.5px; line-height: 1.2; white-space: nowrap; }
 .akis { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 0; color: var(--brand); font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; }
 .akis:hover { color: var(--brand-2); }
 
@@ -961,12 +964,14 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .plan-ay-kutu input { margin: 0; }
 @media (max-width: 560px) { .plan-ay-secim { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* Görev grubunda birden çok personel: alt satırlar */
-.rol-uyeler { display: grid; gap: 4px; margin: 2px 0 8px 12px; padding-left: 10px; border-left: 2px solid var(--line); }
-.rol-uye { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-soft); }
-.rol-uye b { font-weight: 600; color: var(--ink); }
-.rol-uye .rol-uye-no { color: var(--ink-mute); font-size: 11.5px; min-width: 16px; }
-.rol-uye .rol-arac { display: flex; gap: 6px; margin-left: auto; }
-.rol-uye .rol-arac .dugme { padding: 4px 8px; font-size: 11.5px; }
+.rol-uyeler { display: grid; gap: 4px; margin: 2px 0 8px 12px; padding-left: 10px; border-left: 2px solid var(--line); min-width: 0; }
+.rol-uye { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-soft); min-width: 0; }
+.rol-uye b { font-weight: 600; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.rol-uye .rol-uye-no { color: var(--ink-mute); font-size: 11.5px; min-width: 16px; flex: none; }
+.rol-uye .kucuk { flex: 1 1 100%; }
+.rol-uye .rol-arac { display: flex; gap: 6px; margin-left: auto; flex: none; }
+.rol-uye .rol-arac .dugme { padding: 4px 8px; font-size: 11.5px; white-space: nowrap; }
+@media (max-width: 560px) { .rol-uyeler { margin-left: 4px; padding-left: 8px; } }
 /* Onay kuyruğu: eski / yeni değer karşılaştırması ve ret gerekçesi */
 .onay-degisim { margin-top: 6px; font-size: 12px; color: var(--ink-soft); }
 .onay-degisim summary { cursor: pointer; color: var(--brand); font-weight: 600; }
