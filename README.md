@@ -215,7 +215,7 @@ ve "Öncelikli işler" sayısı bu dağılımdan hesaplanır.
 | Yangın / acil durum | 1 yıl |
 | Yüksekte çalışma / KKD | 2 yıl |
 | Risk değerlendirmesi olağan üst sınır | Az **6**, tehlikeli **4**, çok tehlikeli **2** yıl |
-| Acil durum planı yenileme | Az **6**, tehlikeli **4**, çok tehlikeli **4** yıl |
+| Acil durum planı yenileme | Az **6**, tehlikeli **4**, çok tehlikeli **2** yıl |
 | Belge uyarı eşiği | Yenilemeye ≤ 14 gün: sarı, < 0 gün: kırmızı |
 | İş kazası bildirimi | SGK'ya en geç **3 iş günü** içinde; iş günü kaybı 0–365 gün |
 | İş kazası istatistiği | Kıdem = işe başlama ↔ kaza tarihi (tam yıl); şiddet aralıkları 0 / 1–3 / 4–7 / 8–14 / 15+ gün |
