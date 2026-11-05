@@ -122,21 +122,51 @@
     }).join('') + '</div>';
   }
 
-  function ekipAraclari(kaynak, isyeriId, rol, ad) {
-    return '<span class="rol-arac">' +
-      '<button type="button" class="dugme ince" data-islem="ekip-uye" data-kaynak="' + kacis(kaynak) +
-        '" data-isyeri="' + kacis(isyeriId) + '" data-rol="' + kacis(rol) + '">' +
-        (ad ? 'Değiştir' : 'Ekle') + '</button>' +
-      (ad ? '<button type="button" class="dugme ince" data-islem="ekip-uye-sil" data-kaynak="' + kacis(kaynak) +
-        '" data-isyeri="' + kacis(isyeriId) + '" data-rol="' + kacis(rol) + '">Kaldır</button>' : '') +
-    '</span>';
+  /* Görev grubu araçları: her rol için bir "ekle" düğmesi; tek kişi varsa
+     rol satırından kaldırma, birden çok kişi varsa kişi başına kaldırma. */
+  function ekipAraclari(kaynak, isyeriId, rol, uyeler) {
+    var liste = uyeler || [];
+    var dugmeler = '<button type="button" class="dugme ince" data-islem="ekip-uye" data-kaynak="' + kacis(kaynak) +
+      '" data-isyeri="' + kacis(isyeriId) + '" data-rol="' + kacis(rol) + '">' +
+      (liste.length ? 'Kişi ekle' : 'Ekle') + '</button>';
+    if (liste.length === 1) {
+      dugmeler += '<button type="button" class="dugme ince" data-islem="ekip-uye-sil" data-kaynak="' + kacis(kaynak) +
+        '" data-isyeri="' + kacis(isyeriId) + '" data-rol="' + kacis(rol) + '" data-uye="' + kacis(liste[0].id || '') +
+        '" data-uye-ad="' + kacis(liste[0].ad || '') + '">Kaldır</button>';
+    }
+    return '<span class="rol-arac">' + dugmeler + '</span>';
+  }
+
+  /* Bir görev grubunda birden çok personel varsa alt satırlarda listelenir. */
+  function uyeAltSatirlari(kaynak, isyeriId, rol, uyeler) {
+    if (!uyeler || uyeler.length < 2) { return ''; }
+    return '<div class="rol-uyeler">' + uyeler.map(function (uye, sira) {
+      var ek = [];
+      if (uye.belgeSinifi) { ek.push(uye.belgeSinifi); }
+      if (uye.belgeNo) { ek.push('Belge: ' + uye.belgeNo); }
+      if (uye.gecerlilik) { ek.push('Geçerlilik: ' + B.tarih(uye.gecerlilik)); }
+      if (uye.sicil) { ek.push('Sicil: ' + uye.sicil); }
+      return '<div class="rol-uye">' +
+        '<span class="rol-uye-no">' + (sira + 1) + '.</span>' +
+        '<b>' + kacis(uye.ad || '—') + '</b>' +
+        (ek.length ? '<span class="kucuk muted">' + kacis(ek.join(' · ')) + '</span>' : '') +
+        (uye.aciklama ? '<span class="kucuk muted">' + kacis(uye.aciklama) + '</span>' : '') +
+        '<span class="rol-arac">' +
+          '<button type="button" class="dugme ince" data-islem="ekip-uye-duzenle" data-kaynak="' + kacis(kaynak) +
+            '" data-isyeri="' + kacis(isyeriId) + '" data-rol="' + kacis(rol) + '" data-uye="' + kacis(uye.id || '') +
+            '">Düzenle</button>' +
+          '<button type="button" class="dugme ince" data-islem="ekip-uye-sil" data-kaynak="' + kacis(kaynak) +
+            '" data-isyeri="' + kacis(isyeriId) + '" data-rol="' + kacis(rol) + '" data-uye="' + kacis(uye.id || '') +
+            '" data-uye-ad="' + kacis(uye.ad || '') + '">Kaldır</button>' +
+        '</span>' +
+      '</div>';
+    }).join('') + '</div>';
   }
 
   function riskKarti(isyeri, hesap) {
     var kayit = ISG.ilgiliKayit(hesap, 'riskEkipleri', isyeri.id);
     var ozet = ISG.riskEkipOzeti(kayit);
     var sinif = ISG.RISK_SINIFLARI[isyeri.tehlikeSinifi] || { ad: '', riskYenilemeYil: 4 };
-    var uyeler = (kayit && kayit.uyeler) || {};
     var tarihDurumu = !kayit || !kayit.sonDegerlendirme ? B.rozet('Değerlendirme tarihi eksik', 'tehlike') :
       (ozet.durum === 'geciken' ? B.rozet('Yenileme gecikti', 'tehlike') : B.rozet('Güncel', 'iyi'));
 
@@ -157,10 +187,12 @@
           (ozet.eksik ? B.rozet(ozet.eksik + ' rol eksik', 'tehlike') : B.rozet('Ekip tam', 'iyi')) +
         '</div>' +
         '<div class="rol-list">' + ISG.RISK_ROLLERI.map(function (rol) {
-          var ad = uyeler[rol.id];
+          var uyeler = ISG.depo.riskEkipUyeleri(kayit, rol.id);
+          var adlar = uyeler.map(function (uye) { return uye.ad; }).join(', ');
           return '<div class="rol-satir"><span class="rol-ad">' + kacis(rol.ad) + '</span>' +
-            (ad ? '<b>' + kacis(ad) + '</b>' : '<b class="yok">Kişi kaydedilmedi</b>') +
-            ekipAraclari('risk', isyeri.id, rol.id, ad) + '</div>';
+            (uyeler.length ? '<b>' + kacis(adlar) + '</b>' : '<b class="yok">Kişi kaydedilmedi</b>') +
+            ekipAraclari('risk', isyeri.id, rol.id, uyeler) + '</div>' +
+            uyeAltSatirlari('risk', isyeri.id, rol.id, uyeler);
         }).join('') + '</div>' +
         '<p style="margin-top:8px"><button type="button" class="dugme ince" data-islem="ekip-uye" ' +
           'data-kaynak="risk" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') +
@@ -258,10 +290,12 @@
           (ekip.length ? B.rozet(ekip.length + ' kişi', 'iyi') : B.rozet('Kişi eklenmedi', 'tehlike')) +
         '</div>' +
         '<div class="rol-list">' + ekipRolleri.map(function (rol) {
-          var uye = ekip.filter(function (k) { return k.rol === rol.ad; })[0];
+          var uyeler = ekip.filter(function (k) { return k.rol === rol.ad; });
+          var adlar = uyeler.map(function (uye) { return uye.ad; }).join(', ');
           return '<div class="rol-satir"><span class="rol-ad">' + kacis(rol.ad) + '</span>' +
-            (uye ? '<b>' + kacis(uye.ad) + '</b>' : '<b class="yok">Kişi eklenmedi</b>') +
-            ekipAraclari('acil', isyeri.id, rol.ad, uye ? uye.ad : '') + '</div>';
+            (uyeler.length ? '<b>' + kacis(adlar) + '</b>' : '<b class="yok">Kişi eklenmedi</b>') +
+            ekipAraclari('acil', isyeri.id, rol.ad, uyeler) + '</div>' +
+            uyeAltSatirlari('acil', isyeri.id, rol.ad, uyeler);
         }).join('') + '</div>' +
         '<p style="margin-top:8px"><button type="button" class="dugme ince" data-islem="ekip-uye" ' +
           'data-kaynak="acil" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') +
@@ -941,6 +975,73 @@
       kartlar;
   };
 
+  /* ---------- Değişiklik onayları ---------- */
+
+  var MODUL_ADLARI = {
+    panel: 'Genel bakış', personel: 'Personel', egitim: 'Eğitim', risk: 'Risk değerlendirmesi',
+    saha: 'Saha ve DÖF', dosyalar: 'Dosya kontrolleri', belge: 'Belgeler', plan: 'Çalışma planı',
+    tespit: 'Saha tespiti', acil: 'Acil durum planı', isyerleri: 'İşyerleri',
+    kullanici: 'Kullanıcılar', ayarlar: 'Ayarlar'
+  };
+
+  var ISLEM_ADLARI = { ekle: 'Yeni kayıt', guncelle: 'Güncelleme', sil: 'Silme' };
+
+  var ALAN_ADLARI = {
+    adSoyad: 'Ad soyad', ad: 'Ad', sicil: 'Sicil no', meslek: 'Meslek', departman: 'Departman',
+    iseBaslama: 'İşe başlama', durum: 'Durum', aciklama: 'Açıklama', madde: 'Kontrol maddesi',
+    bolum: 'Bölüm', sorumlu: 'Sorumlu', yenileme: 'Yenileme tarihi', kontrolTarihi: 'Kontrol tarihi',
+    isyeriId: 'İşyeri', baslik: 'Başlık', tanim: 'Tanım', tarih: 'Tarih', termin: 'Termin',
+    kategori: 'Kategori', olasilik: 'Olasılık', siddet: 'Şiddet', onlem: 'Önlem',
+    faaliyet: 'Faaliyet', yil: 'Yıl', ay: 'Ay', aylar: 'Aylar', sorumluKisi: 'Sorumlu kişi',
+    eposta: 'E-posta', rol: 'Rol', gorev: 'Görev', telefon: 'Telefon', tc: 'TC kimlik no'
+  };
+
+  function kisaDeger(deger) {
+    if (deger === null || typeof deger === 'undefined') { return '—'; }
+    var metin = typeof deger === 'object' ? JSON.stringify(deger) : String(deger);
+    if (!metin) { return '—'; }
+    return metin.length > 80 ? metin.slice(0, 77) + '…' : metin;
+  }
+
+  function degisimTablosu(talep) {
+    var eski = talep.eskiKayit || {};
+    var yeni = talep.yeniKayit || {};
+    var satirlar = [];
+    var ekle = function (alan, eskiDeger, yeniDeger) {
+      satirlar.push('<tr><td><b>' + kacis(ALAN_ADLARI[alan] || alan) + '</b></td>' +
+        '<td>' + kacis(kisaDeger(eskiDeger)) + '</td>' +
+        '<td>' + kacis(kisaDeger(yeniDeger)) + '</td></tr>');
+    };
+
+    if (talep.islemTuru === 'sil') {
+      Object.keys(eski).slice(0, 8).forEach(function (alan) {
+        if (alan === 'id') { return; }
+        ekle(alan, eski[alan], '');
+      });
+    } else if (talep.islemTuru === 'ekle' || !talep.kayitId) {
+      Object.keys(yeni).slice(0, 8).forEach(function (alan) {
+        if (alan === 'id') { return; }
+        ekle(alan, '', yeni[alan]);
+      });
+    } else {
+      var alanlar = Object.keys(yeni).concat(Object.keys(eski)).filter(function (alan, sira, liste) {
+        return alan !== 'id' && liste.indexOf(alan) === sira;
+      });
+      alanlar.forEach(function (alan) {
+        if (satirlar.length >= 8) { return; }
+        var a = kisaDeger(eski[alan]);
+        var b = kisaDeger(yeni[alan]);
+        if (a === b) { return; }
+        ekle(alan, eski[alan], yeni[alan]);
+      });
+    }
+
+    if (!satirlar.length) { return ''; }
+    return '<details class="onay-degisim"><summary>Eski / yeni değerler (' + satirlar.length + ')</summary>' +
+      '<table class="tablo kucuk"><thead><tr><th>Alan</th><th>Eski</th><th>Yeni</th></tr></thead>' +
+      '<tbody>' + satirlar.join('') + '</tbody></table></details>';
+  }
+
   SAYFALAR.onaylar = function () {
     var hesap = veri();
     var o = ISG.yetki ? ISG.yetki.oturum() : null;
@@ -961,12 +1062,20 @@
 
     var satirlar = liste.map(function (talep) {
       var durum = TALEP_DURUM[talep.durum] || { ad: talep.durum || '—', sinif: 'notr' };
-      var karar = talep.kararNotu ? ' · Not: ' + talep.kararNotu : '';
+      var karar = talep.kararNotu ? ' · Gerekçe: ' + talep.kararNotu : '';
       var kararBilgi = talep.kararVeren ?
         '<span class="kucuk">' + kacis(talep.kararVeren) + ' · ' + B.tarih(String(talep.kararTarihi || '').slice(0, 10)) + kacis(karar) + '</span>' :
-        '<span class="kucuk">Gönderen: ' + kacis(talep.kullaniciAd || '—') + ' · ' + B.tarih(talepGun(talep)) + '</span>';
+        '<span class="kucuk">Gönderen: ' + kacis(talep.kullaniciAd || '—') + (talep.rol ? ' · ' + kacis(talep.rol) : '') +
+          ' · ' + B.tarih(talepGun(talep)) + '</span>';
+
+      var modul = MODUL_ADLARI[talep.modul || talep.sayfa] || (talep.modul || talep.sayfa || 'Genel bakış');
+      var islem = ISLEM_ADLARI[talep.islemTuru] || 'Değişiklik';
+      var kayitBilgi = '<span class="kucuk">Modül: ' + kacis(modul) + ' · ' + kacis(islem) +
+        (talep.kayitId ? ' · Kayıt: ' + kacis(talep.kayitId) : '') + '</span>';
 
       var eylemler = talep.durum === 'bekliyor' && onaylayabilir ?
+        '<input type="text" class="girdi kucuk-girdi" data-talep-not data-id="' + kacis(talep.id) + '" ' +
+          'maxlength="160" placeholder="Ret gerekçesi (isteğe bağlı)" aria-label="Ret gerekçesi">' +
         '<button type="button" class="dugme kucuk ikincil" data-islem="talep-reddet" data-id="' + kacis(talep.id) + '">Reddet</button>' +
         '<button type="button" class="dugme kucuk birincil" data-islem="talep-onayla" data-id="' + kacis(talep.id) + '">Onayla</button>' :
         '';
@@ -975,7 +1084,10 @@
         '<div class="onay-satir-bilgi">' +
           '<strong>' + kacis(talep.etiket || 'Değişiklik') + ' · ' + kacis(talep.isyeriAd || isyeriAdi(talep.isyeriId) || 'Tüm işyerleri') + '</strong>' +
           '<span>' + kacis(talep.ozet || '') + '</span>' +
+          kayitBilgi +
           kararBilgi +
+          (talep.talepNotu ? '<span class="kucuk">Talep açıklaması: ' + kacis(talep.talepNotu) + '</span>' : '') +
+          degisimTablosu(talep) +
         '</div>' +
         '<div class="sag">' +
           B.rozet(durum.ad, durum.sinif) +

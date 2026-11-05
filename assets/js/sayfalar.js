@@ -239,7 +239,7 @@
       '</div></td>' +
       '<td class="sayi-sutun">' + kacis(kisi.sicil || '—') + '</td>' +
       '<td><strong>' + kacis(kisi.adSoyad) + '</strong>' + (acik ? '<span class="hucre-alt">' + B.durumRozeti(durum.id, durum.ad) + '</span>' : '') + '</td>' +
-      '<td class="sayi-sutun">' + kacis(kisi.tc || '—') + '</td>' +
+      '<td class="sayi-sutun">' + kacis(kisi.tc ? ISG.tcGoster(kisi.tc) : '—') + '</td>' +
       '<td>' + kacis(kisi.meslek || '—') + '</td>' +
       '<td>' + kacis(kisi.departman || '—') + '</td>' +
       '<td>' + kacis(kisi.grupKodu || '—') + '</td>' +

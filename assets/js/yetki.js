@@ -359,15 +359,44 @@
     return etiket;
   }
 
+  /* Onay talebinin denetlenebilir gövdesi: modül, kayıt kimliği, işlem türü ve
+     eski/yeni değerler talebin içinde saklanır. Yönetici karar verirken kaydın
+     talep anındaki hâli ile bugünkü hâlini karşılaştırabilir. */
+  function kayitKimligi(args) {
+    var ilk = args && args[0];
+    if (ilk && typeof ilk === 'object' && !Array.isArray(ilk)) { return String(ilk.id || ''); }
+    if (typeof ilk === 'string') { return String(ilk); }
+    return '';
+  }
+
+  function islemTuru(ad, kayitId) {
+    if (/Sil$/.test(ad)) { return 'sil'; }
+    return kayitId ? 'guncelle' : 'ekle';
+  }
+
+  function kopyala(deger) {
+    if (!deger || typeof deger !== 'object') { return null; }
+    try { return JSON.parse(JSON.stringify(deger)); } catch (hata) { return null; }
+  }
+
   function talepYaz(ad, args, isyeriId, o) {
     var isyeri = (D.al().isyerleri || []).filter(function (kayit) { return kayit.id === isyeriId; })[0];
+    var kayitId = kayitKimligi(args);
+    var tur = islemTuru(ad, kayitId);
+    var mevcut = kayitId ? kayitBul(kayitId) : null;
     var talep = D.talepKaydet({
       kullaniciId: o.kullaniciId,
       kullaniciAd: o.adSoyad,
+      kullaniciRol: rolTanimi(o.rol).id,
       rol: rolTanimi(o.rol).ad,
       isyeriId: isyeriId,
       isyeriAd: isyeri ? (isyeri.ad || isyeri.kisaAd || '') : '',
+      modul: SAYFA_ESLEME[ad] || 'panel',
       sayfa: SAYFA_ESLEME[ad] || 'panel',
+      kayitId: kayitId,
+      islemTuru: tur,
+      eskiKayit: mevcut ? kopyala(mevcut) : null,
+      yeniKayit: tur === 'sil' ? null : kopyala(args[0]),
       etiket: ETIKETLER[ad] || 'Değişiklik',
       ozet: ozetUret(ad, args),
       durum: 'bekliyor',
@@ -375,7 +404,7 @@
     });
     D.denetimEkle({
       tur: 'talep', islem: ad, kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad,
-      isyeriId: isyeriId, ozet: 'Onaya gönderildi: ' + (talep.etiket || ad)
+      isyeriId: isyeriId, kayitId: kayitId, ozet: 'Onaya gönderildi: ' + (talep.etiket || ad)
     });
     return { id: (args[0] && args[0].id) || talep.id, talep: talep, bekliyor: true };
   }
@@ -405,17 +434,48 @@
     return true;
   }
 
+  /* Kayıt sürüm denetimi: talep oluşturulduktan sonra kayıt başka bir kullanıcı
+     tarafından değiştirildiyse eski değerin üzerine yazılmaz. */
+  function surumDenetle(talep) {
+    if (!talep || !talep.kayitId) { return; }
+    var guncel = kayitBul(talep.kayitId);
+    if (talep.islemTuru === 'ekle') {
+      if (guncel) { throw new Error('Aynı kayıt bu arada oluşturulmuş; talep uygulanmadı.'); }
+      return;
+    }
+    if (!guncel) { throw new Error('Kayıt artık bulunmuyor; talep uygulanmadı.'); }
+    if (!talep.eskiKayit) { return; }
+    if (JSON.stringify(guncel) !== JSON.stringify(talep.eskiKayit)) {
+      throw new Error('Kayıt talep oluşturulduktan sonra değişti; eski değerin üzerine yazılmadı. ' +
+        'Talebi reddedip güncel kayıt üzerinden yeni talep isteyin.');
+    }
+  }
+
   function talepOnayla(id, not) {
     var o = oturum();
     if (!o || !rolTanimi(o.rol).onaylar) { throw new Error('Talepleri onaylama yetkiniz yok.'); }
     var talep = D.talepBul(id);
     if (!talep) { throw new Error('Talep bulunamadı.'); }
     if (talep.durum !== 'bekliyor') { throw new Error('Bu talep zaten karara bağlanmış.'); }
-    talepUygula(talep);
-    var sonuc = D.talepKarar(id, 'onaylandi', o.adSoyad, not);
+    /* Kullanıcı kendi talebini onaylayamaz (yönetici olsa bile). */
+    if (talep.kullaniciId && talep.kullaniciId === o.kullaniciId) {
+      throw new Error('Kendi oluşturduğunuz talebi onaylayamazsınız; başka bir yönetici karar vermeli.');
+    }
+    surumDenetle(talep);
+    /* Aynı talebin iki kez uygulanmasını engelleyen kilit. Uygulama hata verirse
+       talep yeniden "bekliyor" durumuna döner; yarım kalan kayıt onaylanmış sayılmaz. */
+    D.talepDurum(id, 'uygulaniyor');
+    try {
+      talepUygula(talep);
+    } catch (hata) {
+      D.talepDurum(id, 'bekliyor');
+      throw hata;
+    }
+    var sonuc = D.talepKarar(id, 'onaylandi', o.adSoyad, not, o.kullaniciId);
     D.denetimEkle({
       tur: 'onay', islem: 'talepOnayla', kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad,
-      isyeriId: talep.isyeriId, ozet: 'Onaylandı: ' + (talep.etiket || '') + ' · ' + (talep.ozet || '')
+      isyeriId: talep.isyeriId, kayitId: talep.kayitId || '',
+      ozet: 'Onaylandı: ' + (talep.etiket || '') + ' · ' + (talep.ozet || '')
     });
     return sonuc;
   }
@@ -426,10 +486,11 @@
     var talep = D.talepBul(id);
     if (!talep) { throw new Error('Talep bulunamadı.'); }
     if (talep.durum !== 'bekliyor') { throw new Error('Bu talep zaten karara bağlanmış.'); }
-    var sonuc = D.talepKarar(id, 'reddedildi', o.adSoyad, not);
+    var sonuc = D.talepKarar(id, 'reddedildi', o.adSoyad, not, o.kullaniciId);
     D.denetimEkle({
       tur: 'ret', islem: 'talepReddet', kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad,
-      isyeriId: talep.isyeriId, ozet: 'Reddedildi: ' + (talep.etiket || '') + ' · ' + (talep.ozet || '')
+      isyeriId: talep.isyeriId, kayitId: talep.kayitId || '',
+      ozet: 'Reddedildi: ' + (talep.etiket || '') + ' · ' + (talep.ozet || '')
     });
     return sonuc;
   }

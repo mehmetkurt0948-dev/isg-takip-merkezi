@@ -928,10 +928,10 @@ function bekle(ms) {
     ISG.ilgiliKayit(ISG.depo.al(), 'riskEkipleri', 'iy2').uyeler.destek === secilenAd);
 
   await sayfaAc('#acil');
-  kontrol('Acil durum destek rolleri listeleniyor', doc.querySelectorAll('.risk-kart .rol-satir').length === 30,
+  kontrol('Acil durum destek rolleri listeleniyor', doc.querySelectorAll('.risk-kart .rol-satir').length === 60,
     String(doc.querySelectorAll('.risk-kart .rol-satir').length));
   kontrol('Acil planda ekip üyesi düğmeleri var',
-    doc.querySelectorAll('[data-islem="ekip-uye"][data-kaynak="acil"]').length === 36,
+    doc.querySelectorAll('[data-islem="ekip-uye"][data-kaynak="acil"]').length === 66,
     String(doc.querySelectorAll('[data-islem="ekip-uye"][data-kaynak="acil"]').length));
   doc.querySelector('[data-islem="ekip-uye"][data-kaynak="acil"][data-isyeri="iy2"][data-rol="Destek elemanı"]').click();
   await bekle(80);
@@ -2511,6 +2511,222 @@ function bekle(ms) {
   window.ISG_KIMLIK = null;
   kontrol('Kimlik yoksa kimlikUygula boşuna bağlamaz',
     !ISG.bulut.kimlikVarMi() && !ISG.bulut.hazirMi());
+
+  console.log('\n22) Dosya kontrolü güncellemesi işyeri bağını ve listeyi korur');
+  if (ISG.bulut.hazirMi()) { ISG.bulut.kapat(); }
+  await sayfaAc('#dosyalar');
+  const duzenleDugmesi = doc.querySelector('[data-islem="dosya-duzenle"]');
+  kontrol('Düzenlenecek kontrol maddesi bulundu', !!duzenleDugmesi);
+  const dosyaKimlik = duzenleDugmesi.getAttribute('data-id');
+  const dosyaOnce = JSON.parse(JSON.stringify(
+    ISG.depo.al().dosyalar.filter((d) => d.id === dosyaKimlik)[0] || {}));
+  duzenleDugmesi.click();
+  await bekle(90);
+  const dosyaFormEl = doc.getElementById('dosyaForm');
+  kontrol('Düzenleme formu kaydın işyerini seçili getirir',
+    dosyaFormEl.elements.isyeriId.value === dosyaOnce.isyeriId,
+    dosyaFormEl.elements.isyeriId.value + ' / ' + dosyaOnce.isyeriId);
+  dosyaFormEl.elements.durum.value = 'var';
+  dosyaFormEl.elements.aciklama.value = 'Kısmi güncelleme testi';
+  dosyaFormEl.elements.kontrolTarihi.value = '2026-03-01';
+  dosyaFormEl.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(140);
+  const dosyaSonra = ISG.depo.al().dosyalar.filter((d) => d.id === dosyaKimlik)[0] || {};
+  kontrol('Güncelleme sonrası kayıt aynı işyerinde kalır',
+    dosyaSonra.isyeriId === dosyaOnce.isyeriId, dosyaSonra.isyeriId + ' / ' + dosyaOnce.isyeriId);
+  kontrol('Hazır liste kaynağı (sablon) korunur',
+    (dosyaSonra.sablon || '') === (dosyaOnce.sablon || ''), String(dosyaSonra.sablon));
+  kontrol('Sıra numarası (no) değişmez', Number(dosyaSonra.no) === Number(dosyaOnce.no),
+    dosyaSonra.no + ' / ' + dosyaOnce.no);
+  kontrol('İstenen alanlar güncellendi',
+    dosyaSonra.durum === 'var' && dosyaSonra.aciklama === 'Kısmi güncelleme testi');
+  kontrol('Kütükte tek kayıt kaldı (mükerrer yok)',
+    ISG.depo.al().dosyalar.filter((d) => d.id === dosyaKimlik).length === 1);
+  const bosIsyeri = ISG.depo.dosyaKaydet({
+    id: dosyaKimlik, isyeriId: '', aciklama: 'Boş işyeri gönderimi'
+  });
+  kontrol('Boş işyeri gönderimi bağı koparmaz',
+    (bosIsyeri || {}).isyeriId === dosyaOnce.isyeriId, String((bosIsyeri || {}).isyeriId));
+  const kaliciDosya = (JSON.parse(window.localStorage.getItem('isgtakip.v4') || '{}').dosyalar || [])
+    .filter((d) => d.id === dosyaKimlik)[0] || {};
+  kontrol('Güncelleme diske de doğru yazıldı', kaliciDosya.isyeriId === dosyaOnce.isyeriId);
+
+  console.log('\n23) Çoklu personel: acil durum ve risk ekipleri');
+  const acilOncesi = JSON.parse(JSON.stringify(ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy3') || {}));
+  ISG.depo.acilEkipEkle('iy3', 'İlk yardım ekibi', 'Birinci Kişi', '', { belgeNo: 'B-1', gecerlilik: '2027-01-01' });
+  ISG.depo.acilEkipEkle('iy3', 'İlk yardım ekibi', 'İkinci Kişi', '');
+  const acil3 = ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy3');
+  const ilkYardim = ISG.depo.acilEkipUyeleri(acil3, 'İlk yardım ekibi');
+  kontrol('Aynı göreve iki personel ayrı kayıt olarak eklenir', ilkYardim.length === 2,
+    String(ilkYardim.length));
+  kontrol('Personel belge bilgisiyle birlikte saklanır',
+    ilkYardim.some((u) => u.ad === 'Birinci Kişi' && u.belgeNo === 'B-1' && u.gecerlilik === '2027-01-01'));
+  kontrol('Her personelin benzersiz kimliği var',
+    ilkYardim.every((u) => !!u.id) && ilkYardim[0].id !== ilkYardim[1].id);
+  ISG.depo.acilEkipEkle('iy3', 'İlk yardım ekibi', 'İkinci Kişi', '');
+  kontrol('Aynı personel aynı göreve ikinci kez eklenmez',
+    ISG.depo.acilEkipUyeleri(ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy3'), 'İlk yardım ekibi').length === 2);
+  const tekUye = ilkYardim[0];
+  ISG.depo.acilEkipSil('iy3', 'İlk yardım ekibi', { id: tekUye.id, ad: tekUye.ad });
+  const kalanIlkYardim = ISG.depo.acilEkipUyeleri(ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy3'), 'İlk yardım ekibi');
+  kontrol('Tek personel kaldırılırken diğeri korunur',
+    kalanIlkYardim.length === 1 && kalanIlkYardim[0].ad !== tekUye.ad,
+    kalanIlkYardim.map((u) => u.ad).join(', '));
+  kontrol('Eski acil ekip kayıtları korunur',
+    (ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy3').ekip || [])
+      .filter((u) => (acilOncesi.ekip || []).some((e) => e.rol === u.rol && e.ad === u.ad)).length ===
+      (acilOncesi.ekip || []).length,
+    'önce ' + (acilOncesi.ekip || []).length + ' üye');
+
+  ISG.depo.riskEkipUyeEkle('iy3', 'uzman', 'Uzman Bir', '');
+  ISG.depo.riskEkipUyeEkle('iy3', 'uzman', 'Uzman İki', '', { belgeSinifi: 'A' });
+  const risk3 = ISG.ilgiliKayit(ISG.depo.al(), 'riskEkipleri', 'iy3');
+  kontrol('Risk ekibinde rol başına çoklu üye tutulur',
+    ISG.depo.riskEkipUyeleri(risk3, 'uzman').length === 2,
+    String(ISG.depo.riskEkipUyeleri(risk3, 'uzman').length));
+  kontrol('Eski tek kişilik alan da dolu kalır (geriye dönük uyum)', risk3.uyeler.uzman === 'Uzman İki',
+    String(risk3.uyeler.uzman));
+  kontrol('Risk ekibi özeti rolü dolu sayar',
+    ISG.riskEkipOzeti(risk3).eksik === ISG.RISK_ROLLERI.length - 1,
+    String(ISG.riskEkipOzeti(risk3).eksik));
+
+  /* Arayüzde çoklu personel satırlarını görebilmek için ikinci kişi eklenir. */
+  ISG.depo.acilEkipEkle('iy3', 'İlk yardım ekibi', 'Üçüncü Kişi', '');
+
+  await sayfaAc('#acil');
+  kontrol('Çoklu personel ayrı satırlarda listelenir', doc.querySelectorAll('.rol-uye').length >= 2,
+    String(doc.querySelectorAll('.rol-uye').length));
+  kontrol('Kişi başına düzenle/kaldır düğmeleri var',
+    doc.querySelectorAll('[data-islem="ekip-uye-duzenle"]').length >= 2 &&
+    doc.querySelectorAll('[data-islem="ekip-uye-sil"][data-uye]').length >= 2);
+  const acilKalici = (JSON.parse(window.localStorage.getItem('isgtakip.v4') || '{}').acilPlanlar || [])
+    .filter((k) => k.isyeriId === 'iy3')[0] || {};
+  kontrol('Çoklu personel diske yazıldı (yenilemede korunur)',
+    (acilKalici.ekip || []).filter((u) => u.rol === 'İlk yardım ekibi').length === 2,
+    String((acilKalici.ekip || []).filter((u) => u.rol === 'İlk yardım ekibi').length));
+
+  console.log('\n24) Onay mekanizması: sürüm, kendini onaylama, çift uygulama');
+  const hedefKisi = ISG.depo.al().personel.filter((p) => p.isyeriId === 'iy1')[0];
+  kontrol('Test için iy1 personeli bulundu', !!hedefKisi);
+  await cikisYap();
+  await girisAcVeYap('buse.senol@ornek.com', '1234');
+  const guncellemeSonucu = ISG.depo.personelKaydet(Object.assign({}, hedefKisi, { meslek: 'Yetkili meslek' }));
+  kontrol('Yetkili güncellemesi talebe dönüşür', !!(guncellemeSonucu && guncellemeSonucu.bekliyor));
+  const guncellemeTalebi = (guncellemeSonucu || {}).talep || {};
+  kontrol('Talep modül ve kayıt kimliği taşır',
+    guncellemeTalebi.modul === 'personel' && guncellemeTalebi.kayitId === hedefKisi.id &&
+    guncellemeTalebi.islemTuru === 'guncelle',
+    [guncellemeTalebi.modul, guncellemeTalebi.kayitId, guncellemeTalebi.islemTuru].join(' / '));
+  kontrol('Talep eski ve yeni değerleri saklar',
+    !!(guncellemeTalebi.eskiKayit && guncellemeTalebi.yeniKayit) &&
+    guncellemeTalebi.yeniKayit.meslek === 'Yetkili meslek');
+  kontrol('Kayıt doğrudan değişmedi',
+    (ISG.depo.al().personel.filter((p) => p.id === hedefKisi.id)[0] || {}).meslek === hedefKisi.meslek);
+
+  const silinecekDosya = ISG.depo.al().dosyalar.filter((d) => d.isyeriId === 'iy1')[0];
+  const silmeSonucu = ISG.depo.dosyaSil(silinecekDosya.id);
+  kontrol('Yetkili silmesi de talebe dönüşür', !!(silmeSonucu && silmeSonucu.bekliyor));
+  const silmeTalebi = (silmeSonucu || {}).talep || {};
+  kontrol('Silme talebi işlem türünü taşır', silmeTalebi.islemTuru === 'sil');
+  kontrol('Silme onaylanmadan kayıt durur',
+    ISG.depo.al().dosyalar.some((d) => d.id === silinecekDosya.id));
+
+  await cikisYap();
+  await girisAcVeYap('mehmetkurt0948@gmail.com', '1234');
+  await sayfaAc('#onaylar');
+  kontrol('Onay ekranı eski/yeni değerleri gösterir',
+    doc.querySelectorAll('.onay-degisim').length > 0, String(doc.querySelectorAll('.onay-degisim').length));
+  kontrol('Ret gerekçesi alanı var', doc.querySelectorAll('[data-talep-not]').length > 0);
+  kontrol('Talep modül bilgisi satırda görünür', /Modül: Personel/.test(metin('#gorunum')));
+
+  /* Talepten sonra kayıt değişirse eski değerin üzerine yazılmaz. */
+  ISG.depo.personelKaydet(Object.assign({}, ISG.depo.al().personel.filter((p) => p.id === hedefKisi.id)[0],
+    { sicil: 'ADMIN-DEGISTI' }));
+  kontrol('Sürüm çakışması yakalanır', (function () {
+    try { ISG.yetki.talepOnayla(guncellemeTalebi.id, 'Test'); return false; }
+    catch (hata) { return /değişti/.test(hata.message); }
+  })());
+  kontrol('Çakışan talep beklemede kalır',
+    (ISG.depo.talepBul(guncellemeTalebi.id) || {}).durum === 'bekliyor');
+  kontrol('Yöneticinin yeni değeri korunur',
+    (ISG.depo.al().personel.filter((p) => p.id === hedefKisi.id)[0] || {}).sicil === 'ADMIN-DEGISTI');
+
+  /* Kendi talebini onaylama denemesi reddedilir. */
+  const yoneticiOturum = ISG.yetki.oturum();
+  const kendiTalep = ISG.depo.talepKaydet({
+    kullaniciId: yoneticiOturum.kullaniciId, kullaniciAd: yoneticiOturum.adSoyad,
+    isyeriId: 'iy1', modul: 'personel', kayitId: '', islemTuru: 'ekle',
+    etiket: 'Kendi talebi', ozet: 'Kendi talebi', durum: 'bekliyor',
+    eylem: { ad: 'personelKaydet', args: [{ adSoyad: 'Kendi Onayı', isyeriId: 'iy1' }] }
+  });
+  kontrol('Kendi talebini onaylayamaz', (function () {
+    try { ISG.yetki.talepOnayla(kendiTalep.id, 'Test'); return false; }
+    catch (hata) { return /Kendi oluşturduğunuz/.test(hata.message); }
+  })());
+  ISG.yetki.talepReddet(kendiTalep.id, 'Kendi talebi reddedildi');
+
+  /* Silme talebi onaylanınca kayıt kalkar; ikinci onay reddedilir. */
+  ISG.yetki.talepOnayla(silmeTalebi.id, 'Silme onaylandı');
+  kontrol('Onaylanan silme kaydı kaldırdı',
+    !ISG.depo.al().dosyalar.some((d) => d.id === silinecekDosya.id));
+  kontrol('Aynı talep ikinci kez uygulanamaz', (function () {
+    try { ISG.yetki.talepOnayla(silmeTalebi.id, 'Tekrar'); return false; }
+    catch (hata) { return /zaten karara bağlanmış/.test(hata.message); }
+  })());
+  kontrol('Karar veren ve tarih kayda işlendi',
+    !!(ISG.depo.talepBul(silmeTalebi.id) || {}).kararVerenId &&
+    !!(ISG.depo.talepBul(silmeTalebi.id) || {}).kararTarihi);
+
+  console.log('\n25) Çalışma planı: yıl/ay seçimi ve kısmi güncelleme');
+  await sayfaAc('#plan');
+  const planYilSec = doc.getElementById('planYili');
+  const planAySec = doc.getElementById('planAy');
+  kontrol('Plan yılı seçici var', !!planYilSec);
+  kontrol('Plan ayı seçici var (12 ay + tümü)', !!planAySec && planAySec.options.length === 13,
+    planAySec ? String(planAySec.options.length) : 'yok');
+  doc.querySelector('[data-islem="plan-yeni"]').click();
+  await bekle(90);
+  const planFormEl = doc.getElementById('planForm');
+  kontrol('Plan diyaloğu 12 aylık seçim sunar',
+    planFormEl.querySelectorAll('input[name="aylar"]').length === 12,
+    String(planFormEl.querySelectorAll('input[name="aylar"]').length));
+  kontrol('Plan yılı alanı dolu gelir', !!planFormEl.elements.yil.value, planFormEl.elements.yil.value);
+  planFormEl.elements.faaliyet.value = 'Aylık plan testi';
+  planFormEl.elements.yil.value = '2027';
+  planFormEl.querySelector('input[name="aylar"][value="3"]').checked = true;
+  planFormEl.querySelector('input[name="aylar"][value="5"]').checked = true;
+  planFormEl.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await bekle(140);
+  const yeniPlan = ISG.depo.al().planlar.filter((p) => p.faaliyet === 'Aylık plan testi')[0] || {};
+  kontrol('Seçilen aylar kayda yazıldı', JSON.stringify(yeniPlan.aylar) === '[3,5]',
+    JSON.stringify(yeniPlan.aylar));
+  kontrol('Plan yılı kayda yazıldı', Number(yeniPlan.yil) === 2027, String(yeniPlan.yil));
+
+  /* Ay filtresi: yalnızca seçilen ayı içeren kayıtlar listelenir. */
+  doc.getElementById('planAy').value = '3';
+  doc.getElementById('planAy').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(140);
+  kontrol('Ay filtresi listeyi daraltır',
+    /Aylık plan testi/.test(metin('#planTablo')), metin('#planTablo').slice(0, 120));
+  doc.getElementById('planAy').value = '4';
+  doc.getElementById('planAy').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await bekle(140);
+  kontrol('Boş ayda kayıt görünmez', !/Aylık plan testi/.test(metin('#planTablo')),
+    metin('#planTablo').slice(0, 120));
+
+  /* Düzenleme yılı ve ayları silmemeli (kısmi güncelleme). */
+  ISG.depo.planKaydet({ id: yeniPlan.id, durum: 'tamamlandi' });
+  const duzenlenen = ISG.depo.al().planlar.filter((p) => p.id === yeniPlan.id)[0] || {};
+  kontrol('Plan düzenlemesi yıl ve ayları korur',
+    Number(duzenlenen.yil) === 2027 && JSON.stringify(duzenlenen.aylar) === '[3,5]' &&
+    duzenlenen.durum === 'tamamlandi',
+    [duzenlenen.yil, JSON.stringify(duzenlenen.aylar), duzenlenen.durum].join(' / '));
+
+  /* KVKK: kimlik numarası yardımcısı */
+  kontrol('Kimlik numarası maskelenir',
+    ISG.tcMaskele('12345678901') === '123******01', ISG.tcMaskele('12345678901'));
+  kontrol('Yönetici tam kimlik numarasını görür',
+    ISG.tcGoster('12345678901') === '12345678901');
 
   console.log('\nSonuç: ' + gecen + ' geçti, ' + hata + ' başarısız');
   dom.window.close();

@@ -945,6 +945,33 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .plan-grup td { background: var(--brand-soft); }
 .plan-grup strong { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
 .plan-grup .hucre-alt { margin-left: 8px; }
+/* Plan diyaloğundaki 12 aylık seçim ızgarası */
+.plan-ay-secim { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.plan-ay-kutu {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.plan-ay-kutu.isaretli { border-color: var(--brand-line); background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+.plan-ay-kutu input { margin: 0; }
+@media (max-width: 560px) { .plan-ay-secim { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Görev grubunda birden çok personel: alt satırlar */
+.rol-uyeler { display: grid; gap: 4px; margin: 2px 0 8px 12px; padding-left: 10px; border-left: 2px solid var(--line); }
+.rol-uye { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-soft); }
+.rol-uye b { font-weight: 600; color: var(--ink); }
+.rol-uye .rol-uye-no { color: var(--ink-mute); font-size: 11.5px; min-width: 16px; }
+.rol-uye .rol-arac { display: flex; gap: 6px; margin-left: auto; }
+.rol-uye .rol-arac .dugme { padding: 4px 8px; font-size: 11.5px; }
+/* Onay kuyruğu: eski / yeni değer karşılaştırması ve ret gerekçesi */
+.onay-degisim { margin-top: 6px; font-size: 12px; color: var(--ink-soft); }
+.onay-degisim summary { cursor: pointer; color: var(--brand); font-weight: 600; }
+.onay-degisim .tablo { margin-top: 6px; }
+.kucuk-girdi { min-width: 180px; padding: 5px 8px; font-size: 12px; }
 /* Diyaloğun içindeki onay/scope seçenekleri (plan toplu silme gibi) */
 .secenek { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 12.5px; color: var(--ink-soft); }
 .secenek input { margin-top: 2px; }

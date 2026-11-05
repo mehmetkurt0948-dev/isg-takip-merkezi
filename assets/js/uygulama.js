@@ -425,7 +425,17 @@
     form.reset();
     bekleyenBelgeler = [];
     uyariGoster('dosyaUyari', '');
-    el('dosyaIsyeri').innerHTML = isyeriSecenekleri(kayit ? kayit.isyeriId : (isyeriId || UI.kapsam || (hesap.isyerleri[0] || {}).id));
+    var mevcutIsyeri = kayit ? kayit.isyeriId : (isyeriId || UI.kapsam || (hesap.isyerleri[0] || {}).id);
+    var secenekler = isyeriSecenekleri(mevcutIsyeri);
+    /* Kaydın işyeri seçenekler arasında yoksa (ör. kapsam filtresi) eklenir; aksi
+       hâlde tarayıcı ilk işyerini seçer ve kayıt yanlış işyerine taşınırdı. */
+    if (mevcutIsyeri && secenekler.indexOf('value="' + mevcutIsyeri + '"') < 0) {
+      var sahip = (D.al().isyerleri || []).filter(function (isyeri) { return isyeri.id === mevcutIsyeri; })[0];
+      secenekler = '<option value="' + B.kacis(mevcutIsyeri) + '" selected>' +
+        B.kacis((sahip && (sahip.ad || sahip.kisaAd)) || mevcutIsyeri) + '</option>' + secenekler;
+    }
+    el('dosyaIsyeri').innerHTML = secenekler;
+    if (mevcutIsyeri) { el('dosyaIsyeri').value = mevcutIsyeri; }
     form.elements.id.value = kayit ? kayit.id : '';
     el('dosyaBaslik').textContent = kayit ? 'Kontrol maddesini düzenle' : 'Yeni kontrol maddesi';
     if (kayit) {
@@ -870,8 +880,25 @@
     el('planIsyeri').innerHTML = isyeriSecenekleri(kayit ? kayit.isyeriId : (isyeriId || UI.kapsam || (hesap.isyerleri[0] || {}).id));
     form.elements.id.value = kayit ? kayit.id : '';
     el('planBaslik').textContent = kayit ? 'Plan faaliyetini düzenle' : 'Yeni plan faaliyeti';
+    /* Yıl: kayıttan, yoksa ekranda seçili yıldan, o da yoksa içinde bulunulan yıldan. */
+    var varsayilanYil = (kayit && ISG.planYil(kayit)) ||
+      (UI.planYili && UI.planYili !== 'tumu' ? Number(UI.planYili) : 0) ||
+      new Date().getFullYear();
+    if (form.elements.yil) { form.elements.yil.value = String(varsayilanYil); }
+    /* Ay seçimi: Ocak-Aralık on iki kutu; kayıttaki aylar işaretli gelir. */
+    var seciliAylar = kayit ? ISG.planAylari(kayit) : (Number(UI.planAy) ? [Number(UI.planAy)] : []);
+    var ayKutusu = el('planAySecim');
+    if (ayKutusu) {
+      ayKutusu.innerHTML = (B.AYLAR || []).map(function (ad, sira) {
+        var ay = sira + 1;
+        var isaretli = seciliAylar.indexOf(ay) > -1;
+        return '<label class="plan-ay-kutu' + (isaretli ? ' isaretli' : '') + '">' +
+          '<input type="checkbox" name="aylar" value="' + ay + '"' + (isaretli ? ' checked' : '') + '> ' +
+          '<span>' + B.kacis(ad) + '</span></label>';
+      }).join('');
+    }
     if (kayit) {
-      ['faaliyet', 'sorumlu', 'takipTarihi', 'durum', 'aciklama'].forEach(function (alan) {
+      ['faaliyet', 'sorumlu', 'takipTarihi', 'durum', 'aciklama', 'anaBaslik'].forEach(function (alan) {
         if (form.elements[alan]) { form.elements[alan].value = kayit[alan] || ''; }
       });
     } else {
@@ -1185,20 +1212,22 @@
     return bulunan ? bulunan.ad : deger;
   }
 
-  function ekipUyeMevcut(kaynak, isyeriId, rol) {
+  function ekipUyeMevcut(kaynak, isyeriId, rol, uyeId) {
     var hesap = veri();
+    var liste;
     if (kaynak === 'acil') {
       var plan = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeriId);
-      var uye = ((plan && plan.ekip) || []).filter(function (k) { return k.rol === rol; })[0];
-      return uye || null;
+      liste = ISG.depo.acilEkipUyeleri(plan, rol);
+    } else {
+      var kayit = ISG.ilgiliKayit(hesap, 'riskEkipleri', isyeriId);
+      liste = ISG.depo.riskEkipUyeleri(kayit, rol);
     }
-    var kayit = ISG.ilgiliKayit(hesap, 'riskEkipleri', isyeriId);
-    var ad = (kayit && kayit.uyeler && kayit.uyeler[rol]) || '';
-    if (!ad) { return null; }
-    return { rol: rol, ad: ad, personelId: ((kayit.uyeIdleri || {})[rol]) || '' };
+    if (!uyeId) { return liste; }
+    return liste.filter(function (uye) { return String(uye.id) === String(uyeId); })[0] || null;
   }
 
-  function ekipUyeAc(kaynak, isyeriId, rol) {
+  /* Yeni üye ekleme (uyeId yok) ya da var olan üyeyi düzenleme (uyeId var). */
+  function ekipUyeAc(kaynak, isyeriId, rol, uyeId) {
     var form = el('ekipUyeForm');
     if (!form) { return; }
     var hesap = veri();
@@ -1210,6 +1239,9 @@
     uyariGoster('ekipUyeUyari', '');
     form.elements.kaynak.value = kaynak;
     form.elements.isyeriId.value = isyeriId;
+    if (form.elements.uyeId) { form.elements.uyeId.value = uyeId || ''; }
+    if (form.elements.eskiRol) { form.elements.eskiRol.value = ''; }
+    if (form.elements.eskiAd) { form.elements.eskiAd.value = ''; }
     form.elements.rol.innerHTML = roller.map(function (r) {
       var deger = kaynak === 'acil' ? r.ad : r.id;
       return '<option value="' + B.kacis(deger) + '">' + B.kacis(r.ad) + '</option>';
@@ -1225,21 +1257,42 @@
           (k.meslek ? ' · ' + B.kacis(k.meslek) : '') + '</option>';
       }).join('');
 
-    var mevcut = ekipUyeMevcut(kaynak, isyeriId, secili);
-    form.elements.ad.value = mevcut ? mevcut.ad : '';
-    if (mevcut && mevcut.personelId) { form.elements.personelId.value = mevcut.personelId; }
+    var mevcut = uyeId ? ekipUyeMevcut(kaynak, isyeriId, secili, uyeId) : null;
+    if (mevcut) {
+      form.elements.ad.value = mevcut.ad || '';
+      if (mevcut.personelId) { form.elements.personelId.value = mevcut.personelId; }
+      if (form.elements.eskiRol) { form.elements.eskiRol.value = mevcut.rol || secili; }
+      if (form.elements.eskiAd) { form.elements.eskiAd.value = mevcut.ad || ''; }
+      ['belgeNo', 'belgeSinifi', 'gecerlilik', 'aciklama'].forEach(function (alan) {
+        if (form.elements[alan]) { form.elements[alan].value = mevcut[alan] || ''; }
+      });
+    }
 
     el('ekipUyeUst').textContent = kaynak === 'acil' ? 'ACİL DURUM PLANI' : 'RİSK DEĞERLENDİRMESİ';
-    el('ekipUyeBaslik').textContent = (isyeri ? isyeri.ad : 'Ekip') + ' · ' + rolEtiketi(kaynak, secili);
+    el('ekipUyeBaslik').textContent = (isyeri ? isyeri.ad : 'Ekip') + ' · ' + rolEtiketi(kaynak, secili) +
+      (mevcut ? ' · kişiyi düzenle' : ' · yeni kişi');
+    var gonder = el('ekipUyeDiyalog') ? el('ekipUyeDiyalog').querySelector('button[type="submit"]') : null;
+    if (gonder) { gonder.textContent = mevcut ? 'Değişiklikleri kaydet' : 'Personeli ekle'; }
     diyalogAc(el('ekipUyeDiyalog'), form.elements.rol);
   }
 
-  function ekipUyeSilOnay(kaynak, isyeriId, rol) {
-    var mevcut = ekipUyeMevcut(kaynak, isyeriId, rol);
-    if (!mevcut) { return; }
-    onayIste('Ekip üyesi kaldırılsın mı?', rolEtiketi(kaynak, rol) + ' görevinden ' + mevcut.ad + ' kaldırılacak.', function () {
-      if (kaynak === 'acil') { D.acilEkipSil(isyeriId, rol); }
-      else { D.riskEkipUyeSil(isyeriId, rol); }
+  function ekipUyeSilOnay(kaynak, isyeriId, rol, secim) {
+    var uyeler = ekipUyeMevcut(kaynak, isyeriId, rol) || [];
+    var hedef = secim && (secim.id || secim.ad) ? uyeler.filter(function (uye) {
+      return (secim.id && String(uye.id) === String(secim.id)) ||
+        (secim.ad && String(uye.ad) === String(secim.ad));
+    })[0] : null;
+    if (!uyeler.length) { return; }
+    var soru = hedef ?
+      'Ekip üyesi kaldırılsın mı?' :
+      'Görev grubundaki tüm kişiler kaldırılsın mı?';
+    var detay = hedef ?
+      rolEtiketi(kaynak, rol) + ' görevinden ' + hedef.ad + ' kaldırılacak.' :
+      rolEtiketi(kaynak, rol) + ' görevindeki ' + uyeler.length + ' kişi kaldırılacak.';
+    onayIste(soru, detay, function () {
+      var temiz = secim && (secim.id || secim.ad) ? secim : null;
+      if (kaynak === 'acil') { D.acilEkipSil(isyeriId, rol, temiz); }
+      else { D.riskEkipUyeSil(isyeriId, rol, temiz); }
       B.bildir('Ekip üyesi kaldırıldı.', 'basari');
       ciz();
     }, 'Kaldır');
@@ -2285,9 +2338,12 @@
         break;
       case 'talep-reddet':
         onayIste('Talep reddedilsin mi?', 'Talep reddedildiğinde kayıt değişmez; talep sahibi durumu onay kuyruğunda görür.', function () {
+          var notAlani = dugme.closest('.onay-satir') ?
+            dugme.closest('.onay-satir').querySelector('[data-talep-not]') : null;
+          var gerekce = (notAlani && notAlani.value ? String(notAlani.value).trim() : '') || 'Ret gerekçesi yazılmadı';
           try {
-            ISG.yetki.talepReddet(id, 'Reddedildi');
-            B.bildir('Talep reddedildi.', 'basari');
+            ISG.yetki.talepReddet(id, gerekce);
+            B.bildir('Talep reddedildi ve kayıt değiştirilmedi.', 'basari');
           } catch (hata) {
             B.bildir(hata.message, 'hata');
           }
@@ -2712,10 +2768,16 @@
         riskEkipAc(id);
         break;
       case 'ekip-uye':
-        ekipUyeAc(dugme.getAttribute('data-kaynak') || 'risk', isyeriId, dugme.getAttribute('data-rol') || '');
+        ekipUyeAc(dugme.getAttribute('data-kaynak') || 'risk', isyeriId, dugme.getAttribute('data-rol') || '',
+          dugme.getAttribute('data-uye') || '');
+        break;
+      case 'ekip-uye-duzenle':
+        ekipUyeAc(dugme.getAttribute('data-kaynak') || 'risk', isyeriId, dugme.getAttribute('data-rol') || '',
+          dugme.getAttribute('data-uye') || '');
         break;
       case 'ekip-uye-sil':
-        ekipUyeSilOnay(dugme.getAttribute('data-kaynak') || 'risk', isyeriId, dugme.getAttribute('data-rol') || '');
+        ekipUyeSilOnay(dugme.getAttribute('data-kaynak') || 'risk', isyeriId, dugme.getAttribute('data-rol') || '',
+          { id: dugme.getAttribute('data-uye') || '', ad: dugme.getAttribute('data-uye-ad') || '' });
         break;
       case 'acil-csv':
         csvAcil();
@@ -3374,19 +3436,29 @@
     formuBagla('planForm', function (form) {
       var veriForm = formVerisi(form);
       if (!veriForm.faaliyet) { uyariGoster('planUyari', 'Faaliyet adı zorunlu.'); return; }
+      /* Seçilen aylar: on iki kutudan işaretliler (çok seçim desteklenir). */
+      var aylar = [];
+      var kutular = form.querySelectorAll('input[name="aylar"]');
+      for (var i = 0; i < kutular.length; i += 1) {
+        if (kutular[i].checked) { aylar.push(Number(kutular[i].value)); }
+      }
       var ay = 0;
       var gun = 0;
       if (veriForm.takipTarihi) {
         ay = Number(veriForm.takipTarihi.slice(5, 7));
         gun = Number(veriForm.takipTarihi.slice(8, 10));
       }
+      if (!aylar.length && ay) { aylar.push(ay); }
       var mevcut = veriForm.id ? veri().planlar.filter(function (p) { return p.id === veriForm.id; })[0] : null;
       D.planKaydet({
         id: veriForm.id || '',
         isyeriId: veriForm.isyeriId,
         sira: mevcut ? mevcut.sira : (ISG.kapsamda(veri(), veriForm.isyeriId, 'planlar').length + 1),
-        ay: ay,
+        yil: Number(veriForm.yil) || 0,
+        aylar: aylar,
+        ay: aylar.length ? aylar[0] : ay,
         gun: gun,
+        anaBaslik: veriForm.anaBaslik || '',
         faaliyet: veriForm.faaliyet,
         sorumlu: veriForm.sorumlu || '',
         takipTarihi: veriForm.takipTarihi || '',
@@ -3453,10 +3525,24 @@
         uyariGoster('ekipUyeUyari', 'Listeden bir kişi seçin ya da adı soyadı yazın.');
         return;
       }
+      /* Belge bilgileri üye kaydında saklanır; PDF/yazdırma ve dışa aktarımda görünür. */
+      var ek = {
+        belgeNo: veriForm.belgeNo || '',
+        belgeSinifi: veriForm.belgeSinifi || '',
+        gecerlilik: veriForm.gecerlilik || '',
+        aciklama: veriForm.aciklama || ''
+      };
+      var eskiId = veriForm.uyeId || '';
       if (veriForm.kaynak === 'acil') {
-        D.acilEkipEkle(veriForm.isyeriId, veriForm.rol, ad, veriForm.personelId || '');
+        D.acilEkipEkle(veriForm.isyeriId, veriForm.rol, ad, veriForm.personelId || '', ek);
       } else {
-        D.riskEkipUyeEkle(veriForm.isyeriId, veriForm.rol, ad, veriForm.personelId || '');
+        D.riskEkipUyeEkle(veriForm.isyeriId, veriForm.rol, ad, veriForm.personelId || '', ek);
+      }
+      /* Düzenleme sırasında görev grubu değiştiyse eski kayıt kaldırılır (mükerrer olmasın). */
+      if (eskiId && veriForm.eskiRol && veriForm.eskiRol !== veriForm.rol) {
+        var secim = { id: eskiId, ad: veriForm.eskiAd || '' };
+        if (veriForm.kaynak === 'acil') { D.acilEkipSil(veriForm.isyeriId, veriForm.eskiRol, secim); }
+        else { D.riskEkipUyeSil(veriForm.isyeriId, veriForm.eskiRol, secim); }
       }
       diyalogKapat(el('ekipUyeDiyalog'));
       B.bildir('Ekip üyesi kaydedildi.', 'basari');
@@ -3720,10 +3806,16 @@
         var kaynak = ekipForm.elements.kaynak.value === 'acil' ? 'acil' : 'risk';
         var isyeriId = ekipForm.elements.isyeriId.value;
         var isyeri = ISG.isyeriBul(veri(), isyeriId);
-        var mevcut = ekipUyeMevcut(kaynak, isyeriId, this.value);
-        ekipForm.elements.ad.value = mevcut ? mevcut.ad : '';
+        /* Yeni kişi eklenirken alanlar boş kalır; düzenlemede üye bilgileri yüklenir. */
+        var uyeId = ekipForm.elements.uyeId ? ekipForm.elements.uyeId.value : '';
+        var mevcut = uyeId ? ekipUyeMevcut(kaynak, isyeriId, this.value, uyeId) : null;
+        ekipForm.elements.ad.value = mevcut ? (mevcut.ad || '') : '';
         ekipForm.elements.personelId.value = (mevcut && mevcut.personelId) || '';
-        el('ekipUyeBaslik').textContent = (isyeri ? isyeri.ad : 'Ekip') + ' · ' + rolEtiketi(kaynak, this.value);
+        ['belgeNo', 'belgeSinifi', 'gecerlilik', 'aciklama'].forEach(function (alan) {
+          if (ekipForm.elements[alan]) { ekipForm.elements[alan].value = (mevcut && mevcut[alan]) || ''; }
+        });
+        el('ekipUyeBaslik').textContent = (isyeri ? isyeri.ad : 'Ekip') + ' · ' + rolEtiketi(kaynak, this.value) +
+          (mevcut ? ' · kişiyi düzenle' : ' · yeni kişi');
         uyariGoster('ekipUyeUyari', '');
       });
       ekipForm.elements.personelId.addEventListener('change', function () {

@@ -255,11 +255,18 @@
     { id: 'birim', ad: 'Birimleri bilen çalışan' }
   ];
 
+  /* Acil durum planı görev grupları. `ad` alanı kayıtlarda görev anahtarı olarak
+     kullanılır; bu yüzden mevcut adlar korunur (eski kayıtlar yerinde kalır). */
   ISG.ACIL_ROLLERI = [
     { id: 'koordinator', ad: 'Acil durum koordinatörü' },
-    { id: 'yangin', ad: 'Yangın söndürme ekibi' },
+    { id: 'uzman', ad: 'İş güvenliği uzmanı' },
+    { id: 'hekim', ad: 'İşyeri hekimi' },
+    { id: 'digerSaglik', ad: 'Diğer sağlık personeli' },
     { id: 'ilkyardim', ad: 'İlk yardım ekibi' },
+    { id: 'yangin', ad: 'Yangın söndürme ekibi' },
+    { id: 'kurtarma', ad: 'Kurtarma ekibi' },
     { id: 'tahliye', ad: 'Tahliye / arama kurtarma' },
+    { id: 'koruma', ad: 'Koruma ekibi' },
     { id: 'destek', ad: 'Destek elemanı' }
   ];
 
@@ -380,6 +387,25 @@
       sinif: sinif,
       ekip: (kayit && kayit.ekip) || []
     };
+  };
+
+  /* ---------- KVKK: kimlik numarası maskeleme ----------
+     T.C. kimlik numarası özel nitelikli veri sayılmasa da gereksiz yerlerde
+     açık gösterilmez. Listede maskelenir; tam değeri yalnızca yönetici görür. */
+  ISG.tcMaskele = function (tc) {
+    var rakam = String(tc || '').replace(/\D/g, '');
+    if (rakam.length < 5) { return String(tc || ''); }
+    return rakam.slice(0, 3) + '******' + rakam.slice(-2);
+  };
+
+  ISG.tcGoster = function (tc) {
+    if (!tc) { return ''; }
+    var yonetici = false;
+    try {
+      var o = ISG.yetki && typeof ISG.yetki.oturum === 'function' ? ISG.yetki.oturum() : null;
+      yonetici = !!(o && ISG.yetki.rolTanimi(o.rol).yonetir);
+    } catch (hata) { yonetici = false; }
+    return yonetici ? String(tc) : ISG.tcMaskele(tc);
   };
 
   /* ---------- Görev motoru ---------- */
@@ -1243,14 +1269,33 @@
     depo.kaydet();
   };
 
+  /* Kontrol maddesi güncellemesi KISMİDİR. Formdan gelmeyen alanlar (hazır liste
+     kodu `sablon`, sıra numarası `no`, sonraki kontrol tarihi ve ileride eklenecek
+     alanlar) korunur; işyeri bağı yalnızca açıkça farklı bir işyeri gönderilirse
+     değişir. Böylece düzenlenen madde kendi işyerinde kalır, listeden kopup
+     "Tüm kaynaklar" görünümüne düşmez ve sıra numarası değişmez. */
   ISG.depo.dosyaKaydet = function (kayit) {
+    if (!kayit) { return null; }
     var veri = depo.al();
-    kayit.no = Number(kayit.no) || 0;
-    if (!kayit.no) {
-      var kardesler = veri.dosyalar.filter(function (d) { return d.isyeriId === kayit.isyeriId; });
-      kayit.no = kardesler.reduce(function (enBuyuk, d) { return Math.max(enBuyuk, Number(d.no) || 0); }, 0) + 1;
+    var mevcut = kayit.id ?
+      (veri.dosyalar || []).filter(function (d) { return d.id === kayit.id; })[0] : null;
+    var hedef = mevcut || kayit;
+    if (mevcut) {
+      Object.keys(kayit).forEach(function (alan) {
+        if (alan === 'id') { return; }
+        var deger = kayit[alan];
+        if (deger === undefined || deger === null) { return; }
+        /* Boş işyeri gönderimi mevcut bağı koparmaz. */
+        if (alan === 'isyeriId' && !String(deger).trim()) { return; }
+        mevcut[alan] = deger;
+      });
     }
-    var sonuc = kaydetListede(veri.dosyalar, kayit, 'd');
+    hedef.no = Number(hedef.no) || 0;
+    if (!hedef.no) {
+      var kardesler = veri.dosyalar.filter(function (d) { return d.isyeriId === hedef.isyeriId; });
+      hedef.no = kardesler.reduce(function (enBuyuk, d) { return Math.max(enBuyuk, Number(d.no) || 0); }, 0) + 1;
+    }
+    var sonuc = kaydetListede(veri.dosyalar, hedef, 'd');
     depo.kaydet();
     return sonuc;
   };
@@ -1445,10 +1490,35 @@
     };
   };
 
+  /* Plan kaydı KISMİ güncellenir: formdan gelmeyen alanlar (yil, aylar,
+     anaBaslik, guncelleme…) korunur. Ay bilgisi belirlenemeyen eski kayıtlar
+     başka aya taşınmaz; alanlar boş bırakılır ve görünümde türetilir. */
   ISG.depo.planKaydet = function (kayit) {
+    if (!kayit) { return null; }
     var veri = depo.al();
-    kayit.sira = Number(kayit.sira) || 1;
-    var sonuc = kaydetListede(veri.planlar, kayit, 'pl');
+    var mevcut = kayit.id ?
+      (veri.planlar || []).filter(function (p) { return p.id === kayit.id; })[0] : null;
+    var hedef = mevcut || kayit;
+    if (mevcut) {
+      Object.keys(kayit).forEach(function (alan) {
+        if (alan === 'id') { return; }
+        var deger = kayit[alan];
+        if (deger === undefined || deger === null) { return; }
+        mevcut[alan] = deger;
+      });
+    }
+    hedef.sira = Number(hedef.sira) || 1;
+    if (hedef.yil !== undefined) { hedef.yil = Number(hedef.yil) || 0; }
+    if (hedef.aylar !== undefined) {
+      hedef.aylar = (Array.isArray(hedef.aylar) ? hedef.aylar : [])
+        .map(function (ay) { return Number(ay); })
+        .filter(function (ay) { return ay >= 1 && ay <= 12; })
+        .filter(function (ay, sira, liste) { return liste.indexOf(ay) === sira; })
+        .sort(function (a, b) { return a - b; });
+      if (!Number(hedef.ay)) { hedef.ay = hedef.aylar[0] || 0; }
+    }
+    hedef.guncelleme = new Date().toISOString();
+    var sonuc = kaydetListede(veri.planlar, hedef, 'pl');
     depo.kaydet();
     return sonuc;
   };
@@ -1596,20 +1666,121 @@
     depo.kaydet();
   };
 
+  /* ---------- Ekip üyeleri: çoklu personel modeli ----------
+     Eski kayıtlar rol başına tek kişi tutuyordu (riskEkipleri.uyeler[rol] ve
+     acilPlanlar.ekip[]). Yeni model rol başına üye LİSTESİ tutar:
+       riskEkipleri.uyeListe[rol] = [{ id, rol, ad, personelId, belgeNo, ... }]
+       acilPlanlar.ekip          = [{ id, rol, ad, personelId, belgeNo, ... }]
+     Eski alanlar silinmez; okuma sırasında yeni modele köprü kurulur. Böylece
+     geçiş sırasında hiçbir personel bilgisi kaybolmaz. */
+
+  function uyeAnahtari(uye) {
+    var ad = String((uye && uye.ad) || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+    return String((uye && uye.personelId) || '') + '|' + ad;
+  }
+
+  function uyeNesnesi(rol, ad, personelId, ek) {
+    var uye = {
+      id: ISG.yeniId('uy'),
+      rol: String(rol || ''),
+      ad: String(ad || '').trim(),
+      personelId: personelId || ''
+    };
+    var kaynak = ek || {};
+    Object.keys(kaynak).forEach(function (alan) {
+      if (alan === 'id' || alan === 'rol' || alan === 'ad' || alan === 'personelId') { return; }
+      uye[alan] = kaynak[alan];
+    });
+    return uye;
+  }
+
+  /* Seçim (id veya ad) verilen üyeyle eşleşiyor mu? Kaldırma düğmeleri hem
+     kimlik hem ad gönderir; eski kayıtlarda kimlik olmadığı için ad yedektir. */
+  function uyeEslesir(uye, secim) {
+    if (!uye || !secim) { return false; }
+    if (secim.id && uye.id && String(uye.id) === String(secim.id)) { return true; }
+    if (secim.ad && String(uye.ad || '') === String(secim.ad)) { return true; }
+    return false;
+  }
+
+  /* Risk ekibi kaydında bir rolün üye listesi (eski tek kişilik alanla birlikte). */
+  ISG.depo.riskEkipUyeleri = function (kayit, rol) {
+    if (!kayit) { return []; }
+    var liste = (kayit.uyeListe && kayit.uyeListe[rol]) || [];
+    if (liste.length) { return liste.slice(); }
+    var tek = ((kayit.uyeler || {})[rol]) || '';
+    if (!String(tek).trim()) { return []; }
+    return [{
+      id: 'eski-' + rol,
+      rol: rol,
+      ad: tek,
+      personelId: ((kayit.uyeIdleri || {})[rol]) || '',
+      eskiKayit: true
+    }];
+  };
+
+  /* Risk ekibinde rolün listesini yazmaya hazırlar: eski tek kişi yeni modele taşınır. */
+  function riskUyeListeHazirla(kayit, rol) {
+    kayit.uyeListe = kayit.uyeListe || {};
+    kayit.uyeler = kayit.uyeler || {};
+    kayit.uyeIdleri = kayit.uyeIdleri || {};
+    if (!kayit.uyeListe[rol]) { kayit.uyeListe[rol] = []; }
+    var liste = kayit.uyeListe[rol];
+    var eskiAd = String(kayit.uyeler[rol] || '').trim();
+    if (!liste.length && eskiAd) {
+      liste.push({
+        id: ISG.yeniId('uy'),
+        rol: rol,
+        ad: eskiAd,
+        personelId: kayit.uyeIdleri[rol] || ''
+      });
+    }
+    return liste;
+  }
+
+  /* Eski alanları (uyeler / uyeIdleri) listenin ilk üyesiyle eşitler. */
+  function riskEskiAlanlariYaz(kayit, rol) {
+    var liste = (kayit.uyeListe && kayit.uyeListe[rol]) || [];
+    kayit.uyeler[rol] = liste.length ? liste[0].ad : '';
+    if (liste.length && liste[0].personelId) { kayit.uyeIdleri[rol] = liste[0].personelId; }
+    else { delete kayit.uyeIdleri[rol]; }
+  }
+
+  /* Acil durum planındaki üyeler; kimliği olmayan eski kayıtlara geçici kimlik verilir. */
+  ISG.depo.acilEkipUyeleri = function (kayit, rol) {
+    if (!kayit || !Array.isArray(kayit.ekip)) { return []; }
+    return kayit.ekip.map(function (uye, sira) {
+      if (rol && uye.rol !== rol) { return null; }
+      var kopya = {};
+      Object.keys(uye).forEach(function (alan) { kopya[alan] = uye[alan]; });
+      kopya.id = uye.id || ('eski-acil-' + sira);
+      return kopya;
+    }).filter(function (uye) { return !!uye; });
+  };
+
   ISG.depo.riskEkipKaydet = function (isyeriId, alanlar) {
     var veri = depo.al();
     var kayit = ISG.ilgiliKayit(veri, 'riskEkipleri', isyeriId);
     if (!kayit) {
-      kayit = { isyeriId: isyeriId, sonDegerlendirme: '', enGecYenileme: '', uyeler: {} };
+      kayit = { isyeriId: isyeriId, sonDegerlendirme: '', enGecYenileme: '', uyeler: {}, uyeListe: {} };
       veri.riskEkipleri.push(kayit);
     }
     kayit.sonDegerlendirme = alanlar.sonDegerlendirme || '';
     kayit.enGecYenileme = alanlar.enGecYenileme || '';
     kayit.uyeler = kayit.uyeler || {};
+    kayit.uyeListe = kayit.uyeListe || {};
     ISG.RISK_ROLLERI.forEach(function (rol) {
-      if (Object.prototype.hasOwnProperty.call(alanlar, rol.id)) {
-        kayit.uyeler[rol.id] = alanlar[rol.id] || '';
+      if (!Object.prototype.hasOwnProperty.call(alanlar, rol.id)) { return; }
+      var ad = String(alanlar[rol.id] || '').trim();
+      var liste = riskUyeListeHazirla(kayit, rol.id);
+      if (!ad) { return; }
+      /* Formdan gelen ad yeni bir kişiyse listeye eklenir; mevcut üyeler korunur. */
+      var varMi = liste.some(function (uye) { return uyeAnahtari(uye) === ('|' + ad.toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim()); });
+      if (!varMi) {
+        liste.push(uyeNesnesi(rol.id, ad, ''));
       }
+      /* Eski tek kişilik alan okunabilir kalır (dışa aktarımlar ve eski ekranlar). */
+      kayit.uyeler[rol.id] = ad;
     });
     depo.kaydet();
     return kayit;
@@ -1629,53 +1800,101 @@
     return kayit;
   };
 
-  ISG.depo.riskEkipUyeEkle = function (isyeriId, rol, ad, personelId) {
+  /* Risk ekibine üye ekler. Aynı kişi aynı görevde ikinci kez kaydedilmez;
+     farklı kişiler aynı görevde yan yana durabilir (çoklu personel). */
+  ISG.depo.riskEkipUyeEkle = function (isyeriId, rol, ad, personelId, ek) {
     var veri = depo.al();
     var kayit = ISG.ilgiliKayit(veri, 'riskEkipleri', isyeriId);
     if (!kayit) {
-      kayit = { isyeriId: isyeriId, sonDegerlendirme: '', enGecYenileme: '', uyeler: {}, uyeIdleri: {} };
+      kayit = { isyeriId: isyeriId, sonDegerlendirme: '', enGecYenileme: '', uyeler: {}, uyeIdleri: {}, uyeListe: {} };
       veri.riskEkipleri.push(kayit);
     }
-    kayit.uyeler = kayit.uyeler || {};
-    kayit.uyeler[rol] = ad || '';
-    if (personelId) {
-      kayit.uyeIdleri = kayit.uyeIdleri || {};
-      kayit.uyeIdleri[rol] = personelId;
+    var temiz = String(ad || '').trim();
+    var liste = riskUyeListeHazirla(kayit, rol);
+    if (!temiz) { depo.kaydet(); return kayit; }
+    var yeni = uyeNesnesi(rol, temiz, personelId, ek);
+    var anahtar = uyeAnahtari(yeni);
+    var eslesen = liste.filter(function (uye) { return uyeAnahtari(uye) === anahtar; })[0];
+    if (eslesen) {
+      Object.keys(yeni).forEach(function (alan) {
+        if (alan === 'id' || alan === 'rol') { return; }
+        eslesen[alan] = yeni[alan];
+      });
+    } else {
+      liste.push(yeni);
     }
+    /* Eski tek kişilik alan son eklenen kişiyi gösterir (geriye dönük uyum). */
+    kayit.uyeler[rol] = (eslesen || yeni).ad;
+    if (personelId) { kayit.uyeIdleri[rol] = personelId; }
     depo.kaydet();
     return kayit;
   };
 
-  ISG.depo.riskEkipUyeSil = function (isyeriId, rol) {
+  /* secim verilirse yalnızca o üye, verilmezse rolün tüm üyeleri kaldırılır. */
+  ISG.depo.riskEkipUyeSil = function (isyeriId, rol, secim) {
     var veri = depo.al();
     var kayit = ISG.ilgiliKayit(veri, 'riskEkipleri', isyeriId);
     if (!kayit) { return null; }
-    if (kayit.uyeler) { kayit.uyeler[rol] = ''; }
-    if (kayit.uyeIdleri) { delete kayit.uyeIdleri[rol]; }
+    var liste = riskUyeListeHazirla(kayit, rol);
+    if (!secim) {
+      kayit.uyeListe[rol] = [];
+      kayit.uyeler[rol] = '';
+      delete kayit.uyeIdleri[rol];
+    } else {
+      kayit.uyeListe[rol] = liste.filter(function (uye) { return !uyeEslesir(uye, secim); });
+      riskEskiAlanlariYaz(kayit, rol);
+    }
     depo.kaydet();
     return kayit;
   };
 
-  ISG.depo.acilEkipEkle = function (isyeriId, rol, ad, personelId) {
+  /* Acil durum planına üye ekler; aynı kişi aynı görevde tekrarlanmaz. */
+  ISG.depo.acilEkipEkle = function (isyeriId, rol, ad, personelId, ek) {
     var veri = depo.al();
     var kayit = ISG.ilgiliKayit(veri, 'acilPlanlar', isyeriId);
     if (!kayit) {
       kayit = { isyeriId: isyeriId, hazirlanma: '', sonYenileme: '', tatbikat: '', ekip: [] };
       veri.acilPlanlar.push(kayit);
     }
-    kayit.ekip = (kayit.ekip || []).filter(function (uye) { return uye.rol !== rol; });
-    if (ad) {
-      kayit.ekip.push({ rol: rol, ad: ad, personelId: personelId || '' });
+    kayit.ekip = kayit.ekip || [];
+    var temiz = String(ad || '').trim();
+    if (!temiz) { depo.kaydet(); return kayit; }
+    var yeni = uyeNesnesi(rol, temiz, personelId, ek);
+    var anahtar = uyeAnahtari(yeni);
+    var eslesen = kayit.ekip.filter(function (uye) {
+      return uye.rol === rol && uyeAnahtari(uye) === anahtar;
+    })[0];
+    if (eslesen) {
+      Object.keys(yeni).forEach(function (alan) {
+        if (alan === 'id' || alan === 'rol') { return; }
+        eslesen[alan] = yeni[alan];
+      });
+    } else {
+      kayit.ekip.push(yeni);
     }
     depo.kaydet();
     return kayit;
   };
 
-  ISG.depo.acilEkipSil = function (isyeriId, rol) {
+  /* secim verilirse yalnızca o üye, verilmezse rolün tüm üyeleri kaldırılır. */
+  ISG.depo.acilEkipSil = function (isyeriId, rol, secim) {
     var veri = depo.al();
     var kayit = ISG.ilgiliKayit(veri, 'acilPlanlar', isyeriId);
     if (!kayit) { return null; }
-    kayit.ekip = (kayit.ekip || []).filter(function (uye) { return uye.rol !== rol; });
+    var ekip = kayit.ekip || [];
+    /* Kimliği olmayan eski kayıtlar silinirken kimlik kazanır; böylece tek üye
+       kaldırılırken rolün tamamı yanlışlıkla silinmez. */
+    if (secim) {
+      var bulunan = null;
+      ekip.forEach(function (uye) {
+        if (uye.rol !== rol) { return; }
+        if (!uye.id) { uye.id = ISG.yeniId('uy'); }
+        if (!bulunan && uyeEslesir(uye, secim)) { bulunan = uye; }
+      });
+      kayit.ekip = bulunan ? ekip.filter(function (uye) { return uye !== bulunan; }) : ekip;
+    } else {
+      kayit.ekip = ekip.filter(function (uye) { return uye.rol !== rol; });
+    }
     depo.kaydet();
     return kayit;
   };
@@ -1770,13 +1989,24 @@
     return (depo.al().talepler || []).filter(function (talep) { return talep.id === id; })[0] || null;
   };
 
-  ISG.depo.talepKarar = function (id, durum, kararVeren, not) {
+  ISG.depo.talepKarar = function (id, durum, kararVeren, not, kararVerenId) {
     var talep = ISG.depo.talepBul(id);
     if (!talep) { return null; }
     talep.durum = durum;
     talep.kararTarihi = new Date().toISOString();
     talep.kararVeren = kararVeren || '';
+    talep.kararVerenId = kararVerenId || talep.kararVerenId || '';
     talep.kararNotu = not || '';
+    depo.kaydet();
+    return talep;
+  };
+
+  /* Talep durumunu tek başına değiştirir (uygulanıyor kilidi gibi ara durumlar). */
+  ISG.depo.talepDurum = function (id, durum) {
+    var talep = ISG.depo.talepBul(id);
+    if (!talep) { return null; }
+    talep.durum = durum;
+    talep.durumTarihi = new Date().toISOString();
     depo.kaydet();
     return talep;
   };

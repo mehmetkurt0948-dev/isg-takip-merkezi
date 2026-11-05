@@ -312,6 +312,26 @@
       '<select id="planYili" data-ui="planYili" aria-label="Plan yılı">' + secenekler + '</select></label>';
   }
 
+  /* Ay seçimi: Ocak-Aralık + "Tüm aylar". Seçilen ay, faaliyetin ay şeridinde
+     ya da tek ay alanında geçiyorsa kayıt listelenir. */
+  function planAyi(plan) {
+    var aylar = ISG.planAylari(plan);
+    if (aylar.length) { return aylar; }
+    var tek = Number(plan && plan.ay);
+    return tek >= 1 && tek <= 12 ? [tek] : [];
+  }
+
+  function planAySecici() {
+    var aktif = String(UI.planAy || '');
+    var secenekler = '<option value=""' + (aktif ? '' : ' selected') + '>Tüm aylar</option>' +
+      (B.AYLAR || []).map(function (ad, sira) {
+        var ay = sira + 1;
+        return '<option value="' + ay + '"' + (aktif === String(ay) ? ' selected' : '') + '>' + ad + '</option>';
+      }).join('');
+    return '<label class="plan-yil-secim"><span class="filtre-etiket">Plan ayı</span>' +
+      '<select id="planAy" data-ui="planAy" aria-label="Plan ayı">' + secenekler + '</select></label>';
+  }
+
   function planSecimCubugu(planlar, secim) {
     var seciliSayi = planlar.filter(function (plan) { return !!secim[plan.id]; }).length;
     var tumuSecili = planlar.length > 0 && seciliSayi === planlar.length;
@@ -374,6 +394,12 @@
     var seciliYil = UI.planYili && UI.planYili !== 'tumu' ? Number(UI.planYili) : 0;
     if (seciliYil && yillar.indexOf(seciliYil) < 0) { seciliYil = 0; }
     var planlar = planSirala(tumPlanlar.filter(function (plan) { return yilaGore(plan, seciliYil); }));
+    var seciliAy = Number(UI.planAy) || 0;
+    if (seciliAy < 1 || seciliAy > 12) { seciliAy = 0; }
+    if (seciliAy) {
+      planlar = planlar.filter(function (plan) { return planAyi(plan).indexOf(seciliAy) > -1; });
+    }
+    var aysiz = seciliAy ? tumPlanlar.filter(function (plan) { return !planAyi(plan).length; }).length : 0;
     var yilsiz = seciliYil ? tumPlanlar.filter(function (plan) { return !ISG.planYil(plan); }).length : 0;
     var ozet = planOzet(planlar);
     var secim = UI.planSecim || {};
@@ -415,12 +441,14 @@
       '</section>' +
 
       '<section class="kart"><div class="kart-baslik"><div><h2>Çalışma planı ve takip' +
-        (seciliYil ? ' · ' + seciliYil : '') + '</h2>' +
-        '<p>Ana başlık altında gruplanan faaliyetler ve Ocak-Aralık planlama şeridi.</p></div>' +
-        '<div class="kart-arac">' + planYilSecici(hesap) +
+        (seciliYil ? ' · ' + seciliYil : '') + (seciliAy ? ' · ' + B.AYLAR[seciliAy - 1] : '') + '</h2>' +
+        '<p>Ana başlık altında gruplanan faaliyetler ve Ocak-Aralık planlama şeridi. Yıl ve ay seçerek ' +
+        'o dönemin planını görüntüleyebilirsiniz.</p></div>' +
+        '<div class="kart-arac">' + planYilSecici(hesap) + planAySecici() +
           '<span class="muted kucuk">' + B.sayi(planlar.length) + ' kayıt</span></div></div>' +
         '<div class="filtre-cubugu" style="padding-top:0">' + planSecimCubugu(planlar, secim) +
           (yilsiz ? '<span class="hucre-alt">' + yilsiz + ' kaydın yılı belirsiz; yalnızca "Tüm yıllar" görünümünde listelenir.</span>' : '') +
+          (aysiz ? '<span class="hucre-alt">' + aysiz + ' kaydın ayı belirsiz; yalnızca "Tüm aylar" görünümünde listelenir.</span>' : '') +
         '</div>' +
         '<div class="tablo-kap"><table class="tablo-kucuk plan-tablo">' +
           '<thead><tr><th></th><th>#</th><th>Faaliyet</th><th>Sorumlu</th><th>Aylar</th>' +

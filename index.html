@@ -14,7 +14,7 @@
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="assets/css/style.css?v=28a488ff">
+  <link rel="stylesheet" href="assets/css/style.css?v=d49b574a">
 </head>
 <body class="oturum-yok">
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -1065,6 +1065,9 @@
       <h2 id="ekipUyeBaslik">Ekip üyesi ekle</h2>
       <input type="hidden" name="kaynak">
       <input type="hidden" name="isyeriId">
+      <input type="hidden" name="uyeId">
+      <input type="hidden" name="eskiRol">
+      <input type="hidden" name="eskiAd">
       <div class="form-izgara">
         <label class="alan">
           <span>Görev / rol</span>
@@ -1079,6 +1082,22 @@
         <label class="alan" style="grid-column:1/-1">
           <span>Adı soyadı</span>
           <input type="text" name="ad" id="ekipUyeAd" list="kisiler" maxlength="80" autocomplete="off">
+        </label>
+        <label class="alan">
+          <span>Belge numarası</span>
+          <input type="text" name="belgeNo" id="ekipUyeBelgeNo" maxlength="40" autocomplete="off">
+        </label>
+        <label class="alan">
+          <span>Belge sınıfı</span>
+          <input type="text" name="belgeSinifi" id="ekipUyeBelgeSinifi" maxlength="40" placeholder="Örn. A / B / C" autocomplete="off">
+        </label>
+        <label class="alan">
+          <span>Belge geçerlilik tarihi</span>
+          <input type="date" name="gecerlilik" id="ekipUyeGecerlilik">
+        </label>
+        <label class="alan">
+          <span>Açıklama</span>
+          <input type="text" name="aciklama" id="ekipUyeAciklama" maxlength="120" autocomplete="off">
         </label>
       </div>
       <p class="form-uyari" id="ekipUyeUyari" role="alert" hidden></p>
@@ -1173,22 +1192,22 @@
 
   <script src="assets/js/varsayilan-veri.js?v=c807637f"></script>
   <script src="assets/js/kontrol-listeleri.js?v=430de5a3"></script>
-  <script src="assets/js/depo.js?v=981a5601"></script>
+  <script src="assets/js/depo.js?v=a24ad5ec"></script>
   <script src="assets/js/bicim.js?v=18930ff4"></script>
   <script src="assets/js/bulut-kimlik.js?v=c22d436d"></script>
   <script src="assets/js/bulut.js?v=ca99ce81"></script>
-  <script src="assets/js/yetki.js?v=7f63b759"></script>
+  <script src="assets/js/yetki.js?v=1bc4f36c"></script>
   <script src="assets/js/saglik-takip.js?v=f6d30d70"></script>
   <script src="assets/js/saglik-toplu.js?v=30fd72d0"></script>
   <script src="assets/js/saglik-calisma-kitabi.js?v=945bb2d9"></script>
   <script src="assets/js/excel.js?v=394d9d94"></script>
   <script src="assets/js/personel-toplu.js?v=c1da8dfb"></script>
   <script src="assets/js/plan-toplu.js?v=0f07de95"></script>
-  <script src="assets/js/sayfalar.js?v=764f44ca"></script>
-  <script src="assets/js/sayfalar-kayit.js?v=e6d456c2"></script>
-  <script src="assets/js/sayfalar-rapor.js?v=d56d2996"></script>
+  <script src="assets/js/sayfalar.js?v=c64892d6"></script>
+  <script src="assets/js/sayfalar-kayit.js?v=3d87e3b8"></script>
+  <script src="assets/js/sayfalar-rapor.js?v=006297aa"></script>
   <script src="assets/js/giris.js?v=89968189"></script>
-  <script src="assets/js/uygulama.js?v=bec07b31"></script>
+  <script src="assets/js/uygulama.js?v=c5e58d89"></script>
 </body>
 </html>
 
