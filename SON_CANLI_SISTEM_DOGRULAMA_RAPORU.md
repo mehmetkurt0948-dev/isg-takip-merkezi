@@ -290,9 +290,10 @@ Sahada yapılan tarama (`depo.al(` / `D.al(` çağrı yerleri):
 
 | Öğe | Durum |
 |---|---|
-| `HEAD` / `origin/main` | İkisi de `3ec4ddb` — "calisma planinda on durumlu sozluk (2.20.0) ve isyeri bazli kayitlarda onay denetimi" |
-| Canlıda olanlar | §1 Onay Merkezi düzeltmesi **ve** §3 durum sözlüğü (9 seçimlik + `Gecikti`) — commit `3ec4ddb` içinde |
-| GitHub işleri | `3ec4ddb` için hem Pages dağıtımı hem sürüm denetimi işi **success**; canlı sürüm etiketi 2.20.0 |
+| `HEAD` / `origin/main` | İkisi de `403e53e` — bu turun doküman commit'i (README + bu rapor). Onay akışı düzeltmesi ve durum sözlüğü bir önceki `3ec4ddb` içinde |
+| Canlıda olanlar | §1 Onay Merkezi düzeltmesi **ve** §3 durum sözlüğü (9 seçimlik + `Gecikti`) — `3ec4ddb` ile yayında. Canlı doğrulamasında `depo.js v=b90aea53`, `yetki.js v=d8ee18c5` okundu (sürüm 2.20.0) |
+| Dağıtım doğrulaması (bu tur) | `npm run yayin:dogrula` → **"Deneme 1: canlı sürüm yerelle aynı (19 varlık doğrulandı)"**; 19 asset'in içeriği yerelle birebir aynı. Bu commit yalnızca `.md` değiştirdiği için `assets/js` sürüm etiketleri beklendiği gibi değişmedi |
+| CI işleri (dürüst not) | Bu ortamda `gh` CLI kurulu değil; GitHub Actions arayüzü bu turda **yeniden okunamadı**. Yerine iki sağlam gösterge var: (1) `pre-push` kancası `npm test`'i çalıştırdı ve yeşil olduğu için push'a izin verdi, (2) repodan canlıya bakış olan `yayin:dogrula` başarılı |
 | Yerel çalışma kopyası | `M README.md` (yenileme süresi düzeltmesi, §2.2), `?? SON_CANLI_SISTEM_DOGRULAMA_RAPORU.md` (bu rapor), `?? tools/saglik-aktar.js` (önceki turdan kalan; bu raporun kapsamında değil, **commit edilmedi**) |
 | Sürüm damgası | Değişen yalnızca `.md` dosyaları; `assets/js` / `assets/css` dokunulmadığı için `npm run surum` gerekmez, CI sürüm denetimi bundan etkilenmez |
 | İşlem durumu | Kullanıcı onayı alındı; README + bu rapor `docs:` commit'i ile `main`'e alınıp push edildi. Dağıtım (Pages) sonucunun canlı okuması aşağıda |
