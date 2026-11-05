@@ -489,6 +489,23 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .tablo-kucuk td { font-size: 12.5px; padding: 10px 12px; }
 .tablo-kucuk th:last-child, .tablo-kucuk td:last-child { min-width: 170px; }
 
+/* Zaman baskısı olan kayıtlar: kırmızı/amber sold çerçeve + açık zemin.
+   Sınıf kararı ISG.planDurumu ve ISG.dosyaZamanDurumu içindeki `satirSinifi`
+   alanından gelir; böylece liste, rozet ve kart aynı rengi görür. */
+.tablo-kap tbody tr.satir-tehlike > td { background: #fdf4f3; }
+.tablo-kap tbody tr.satir-tehlike > td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+.tablo-kap tbody tr.satir-tehlike:hover > td { background: #fbebe9; }
+.tablo-kap tbody tr.satir-uyari > td { background: #fffaee; }
+.tablo-kap tbody tr.satir-uyari > td:first-child { box-shadow: inset 3px 0 0 #e0a83c; }
+.tablo-kap tbody tr.satir-uyari:hover > td { background: #fff5da; }
+/* Satır altı vade bilgisinin rengi (`.hucre-alt` soluk olduğu için yeniden belirtilir). */
+.tablo-kap .hucre-alt .tehlike { color: var(--red); font-weight: 700; }
+.tablo-kap .hucre-alt .uyari { color: var(--amber); font-weight: 700; }
+/* Altı durum kartı tek satıra sığar; dar ekranda kendi kendine sarar. */
+.kpi-izgara.kpi-izgara-alti { grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); }
+/* Takip kartındaki gecikmiş faaliyet satırı da aynı kırmızıyı taşır. */
+.plan-satir.plan-gecikti { background: #fdf4f3; border-radius: 8px; padding-left: 8px; }
+
 /* Sağlık takibi: satır içi detay açılımı. */
 .saglik-detay-satir > td { background: #f7fafc; padding: 12px 16px 16px; }
 .saglik-detay-satir:hover > td { background: #f7fafc; }

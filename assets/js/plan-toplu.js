@@ -444,7 +444,7 @@
         aylar: aylar,
         ay: aylar.length ? aylar[0] : 0,
         gun: 0,
-        durum: 'takvimde',
+        durum: 'planlandi',
         takipTarihi: '',
         kaynak: 'Excel',
         kaynakSatir: satirNo

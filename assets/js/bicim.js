@@ -58,7 +58,8 @@
       gecerli: 'iyi', yaklasiyor: 'uyari', suresiDoldu: 'tehlike', yok: 'notr',
       acik: 'tehlike', izlemede: 'uyari', kapali: 'iyi',
       var: 'iyi', eksik: 'tehlike', incelenmedi: 'uyari',
-      tamamlandi: 'iyi', takvimde: 'bilgi', planlanmadi: 'notr',
+      tamamlandi: 'iyi', planlandi: 'bilgi', tamamlanmadi: 'tehlike',
+      gecikti: 'tehlike', planlanmadi: 'notr',
       dogrulama: 'uyari', geciken: 'tehlike', bugun: 'uyari', tarihsiz: 'notr',
       bekliyor: 'uyari', kabul: 'iyi'
     };

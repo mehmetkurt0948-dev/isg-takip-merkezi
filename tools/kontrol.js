@@ -1469,7 +1469,7 @@ function bekle(ms) {
   /* Arayüz akışı: aynı faaliyet iş yerinde zaten kayıtlı → mükerrer sayılır. */
   const planTestEski = ISG.depo.planKaydet({
     isyeriId: 'iy5', yil: PLAN_YILI, faaliyet: 'Temel iş sağlığı ve güvenliği eğitimi',
-    sorumlu: 'İGU', durum: 'takvimde', takipTarihi: PLAN_YILI + '-03-15', sira: 1
+    sorumlu: 'İGU', durum: 'planlandi', takipTarihi: PLAN_YILI + '-03-15', sira: 1
   }).id;
 
   ISG.uygulama.planTopluOnizle(planSatirlari, PLAN_YILI + '-yillik-plan.xlsx', 'iy5');
@@ -1544,7 +1544,7 @@ function bekle(ms) {
     const ekipman = planYeni.filter((p) => p.faaliyet === 'Acil durum ekipmanı kontrolü')[0] || {};
     const tatbikat = planYeni.filter((p) => p.faaliyet === 'Yangın ve tahliye tatbikatı')[0] || {};
     return JSON.stringify(ekipman.aylar) === '[1,4]' && ekipman.anaBaslik === 'Acil Durumlar' &&
-      ekipman.sorumlu === 'Bakım Sorumlusu' && ekipman.durum === 'takvimde' && ekipman.kaynak === 'Excel' &&
+      ekipman.sorumlu === 'Bakım Sorumlusu' && ekipman.durum === 'planlandi' && ekipman.kaynak === 'Excel' &&
       ekipman.yil === PLAN_YILI && tatbikat.siraExcel === '1.2' && ISG.planAylari(tatbikat).join() === '7';
   })(), JSON.stringify(planYeni.map((p) => [p.faaliyet, p.aylar, p.anaBaslik])));
   kontrol('Diğer iş yerlerinin planlarına dokunulmadı',

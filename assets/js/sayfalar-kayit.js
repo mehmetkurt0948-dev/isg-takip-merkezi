@@ -95,8 +95,10 @@
   function dosyaSatiri(dosya) {
     var durum = ISG.DOSYA_DURUMLARI[dosya.durum] || { ad: dosya.durum, sinif: 'notr' };
     var tarihDurum = ISG.dosyaDurumEtiketi(dosya);
+    /* Zaman baskısı (rozetten bağımsız): satırı ve yenileme tarihini boyar. */
+    var zaman = ISG.dosyaZamanDurumu(dosya);
     var belgeSayisi = ISG.depo.belgeler(dosya.id).length;
-    return '<tr>' +
+    return '<tr' + (zaman.satirSinifi ? ' class="' + zaman.satirSinifi + '"' : '') + '>' +
       '<td><span class="dosya-no">' + kacis(dosya.no) + '</span></td>' +
       '<td><span class="dosya-madde">' + kacis(dosya.madde) + '</span>' +
         '<span class="dosya-bolum">BÖLÜM: ' + kacis(dosya.bolum) + (dosya.aciklama ? ' · ' + kacis(dosya.aciklama) : '') +
@@ -104,7 +106,7 @@
       '<td>' + kacis(isyeriAdi(dosya.isyeriId)) + '</td>' +
       '<td>' + B.rozet(durum.ad, durum.sinif) + (dosya.sorumlu ? '<span class="hucre-alt">' + kacis(dosya.sorumlu) + '</span>' : '') + '</td>' +
       '<td><div class="tarih-liste">' +
-        '<span>Yenileme: <b class="' + (tarihDurum.sinif === 'tehlike' ? 'tehlike' : (tarihDurum.sinif === 'uyari' ? 'uyari' : '')) + '">' + (dosya.yenileme ? B.tarih(dosya.yenileme) : 'Belirlenmedi') + '</b></span>' +
+        '<span>Yenileme: <b class="' + zaman.vadeSinif + '">' + (dosya.yenileme ? B.tarih(dosya.yenileme) : 'Belirlenmedi') + '</b></span>' +
         '<span class="rozet ' + tarihDurum.sinif + '" style="justify-self:start">' + kacis(tarihDurum.ad) + '</span>' +
         '<span>Kontrol: ' + B.tarih(dosya.kontrolTarihi) + '</span>' +
       '</div></td>' +
@@ -149,7 +151,7 @@
       P.kapsamSecici(hesap) +
 
       '<div class="kpi-izgara">' +
-        P.kpi({ baslik: 'Süresi geçen', ikon: 'i-alert', deger: B.sayi(ozet.gecen), alt: 'Kırmızı uyarı · Listelemek için tıklayın', sinif: 'tehlike', islem: 'dosya-tarih-filtre', filtre: 'gecen' }) +
+        P.kpi({ baslik: 'Süresi geçen', ikon: 'i-alert', deger: B.sayi(ozet.gecen), alt: 'Kırmızı satır · Listelemek için tıklayın', sinif: 'tehlike', islem: 'dosya-tarih-filtre', filtre: 'gecen' }) +
         P.kpi({ baslik: 'Bugün yenilenmeli', ikon: 'i-clock', deger: B.sayi(ozet.bugun), alt: 'Bugün işlem yapın', sinif: 'tehlike', islem: 'dosya-tarih-filtre', filtre: 'bugun' }) +
         P.kpi({ baslik: 'Süresi yaklaşan', ikon: 'i-calendar', deger: B.sayi(ozet.yaklasan), alt: '1–14 gün içinde', sinif: 'uyari', islem: 'dosya-tarih-filtre', filtre: 'yaklasan' }) +
         P.kpi({ baslik: 'Tarih girilmemiş', ikon: 'i-calendar', deger: B.sayi(ozet.tarihsiz), alt: 'Yenileme tarihini belirleyin', sinif: 'soluk', islem: 'dosya-tarih-filtre', filtre: 'tarihsiz' }) +
@@ -216,17 +218,43 @@
     return { mevcut: mevcut, ihtiyac: ihtiyac, tam: mevcut >= ihtiyac };
   }
 
+  /* Kart sayaçları tek kaynaktan beslenir: görünen durum (ISG.planDurumu).
+     Böylece türeyen "Gecikti" hem kartta, hem filtrede, hem tabloda aynı
+     sayıyı verir. "Bugün" bir durum değil takvim kısayoludur. */
   function planOzet(liste) {
-    var ozet = { geciken: 0, bugun: 0, yaklasan: 0, tarihsiz: 0, tamamlandi: 0 };
+    var ozet = { planlandi: 0, tamamlandi: 0, tamamlanmadi: 0, gecikti: 0, planlanmadi: 0,
+      toplam: liste.length, bekleyen: 0, bugun: 0 };
+    var bugunIso = B.bugunIso();
     liste.forEach(function (plan) {
       var durum = ISG.planDurumu(plan);
-      if (durum.id === 'tamamlandi') { ozet.tamamlandi += 1; return; }
-      if (durum.id === 'geciken') { ozet.geciken += 1; return; }
-      if (durum.id === 'bugun') { ozet.bugun += 1; return; }
-      if (durum.id === 'planlanmadi') { ozet.tarihsiz += 1; return; }
-      ozet.yaklasan += 1;
+      ozet[durum.id] = (ozet[durum.id] || 0) + 1;
+      if (!durum.tamamlandi) {
+        ozet.bekleyen += 1;
+        if (plan.takipTarihi === bugunIso) { ozet.bugun += 1; }
+      }
     });
     return ozet;
+  }
+
+  /* Durum filtresi: beş durum + "Bugün" kısayolu. Karttan ya da kutudan
+     seçilir; liste, kart sayıları ve tablo aynı fonksiyonla süzülür. */
+  function planDurumSecici() {
+    var aktif = String(UI.planDurum || '');
+    var secenekler = '<option value=""' + (aktif ? '' : ' selected') + '>Tüm durumlar</option>' +
+      ISG.PLAN_DURUM_FILTRELERI.map(function (id) {
+        return '<option value="' + id + '"' + (aktif === id ? ' selected' : '') + '>' +
+          ISG.PLAN_DURUMLARI[id].ad + '</option>';
+      }).join('') +
+      '<option value="bugun"' + (aktif === 'bugun' ? ' selected' : '') + '>Bugün ödenecek</option>';
+    return '<label class="plan-yil-secim"><span class="filtre-etiket">Durum</span>' +
+      '<select data-ui="planDurum" aria-label="Durum filtresi">' + secenekler + '</select></label>';
+  }
+
+  function planDurumaGore(plan, filtre) {
+    if (!filtre) { return true; }
+    var durum = ISG.planDurumu(plan);
+    if (filtre === 'bugun') { return !durum.tamamlandi && plan.takipTarihi === B.bugunIso(); }
+    return durum.id === filtre;
   }
 
   /* Ay şeridi: Ocak-Aralık, planlanmış aylar işaretli; içinde bulunulan ay vurgulu. */
@@ -279,7 +307,14 @@
     var secili = secim && secim[plan.id] ? ' checked' : '';
     var altBilgi = [isyeriAdi(plan.isyeriId), ISG.planYil(plan) ? ISG.planYil(plan) + ' yılı' : '',
       plan.aciklama || ''].filter(Boolean).join(' · ');
-    return '<tr>' +
+    /* Durum hücresi: görünen rozet + vade bilgisi. Kayıtlı durum ile görünen
+       durum farklıysa (tarih geçtiği hâlde tamamlanmamış gibi) ikisi de yazılır. */
+    var durumAlt = durum.vadeAd
+      ? '<span class="hucre-alt"><span class="' + durum.vadeSinif + '">' + kacis(durum.vadeAd) + '</span></span>' : '';
+    if (durum.kayitliDurum !== durum.id) {
+      durumAlt += '<span class="hucre-alt">Kayıtlı durum: ' + kacis(durum.kayitliAd) + '</span>';
+    }
+    return '<tr' + (durum.satirSinifi ? ' class="' + durum.satirSinifi + '"' : '') + '>' +
       '<td class="plan-sec-hucre"><input type="checkbox" data-plan-sec="' + kacis(plan.id) + '"' + secili +
         ' aria-label="' + kacis(plan.faaliyet) + ' kaydını seç"></td>' +
       '<td class="sayi-sutun">' + kacis(plan.siraExcel || plan.sira || '') + '</td>' +
@@ -289,10 +324,12 @@
       '<td class="plan-aylar-hucre">' + planAyCiplari(plan) + '</td>' +
       '<td class="sayi-sutun">' + (plan.takipTarihi ? B.tarih(plan.takipTarihi) : '—') +
         (plan.tamamlanmaTarihi ? '<span class="hucre-alt">Tamamlandı: ' + B.tarih(plan.tamamlanmaTarihi) + '</span>' : '') + '</td>' +
-      '<td>' + B.rozet(durum.ad, durum.sinif) + '</td>' +
+      '<td>' + B.rozet(durum.ad, durum.sinif) + durumAlt + '</td>' +
       '<td class="sag"><div class="dosya-eylem">' +
-        (plan.durum === 'tamamlandi' ? '<button type="button" data-islem="plan-geri-al" data-id="' + kacis(plan.id) + '">Takvime al</button>' :
-          '<button type="button" data-islem="plan-tamamla" data-id="' + kacis(plan.id) + '">Tamamlandı işaretle</button>') +
+        (durum.tamamlandi
+          ? '<button type="button" data-islem="plan-geri-al" data-id="' + kacis(plan.id) + '">Takvime geri al</button>'
+          : '<button type="button" data-islem="plan-tamamla" data-id="' + kacis(plan.id) + '">Tamamlandı</button>' +
+            '<button type="button" data-islem="plan-tamamlanmadi" data-id="' + kacis(plan.id) + '">Tamamlanmadı</button>') +
         '<button type="button" data-islem="plan-duzenle" data-id="' + kacis(plan.id) + '">Düzenle</button>' +
         '<button type="button" class="sil" data-islem="plan-sil" data-id="' + kacis(plan.id) + '">Sil</button>' +
       '</div></td>' +
@@ -373,7 +410,7 @@
           var durum = ISG.planDurumu(plan);
           var aylar = ISG.planAylari(plan).map(function (a) { return B.AYLAR[a - 1].slice(0, 3); }).join(', ');
           var etiket = aylar || (plan.ay ? B.AYLAR[Number(plan.ay) - 1].slice(0, 3) : '—');
-          return '<div class="plan-satir">' +
+          return '<div class="plan-satir' + (durum.id === 'gecikti' ? ' plan-gecikti' : '') + '">' +
             '<span class="plan-ay">' + kacis(etiket) + '</span>' +
             '<span class="plan-metin">' + kacis(plan.faaliyet) + '<small>' + kacis(plan.sorumlu || '') + (plan.takipTarihi ? ' · ' + B.tarih(plan.takipTarihi) : '') + '</small></span>' +
             '<span class="rozet ' + durum.sinif + '">' + kacis(durum.ad) + '</span>' +
@@ -402,6 +439,14 @@
     var aysiz = seciliAy ? tumPlanlar.filter(function (plan) { return !planAyi(plan).length; }).length : 0;
     var yilsiz = seciliYil ? tumPlanlar.filter(function (plan) { return !ISG.planYil(plan); }).length : 0;
     var ozet = planOzet(planlar);
+    /* Kartlar yıl+ay süzgecinden geçmiş listayı sayar; durum filtresi yalnızca
+       tabloyu daraltır. Aksi hâlde bir karta tıklayınca diğer kartlar sıfırlanır. */
+    var durumFiltre = String(UI.planDurum || '');
+    if (durumFiltre) {
+      planlar = planlar.filter(function (plan) { return planDurumaGore(plan, durumFiltre); });
+    }
+    var durumFiltreAdi = durumFiltre
+      ? (durumFiltre === 'bugun' ? 'Bugün ödenecek' : (ISG.PLAN_DURUMLARI[durumFiltre] || {}).ad || durumFiltre) : '';
     var secim = UI.planSecim || {};
     var gruplar = planGruplari(planlar);
     var tekGrup = gruplar.length <= 1;
@@ -427,11 +472,13 @@
         '<div class="kart-ic"><div class="plan-izgara-kucuk">' + ilkYardimKartlari(hesap, isyerleri) + '</div></div>' +
       '</section>' +
 
-      '<div class="kpi-izgara">' +
-        P.kpi({ baslik: 'Geciken', ikon: 'i-alert', deger: B.sayi(ozet.geciken), alt: 'Plan faaliyetleri', sinif: 'tehlike', islem: 'plan-filtre', filtre: 'geciken' }) +
-        P.kpi({ baslik: 'Bugün yenilenmeli', ikon: 'i-clock', deger: B.sayi(ozet.bugun), alt: 'Bugün yapılacak', sinif: 'uyari', islem: 'plan-filtre', filtre: 'bugun' }) +
-        P.kpi({ baslik: 'Süresi yaklaşan', ikon: 'i-calendar', deger: B.sayi(ozet.yaklasan), alt: 'Takvimde', sinif: 'bilgi', islem: 'plan-filtre', filtre: 'yaklasan' }) +
-        P.kpi({ baslik: 'Tarihlendirilmemiş', ikon: 'i-flag', deger: B.sayi(ozet.tarihsiz), alt: 'Takip tarihi belirleyin', sinif: 'soluk', islem: 'plan-filtre', filtre: 'tarihsiz' }) +
+      '<div class="kpi-izgara kpi-izgara-alti">' +
+        P.kpi({ baslik: 'Gecikti', ikon: 'i-alert', deger: B.sayi(ozet.gecikti), alt: 'Tarihi geçti, tamamlanmadı', sinif: 'tehlike', islem: 'plan-durum-filtre', filtre: 'gecikti' }) +
+        P.kpi({ baslik: 'Tamamlanmadı', ikon: 'i-close', deger: B.sayi(ozet.tamamlanmadi), alt: 'Yapılmadı olarak işaretli', sinif: 'tehlike', islem: 'plan-durum-filtre', filtre: 'tamamlanmadi' }) +
+        P.kpi({ baslik: 'Planlandı', ikon: 'i-calendar', deger: B.sayi(ozet.planlandi), alt: 'Vadesi beklenen faaliyet', sinif: 'bilgi', islem: 'plan-durum-filtre', filtre: 'planlandi' }) +
+        P.kpi({ baslik: 'Tamamlandı', ikon: 'i-check', deger: B.sayi(ozet.tamamlandi), alt: 'Bekleyen iş: ' + B.sayi(ozet.bekleyen), sinif: 'iyi', islem: 'plan-durum-filtre', filtre: 'tamamlandi' }) +
+        P.kpi({ baslik: 'Planlanmadı', ikon: 'i-flag', deger: B.sayi(ozet.planlanmadi), alt: 'Takip tarihi belirleyin', sinif: 'soluk', islem: 'plan-durum-filtre', filtre: 'planlanmadi' }) +
+        P.kpi({ baslik: 'Bugün', ikon: 'i-clock', deger: B.sayi(ozet.bugun), alt: 'Bugün ödenecek iş', sinif: 'uyari', islem: 'plan-durum-filtre', filtre: 'bugun' }) +
       '</div>' +
 
       '<section class="kart"><div class="kart-baslik"><div><h2>Yıllık çalışma planı</h2>' +
@@ -444,9 +491,10 @@
         (seciliYil ? ' · ' + seciliYil : '') + (seciliAy ? ' · ' + B.AYLAR[seciliAy - 1] : '') + '</h2>' +
         '<p>Ana başlık altında gruplanan faaliyetler ve Ocak-Aralık planlama şeridi. Yıl ve ay seçerek ' +
         'o dönemin planını görüntüleyebilirsiniz.</p></div>' +
-        '<div class="kart-arac">' + planYilSecici(hesap) + planAySecici() +
+        '<div class="kart-arac">' + planYilSecici(hesap) + planAySecici() + planDurumSecici() +
           '<span class="muted kucuk">' + B.sayi(planlar.length) + ' kayıt</span></div></div>' +
         '<div class="filtre-cubugu" style="padding-top:0">' + planSecimCubugu(planlar, secim) +
+          (durumFiltreAdi ? '<span class="rozet uyari">Durum: ' + kacis(durumFiltreAdi) + '</span>' : '') +
           (yilsiz ? '<span class="hucre-alt">' + yilsiz + ' kaydın yılı belirsiz; yalnızca "Tüm yıllar" görünümünde listelenir.</span>' : '') +
           (aysiz ? '<span class="hucre-alt">' + aysiz + ' kaydın ayı belirsiz; yalnızca "Tüm aylar" görünümünde listelenir.</span>' : '') +
         '</div>' +

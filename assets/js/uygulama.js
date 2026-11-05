@@ -901,8 +901,11 @@
       ['faaliyet', 'sorumlu', 'takipTarihi', 'durum', 'aciklama', 'anaBaslik'].forEach(function (alan) {
         if (form.elements[alan]) { form.elements[alan].value = kayit[alan] || ''; }
       });
+      /* Kutuda yalnızca dört kaydedilebilir durum vardır; eski ad ("takvimde")
+         ve türetilmiş "Gecikti" kayda dönük seçim olarak gösterilir. */
+      form.elements.durum.value = ISG.planDurumNormal(kayit.durum);
     } else {
-      form.elements.durum.value = 'takvimde';
+      form.elements.durum.value = 'planlandi';
       form.elements.takipTarihi.value = B.bugunIso();
     }
     diyalogAc(el('planDiyalog'), form.elements.faaliyet);
@@ -2694,15 +2697,28 @@
         B.bildir('Faaliyet tamamlandı olarak işaretlendi.', 'basari');
         ciz();
         break;
+      case 'plan-tamamlanmadi':
+        D.planDurumDegistir(id, 'tamamlanmadi');
+        B.bildir('Faaliyet tamamlanmadı olarak işaretlendi.', 'uyari');
+        ciz();
+        break;
       case 'plan-geri-al':
-        D.planDurumDegistir(id, 'takvimde');
-        B.bildir('Faaliyet yeniden takvime alındı.', 'basari');
+        D.planDurumDegistir(id, 'planlandi');
+        B.bildir('Faaliyet yeniden planlandı olarak işaretlendi.', 'basari');
         ciz();
         break;
       case 'plan-filtre':
         UI.panelSekme = dugme.getAttribute('data-filtre');
         git('panel');
         break;
+      /* Plan durumu kartı: listeyi yerinde süzer (panele sıçramaz); aynı karta
+         ikinci tıklama filtreyi kaldırır. "Bugün" durum değil takvim kısayolu. */
+      case 'plan-durum-filtre': {
+        var planDurumFiltre = String(dugme.getAttribute('data-filtre') || '');
+        UI.planDurum = (UI.planDurum === planDurumFiltre) ? '' : planDurumFiltre;
+        ciz();
+        break;
+      }
 
       /* Saha ve DÖF */
       case 'saha-csv':
@@ -3478,7 +3494,7 @@
         faaliyet: veriForm.faaliyet,
         sorumlu: veriForm.sorumlu || '',
         takipTarihi: veriForm.takipTarihi || '',
-        durum: veriForm.durum || 'takvimde',
+        durum: ISG.planDurumNormal(veriForm.durum),
         aciklama: veriForm.aciklama || ''
       });
       diyalogKapat(el('planDiyalog'));
