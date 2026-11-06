@@ -21,6 +21,7 @@
     acil: 'Acil durum planı',
     ekip: 'Kullanıcılar ve yetkiler',
     onaylar: 'Onay kuyruğu',
+    kurum: 'Kurum denetim panosu',
     mevzuat: 'Mevzuat ve kapsam'
   };
 
@@ -155,15 +156,19 @@
     if (!rol) { return false; }
     if (YONETICI_SAYFALARI[sayfa] && !rol.yonetir) { return false; }
     if (sayfa === 'onaylar' && !(rol.onaylar || rol.id === 'yetkili')) { return false; }
+    /* Kurum panosu yalnız yönetici ve kurum kapsamlı (OSGB Müdürü) rolde görünür. */
+    if (sayfa === 'kurum' && !(rol.yonetir || rol.kurumKapsami)) { return false; }
     return true;
   }
 
   function onayRozeti() {
     var kutu = el('rozetOnay');
     var menu = el('menuOnaylar');
+    var kurumMenu = el('menuKurum');
     var bilgi = aktifRol();
 
     if (menu) { menu.hidden = !(bilgi && sayfaIzinli('onaylar', bilgi.rol)); }
+    if (kurumMenu) { kurumMenu.hidden = !(bilgi && sayfaIzinli('kurum', bilgi.rol)); }
     if (!kutu) { return; }
 
     var sayi = bilgi && ISG.yetki ? ISG.yetki.bekleyenSayisi() : 0;
@@ -328,6 +333,15 @@
     uyariGoster('isyeriUyari', '');
     form.elements.id.value = kayit ? kayit.id : '';
     el('isyeriBaslik').textContent = kayit ? 'İşyerini düzenle' : 'Yeni işyeri';
+    /* Kurum alanı tek kurumlu kurulumda otomatik seçilir; çok kurumda
+       yönetici açıkça seçer, boş bırakılırsa işyeri hiçbir kuruma bağlanmaz. */
+    var kurumlar = veri().kurumlar || [];
+    var varsayilanKurum = (kayit && kayit.kurumId) ||
+      (kurumlar.length === 1 ? kurumlar[0].id : '') || '';
+    if (form.elements.kurumId) {
+      form.elements.kurumId.innerHTML = kurumSecenekleri(varsayilanKurum);
+      form.elements.kurumId.value = varsayilanKurum;
+    }
     if (kayit) {
       ['ad', 'tehlikeSinifi', 'calisanSayisi', 'sgkSicil', 'yetkili', 'adres', 'sektor'].forEach(function (alan) {
         if (form.elements[alan]) { form.elements[alan].value = kayit[alan] || ''; }
@@ -1207,6 +1221,7 @@
     var isyeri = ISG.isyeriBul(hesap, isyeriId);
     form.reset();
     uyariGoster('acilUyari', '');
+    acilPlanTarihTemizle();
     form.elements.isyeriId.value = isyeriId;
     el('acilPlanBaslik').textContent = (isyeri ? isyeri.ad : 'Acil durum planı') + ' · plan kaydı';
     if (kayit) {
@@ -1214,9 +1229,105 @@
       form.elements.sonYenileme.value = kayit.sonYenileme || '';
       form.elements.tatbikat.value = kayit.tatbikat || '';
     }
+    acilPlanTarihCiz();
     acilPlanEkipCiz(isyeriId);
     eklerCiz('acil', isyeriId, 'acilPlanBelgeListe', 'acilPlanBelgeOzet');
     diyalogAc(el('acilPlanDiyalog'), form.elements.hazirlanma);
+  }
+
+  /* ---------- Acil durum planı: tarih denetimi ekranı ----------
+     Kayıt kuralı ISG.acilPlanTarihKontrol'de (depo.js) durur; ekran yalnızca o
+     sonucu yazar. Denetim her zaman FORMDAKİ değerlerle yapılır: kullanıcı
+     düzelttiği tarihi anında görür, kayda bastığında aynı koşullar tekrar
+     çalıştığı için ekrandaki ile kaydedilen bilgi arasında fark kalmaz. */
+
+  /* Formdaki üç tarih alanının denetim sonucu; hata/uyarı listesi hazır döner.
+     Tehlike sınıfı yenileme aralığını belirlediği için işyerinden okunur. */
+  function acilPlanTarihDenetle(form) {
+    var alan = function (ad) { return ((form && form.elements[ad]) || {}).value || ''; };
+    var isyeri = ISG.isyeriBul(veri(), alan('isyeriId'));
+    return ISG.acilPlanTarihKontrol({
+      hazirlanma: alan('hazirlanma'),
+      sonYenileme: alan('sonYenileme'),
+      tatbikat: alan('tatbikat')
+    }, isyeri ? isyeri.tehlikeSinifi : '');
+  }
+
+  /* Uyarı şeritlerinin yazılacağı kutu; diyalogda yoksa sessizce devam edilir. */
+  function acilPlanTarihKutu() {
+    var kutu = el('acilTarihUyari');
+    if (!kutu) { B.log('Uyarı kutusu bulunamadı: acilTarihUyari', 'uyari'); }
+    return kutu;
+  }
+
+  function acilPlanTarihTemizle() {
+    var kutu = acilPlanTarihKutu();
+    if (kutu) { kutu.innerHTML = ''; }
+  }
+
+  /* Denetim sonucunu ekrana yazar ve sonucu döndürür (kaydeden taraf kullanır). */
+  function acilPlanTarihCiz() {
+    var sonuc = acilPlanTarihDenetle(el('acilPlanForm'));
+    var kutu = acilPlanTarihKutu();
+    if (kutu) { kutu.innerHTML = ISG.sayfalar.uyariSeritleri(sonuc); }
+    return sonuc;
+  }
+
+  /* Denetim mesajında geçen alan adı; uyarı hangi alanla ilgiliyse odak oraya döner. */
+  var ACIL_TARIH_ALANLARI = ['hazirlanma', 'sonYenileme', 'tatbikat'];
+  var ACIL_TARIH_ETIKETLERI = {
+    hazirlanma: 'Hazırlanma',
+    sonYenileme: 'Son yenileme',
+    tatbikat: 'Son tatbikat'
+  };
+
+  function hataliTarihAlani(form, sonuc) {
+    var metin = ((sonuc && sonuc.hatalar) || []).join(' ');
+    var bulunan = ACIL_TARIH_ALANLARI.filter(function (ad) {
+      return metin.indexOf(ACIL_TARIH_ETIKETLERI[ad]) > -1;
+    })[0];
+    return form.elements[bulunan || 'hazirlanma'] || null;
+  }
+
+  /* Zorunlu ekip mevcudu hesaplaması: diyaloğun ekip bölümü ile kayıt öncesi
+     kontrol aynı kaynağı (ISG.acilEkipDurumu) kullanır, iki sayım doğmaz. */
+  function acilPlanEkipDurumuAl(isyeriId) {
+    var hesap = veri();
+    return ISG.acilEkipDurumu(ISG.isyeriBul(hesap, isyeriId),
+      ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeriId), hesap);
+  }
+
+  /* Kayıt engellenmez ama eksik bırakılan ekip mevcudu kayıt öncesinde tek cümleyle
+     onaya sorulur: kullanıcı "hangi zorunlu ekibi eksik bırakıyorum"u bilir.
+     Çalışan sayısı okunamadığında hesaplama yapılamaz; o durumda uyarılmadı. */
+  function acilPlanEkipEksikMetni(durum) {
+    if (!durum || !durum.gecerli) { return ''; }
+    var ozet = durum.ozet || {};
+    var parcalar = [];
+    if (ozet.eksikEkip) { parcalar.push(ozet.eksikEkip + ' zorunlu ekip hiç oluşturulmamış'); }
+    if (ozet.eksik) { parcalar.push(ozet.eksik + ' kişi oran gereğinin altında'); }
+    (durum.satirlar || []).forEach(function (satir) {
+      if (satir.suresiDolan && satir.suresiDolan.length) {
+        parcalar.push(satir.ad + ' ekibinde belgesi süresi dolmuş ' +
+          satir.suresiDolan.length + ' kişi sayılmadı');
+      }
+    });
+    (durum.cakismalar || []).forEach(function (kisi) {
+      parcalar.push(kisi.ad + ' aynı anda ' + kisi.ekipler.join(', ') + ' ekiplerinde sayılmış');
+    });
+    return parcalar.length ? 'Zorunlu ekip mevcudu eksik: ' + parcalar.join('; ') + '.' : '';
+  }
+
+  /* Onaydan geçen plan kaydını yazar; hata durumunda depo kendi mesajını bildirir. */
+  function acilPlanKaydetIsle(alanlar) {
+    var plan = D.acilPlanKaydet(alanlar.isyeriId, {
+      hazirlanma: alanlar.hazirlanma,
+      sonYenileme: alanlar.sonYenileme,
+      tatbikat: alanlar.tatbikat
+    });
+    diyalogKapat(el('acilPlanDiyalog'));
+    B.bildir(onayBildir('Acil durum planı', plan), plan && plan.bekliyor ? 'uyari' : 'basari');
+    ciz();
   }
 
   /* Plan diyaloğundaki ekip bölümü: her görev için kişi listesi ve "Kişi ekle"
@@ -1225,10 +1336,17 @@
   function acilPlanEkipCiz(isyeriId) {
     var kutu = el('acilPlanEkip');
     if (!kutu) { return; }
+    var kayit = ISG.ilgiliKayit(veri(), 'acilPlanlar', isyeriId);
+    /* Mevcut tek yerden hesaplanır: satır detayları, ihtiyaç özeti ve kayıt öncesi
+       onay sorusu aynı nesneyi okur, farklı sayılar ekrana düşmez. */
+    var durum = acilPlanEkipDurumuAl(isyeriId);
     kutu.innerHTML = ISG.sayfalar.ekipListesi('acil', isyeriId, ISG.ACIL_ROLLERI, function (rol) {
-      var kayit = ISG.ilgiliKayit(veri(), 'acilPlanlar', isyeriId);
       return ISG.depo.acilEkipUyeleri(kayit, rol.ad);
-    }, 'Kişi eklenmedi');
+    }, 'Kişi eklenmedi', function (rol) {
+      return ISG.acilEkipSatiri(durum, rol.ad);
+    });
+    var ihtiyac = el('acilPlanIhtiyac');
+    if (ihtiyac) { ihtiyac.innerHTML = ISG.sayfalar.ekipIhtiyacOzeti(durum, { kompakt: true }); }
   }
 
   /* Plan diyaloğu açıkken ekip değişikliği yapılırsa liste tazelenir. */
@@ -2371,6 +2489,10 @@
             B.bildir('Talep onaylandı ve kayda uygulandı.' +
               (sonuc && sonuc.id ? ' Kayıt kimliği: ' + sonuc.id + '.' : '') +
               ' Bekleyen talep: ' + kalan + '.', 'basari');
+            /* Kayıt talepten sonra değişmişse onay engellenmez; ancak yönetici
+               üzerine yazdığı değişikliği mutlaka görmeli — uyarı ayrı satırda,
+               karar notuna ve denetim kaydına da işlenmiş olarak gösterilir. */
+            if (sonuc && sonuc.uyari) { B.bildir(sonuc.uyari, 'uyari'); }
           } catch (hata) {
             B.bildir(hata.message, 'hata');
           }
@@ -2899,6 +3021,18 @@
     }).join('');
   }
 
+  /* Kurum seçenekleri: kurum kaydı yoksa alan boş kalır ve işyeri/kullanıcı
+     kurumsuz (serbest metin ayarına bağlı) çalışmaya devam eder. */
+  function kurumSecenekleri(secili) {
+    var kurumlar = veri().kurumlar || [];
+    var liste = ['<option value="">Kurum seçilmedi</option>'];
+    kurumlar.forEach(function (kurum) {
+      liste.push('<option value="' + B.kacis(kurum.id) + '"' +
+        (kurum.id === secili ? ' selected' : '') + '>' + B.kacis(kurum.ad || '') + '</option>');
+    });
+    return liste.join('');
+  }
+
   function isyeriKutulari(seciliIds, tumuMu) {
     var isyerleri = veri().isyerleri || [];
     var liste = ['<label><input type="checkbox" class="kullanici-isyeri" value="__tumu"' +
@@ -2940,6 +3074,20 @@
     form.elements.rol.innerHTML = rolSecenekleri(mevcut ? ISG.yetki.rolCoz(mevcut.rol) : 'goruntuleyici');
     form.elements.aktif.value = (mevcut && mevcut.aktif === false) ? '0' : '1';
     form.elements.sifre.value = '';
+
+    /* Kurum: kullanıcının OSGB kapsamı. Tek kurumlu kurulumda otomatik seçilir. */
+    var kurumlar = (veri().kurumlar || []);
+    var seciliKurum = (mevcut && mevcut.kurumId) || (kurumlar.length === 1 ? kurumlar[0].id : '');
+    if (form.elements.kurumId) {
+      form.elements.kurumId.innerHTML = kurumSecenekleri(seciliKurum);
+      form.elements.kurumId.value = seciliKurum;
+      form.elements.kurumId.disabled = kullaniciSifreModu;
+    }
+    if (form.elements.uzmanSinifi) {
+      form.elements.uzmanSinifi.value = typeof ISG.uzmanSinifiKodu === 'function'
+        ? ISG.uzmanSinifiKodu(mevcut && mevcut.uzmanSinifi) : '';
+      form.elements.uzmanSinifi.disabled = kullaniciSifreModu;
+    }
 
     var seciliIsyerleri = (mevcut && Array.isArray(mevcut.isyerleri)) ? mevcut.isyerleri : [];
     el('kullaniciIsyerleri').innerHTML = isyeriKutulari(seciliIsyerleri, !!(mevcut && mevcut.tumIsyerleri));
@@ -2996,6 +3144,12 @@
       eposta: eposta,
       rol: kullaniciSifreModu ? ISG.yetki.rolCoz(mevcut.rol) : (data.rol || 'goruntuleyici'),
       gorev: kullaniciSifreModu ? mevcut.gorev || '' : (data.gorev || ''),
+      /* Kurum ve uzman sınıfı onay yetkisinin girdisidir: sınıfı olmayan uzman
+         onay yetkilisi sayılmaz, kurumu olmayan OSGB müdürü hiçbir işyeri görmez. */
+      kurumId: kullaniciSifreModu ? mevcut.kurumId || '' : (data.kurumId || ''),
+      uzmanSinifi: typeof ISG.uzmanSinifiKodu === 'function'
+        ? ISG.uzmanSinifiKodu(kullaniciSifreModu ? mevcut.uzmanSinifi : data.uzmanSinifi)
+        : (data.uzmanSinifi || ''),
       personelId: mevcut ? mevcut.personelId || '' : '',
       tumIsyerleri: tumu,
       isyerleri: isyerleri,
@@ -3327,6 +3481,7 @@
         yetkili: veriForm.yetkili || '',
         adres: veriForm.adres || '',
         sektor: veriForm.sektor || '',
+        kurumId: veriForm.kurumId || '',
         ana: form.elements.ana.checked
       });
       diyalogKapat(el('isyeriDiyalog'));
@@ -3618,16 +3773,39 @@
     });
 
     formuBagla('acilPlanForm', function (form) {
-      var veriForm = formVerisi(form);
-      var plan = D.acilPlanKaydet(veriForm.isyeriId, {
-        hazirlanma: veriForm.hazirlanma,
-        sonYenileme: veriForm.sonYenileme,
-        tatbikat: veriForm.tatbikat
-      });
-      diyalogKapat(el('acilPlanDiyalog'));
-      B.bildir(onayBildir('Acil durum planı', plan), plan && plan.bekliyor ? 'uyari' : 'basari');
-      ciz();
+      var alanlar = formVerisi(form);
+      /* 1) Tarih koşulları: engelleyen hata varsa kayıt hiç denenmez. Sebep zaten
+            alanların altındaki şeritlerde duruyor; odak da ilgili tarihe döner. */
+      var tarih = acilPlanTarihCiz();
+      if (!tarih.gecerli) {
+        /* Numaralı tam liste yazılır (ISG.acilPlanTarihMetni): kullanıcı hangi tarihi
+           düzelteceğini karıştırmasın; şeritler de alanların altında duruyor. */
+        uyariGoster('acilUyari', 'Plan kaydedilmedi:\n' + ISG.acilPlanTarihMetni(tarih));
+        var hataliAlan = hataliTarihAlani(form, tarih);
+        if (hataliAlan) { hataliAlan.focus(); }
+        return;
+      }
+      /* 2) Zorunlu ekip mevcudu: eksiklik kayıt ENGELİ değildir (ekip üyeleri ayrı
+            eklenir); ancak kullanıcı neyi eksik bıraktığını bilerek onay verir. */
+      var eksikMetni = acilPlanEkipEksikMetni(acilPlanEkipDurumuAl(alanlar.isyeriId));
+      if (eksikMetni) {
+        onayIste('Ekip mevcudu eksik', eksikMetni + ' Yine de kaydedilsin mi?',
+          function () { acilPlanKaydetIsle(alanlar); }, 'Yine de kaydet');
+        return;
+      }
+      acilPlanKaydetIsle(alanlar);
     });
+
+    /* Tarih alanlarından biri değiştiği anda şeritler tazelenir; kullanıcı "Kaydet"e
+       basmadan hatayı görür ve düzelttiğinde şerit kendiliğinden kalkar. */
+    var acilForm = el('acilPlanForm');
+    if (acilForm) {
+      acilForm.addEventListener('change', function (olay) {
+        var ad = (olay && olay.target && olay.target.name) || '';
+        if (ACIL_TARIH_ALANLARI.indexOf(ad) < 0) { return; }
+        acilPlanTarihCiz();
+      });
+    }
   }
 
   /* ---------- Sağlık kayıtları: Excel şablonu, içe ve dışa aktarma ----------

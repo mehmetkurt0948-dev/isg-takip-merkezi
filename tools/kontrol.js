@@ -892,7 +892,18 @@ function bekle(ms) {
   acilForm.elements.sonYenileme.value = '2026-02-01';
   acilForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   await bekle(120);
-  kontrol('Acil plan yenileme kaydedildi', acilKayit.sonYenileme === '2026-02-01');
+  /* Eksik ekip mevcudu kayıt ENGELİ değildir, ama kullanıcı neyi eksik bıraktığını
+     bilerek onay verir: diyaloğun "Yine de kaydet" adımı olmadan plan yazılmaz. */
+  kontrol('Eksik ekip mevcudu kayıt öncesinde onaya sorulur',
+    doc.getElementById('onayDiyalog').open === true &&
+    /Zorunlu ekip mevcudu eksik/.test(doc.getElementById('onayMetin').textContent),
+    doc.getElementById('onayMetin').textContent.slice(0, 90));
+  kontrol('Onay verilmeden plan tarihi yazılmadı',
+    ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy1').sonYenileme !== '2026-02-01');
+  doc.getElementById('onayEvet').click();
+  await bekle(200);
+  kontrol('Acil plan yenileme kaydedildi',
+    ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy1').sonYenileme === '2026-02-01');
   kontrol('Acil ekip üyeleri plan kaydında korundu',
     ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', 'iy1').ekip.filter((u) => u.rol === 'İşyeri hekimi').length === 2);
 
@@ -2003,10 +2014,18 @@ function bekle(ms) {
       !!kutu.parentElement.querySelector('strong')));
   kontrol('Yetki etiketleri ad + açıklama taşıyor',
     yetkiKutulari.every((kutu) => !!kutu.parentElement.querySelector('span > strong')));
+  /* Kurum ve uzman sınıfı onay yetkisinin girdisidir; form bunları yazmalı. */
+  const kurumSecimi = kullaniciForm.elements.kurumId;
+  kontrol('Kurum seçeneği forma bağlandı', !!kurumSecimi && kurumSecimi.options.length > 1,
+    kurumSecimi ? String(kurumSecimi.options.length) : 'yok');
+  kontrol('Uzman sınıfı alanı formda', !!kullaniciForm.elements.uzmanSinifi);
   kullaniciForm.elements.adSoyad.value = 'Regresyon Kullanıcısı';
   kullaniciForm.elements.eposta.value = 'regresyon.kullanicisi@ornek.com';
   kullaniciForm.elements.rol.value = 'yetkili';
   kullaniciForm.elements.sifre.value = '1234';
+  if (kullaniciForm.elements.uzmanSinifi) { kullaniciForm.elements.uzmanSinifi.value = 'B'; }
+  const seciliKurumId = (ISG.depo.al().kurumlar[0] || {}).id || '';
+  if (kurumSecimi && seciliKurumId) { kurumSecimi.value = seciliKurumId; }
   const hedefKutu = yetkiKutulari.filter((kutu) => kutu.value !== '__tumu')[0];
   kontrol('Kapsam için işyeri kutusu bulundu', !!hedefKutu, String(hedefKutu && hedefKutu.value));
   hedefKutu.checked = true;
@@ -2017,6 +2036,10 @@ function bekle(ms) {
     JSON.stringify(eklenenKullanici && eklenenKullanici.eposta));
   kontrol('Tek işyeri kapsamı yazıldı', !!eklenenKullanici && eklenenKullanici.isyerleri.length === 1,
     JSON.stringify(eklenenKullanici && eklenenKullanici.isyerleri));
+  kontrol('Uzman sınıfı kayda yazıldı', !!eklenenKullanici && eklenenKullanici.uzmanSinifi === 'B',
+    eklenenKullanici && eklenenKullanici.uzmanSinifi);
+  kontrol('Kurum bağı kayda yazıldı', !!eklenenKullanici && eklenenKullanici.kurumId === seciliKurumId,
+    eklenenKullanici && eklenenKullanici.kurumId);
   kontrol('Yeni kullanıcı listelendi', /regresyon\.kullanicisi@ornek\.com/.test(metin('#gorunum')));
   kontrol('Kullanıcı diyaloğu kayıt sonrası kapandı', doc.getElementById('kullaniciDiyalog').open === false);
 
@@ -2083,10 +2106,12 @@ function bekle(ms) {
 
   console.log('\n16) Menü, rozetler ve yapı');
   await sayfaAc('#panel');
-  kontrol('Menüde 14 sayfa var', doc.querySelectorAll('.menu-oge[data-sayfa]').length === 14, String(doc.querySelectorAll('.menu-oge[data-sayfa]').length));
+  kontrol('Menüde 15 sayfa var', doc.querySelectorAll('.menu-oge[data-sayfa]').length === 15, String(doc.querySelectorAll('.menu-oge[data-sayfa]').length));
   kontrol('Sağlık takibi menüde', doc.querySelectorAll('.menu-oge[data-sayfa="saglik"]').length === 1);
   kontrol('İstatistik menüde', doc.querySelectorAll('.menu-oge[data-sayfa="istatistik"]').length === 1);
   kontrol('Onay kuyruğu menüde', doc.querySelectorAll('.menu-oge[data-sayfa="onaylar"]').length === 1);
+  kontrol('Kurum panosu menüde', doc.querySelectorAll('.menu-oge[data-sayfa="kurum"]').length === 1);
+  kontrol('Kurum panosu yöneticide görünür', doc.getElementById('menuKurum').hidden === false);
   kontrol('Dosya rozeti görünür', doc.getElementById('rozetDosya').hidden === false);
   kontrol('Saha rozeti sayı gösterir', /^\d+$/.test(doc.getElementById('rozetSaha').textContent));
   const idler = Array.from(doc.querySelectorAll('[id]')).map((e) => e.id);
@@ -2748,17 +2773,32 @@ function bekle(ms) {
   kontrol('Ret gerekçesi alanı var', doc.querySelectorAll('[data-talep-not]').length > 0);
   kontrol('Talep modül bilgisi satırda görünür', /Modül: Personel/.test(metin('#gorunum')));
 
-  /* Talepten sonra kayıt değişirse eski değerin üzerine yazılmaz. */
+  /* Talepten sonra kaydı başka bir kullanıcı değiştirdiyse onay ENGELLENMEZ:
+     yönetici neyi onayladığını ekranda görür, istek her hâlükârda uygulanır.
+     Üzerine yazılan değişiklik ise kaybolmaz: uyarı hem karar notuna hem denetim
+     kaydına işlenir, böylece "kimin değeri ezildi" sonradan okunabilir. */
   ISG.depo.personelKaydet(Object.assign({}, ISG.depo.al().personel.filter((p) => p.id === hedefKisi.id)[0],
     { sicil: 'ADMIN-DEGISTI' }));
-  kontrol('Sürüm çakışması yakalanır', (function () {
-    try { ISG.yetki.talepOnayla(guncellemeTalebi.id, 'Test'); return false; }
-    catch (hata) { return /değişti/.test(hata.message); }
-  })());
-  kontrol('Çakışan talep beklemede kalır',
-    (ISG.depo.talepBul(guncellemeTalebi.id) || {}).durum === 'bekliyor');
-  kontrol('Yöneticinin yeni değeri korunur',
-    (ISG.depo.al().personel.filter((p) => p.id === hedefKisi.id)[0] || {}).sicil === 'ADMIN-DEGISTI');
+  const cakismaUyarisi = (function () {
+    try { return String((ISG.yetki.talepOnayla(guncellemeTalebi.id, 'Test') || {}).uyari || ''); }
+    catch (hata) { return 'ONAY ENGELLENDI: ' + hata.message; }
+  })();
+  kontrol('Sürüm çakışması uyarı üretir, onayı engellemez',
+    /değişmiş/.test(cakismaUyarisi) && /yine de uygulandı/.test(cakismaUyarisi),
+    cakismaUyarisi.slice(0, 90));
+  kontrol('Çakışan talep uyarıyla kapatılır',
+    (ISG.depo.talepBul(guncellemeTalebi.id) || {}).durum === 'onaylandi',
+    String((ISG.depo.talepBul(guncellemeTalebi.id) || {}).durum));
+  kontrol('Çakışma karar notuna işlendi',
+    /UYARI:/.test(String((ISG.depo.talepBul(guncellemeTalebi.id) || {}).kararNotu || '')),
+    String((ISG.depo.talepBul(guncellemeTalebi.id) || {}).kararNotu || 'not yok').slice(0, 90));
+  kontrol('Çakışma denetim kaydına yazıldı',
+    (ISG.depo.al().denetim || []).some((kayit) => kayit.kayitId === hedefKisi.id &&
+      /UYARI:/.test(String(kayit.ozet || ''))));
+  kontrol('Talepteki değer yazılır, yöneticinin alanı uyarıyla ezilir',
+    (ISG.depo.al().personel.filter((p) => p.id === hedefKisi.id)[0] || {}).meslek === 'Yetkili meslek' &&
+    (ISG.depo.al().personel.filter((p) => p.id === hedefKisi.id)[0] || {}).sicil !== 'ADMIN-DEGISTI',
+    (ISG.depo.al().personel.filter((p) => p.id === hedefKisi.id)[0] || {}).sicil);
 
   /* Kendi talebini onaylama denemesi reddedilir. */
   const yoneticiOturum = ISG.yetki.oturum();
@@ -2922,6 +2962,142 @@ function bekle(ms) {
         ISG.depo.al().planlar.filter((p) => p.id === hedefPlan.id)[0].durum === 'yapilacak');
     }
   }
+
+  console.log('\n19) Kurum kapsamı ve salt okunur denetim panosu');
+  /* OSGB Müdürü kendi kurumundaki işyerlerini izler; yazma ve onay yetkisi
+     yoktur. Test kendi kurumunu, hesabını ve işyeri bağını kurar, sonunda
+     hepsini geri alır. */
+  const anaIsyeri = ISG.depo.al().isyerleri.filter((i) => i.id === 'iy1')[0];
+  const ilkKurumId = anaIsyeri.kurumId || '';
+  const denemeKurum = ISG.depo.kurumKaydet({ ad: 'Deneme OSGB' });
+  kontrol('Kurum kaydı oluşturuldu', !!denemeKurum && !!denemeKurum.id);
+  const denemeMudur = ISG.depo.kullaniciKaydet({
+    id: '', adSoyad: 'Deneme Müdür', eposta: 'mudur@deneme.osgb', sifre: '1234',
+    rol: 'osgb muduru', kurumId: denemeKurum.id, isyerleri: [], aktif: true
+  });
+  kontrol('OSGB müdürü hesabı rolü tanındı', ISG.yetki.rolCoz(denemeMudur.rol) === 'osgbMuduru');
+
+  ISG.yetki.oturumKapat();
+  await girisYap('mudur@deneme.osgb', '1234');
+  kontrol('OSGB müdürü oturumu açıldı', !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'osgbMuduru');
+  kontrol('Kurumsuz işyeri kapsam dışında', ISG.yetki.kapsam().length === 0, String(ISG.yetki.kapsam().length));
+  kontrol('Salt okunur rolde yazma reddedilir', ISG.yetki.yazmaModu('iy1') === 'red', ISG.yetki.yazmaModu('iy1'));
+  kontrol('Kapsam dışı işyerinde ekleme izni yok', ISG.yetki.izin('ekle', 'iy1') === false);
+  kontrol('OSGB müdürü talebi onaylayamaz', ISG.yetki.onayYetkisi({ isyeriId: 'iy1', kullaniciId: 'u2' }) === false);
+  const bosPanosu = ISG.sayfalar.kurum();
+  kontrol('Kurum panosu salt okunur rozet taşır', /Salt okunur/.test(bosPanosu));
+  kontrol('Kurum panosu yazma düğmesi içermez',
+    !/data-islem="(isyeri-duzenle|isyeri-sil|kullanici-yeni|personel-duzenle)"/.test(bosPanosu));
+  kontrol('Kurum görünümünde şifre alanı yok',
+    (ISG.yetki.gorunum().kullanicilar || []).every((k) => !('sifre' in k)));
+
+  /* İşyeri bu kuruma bağlanınca kapsam açılır ama yazma hakkı doğmaz. */
+  ISG.yetki.oturumKapat();
+  await girisYap('mehmetkurt0948@gmail.com', '1234');
+  ISG.depo.isyeriKaydet(Object.assign({}, anaIsyeri, { kurumId: denemeKurum.id }));
+  ISG.yetki.oturumKapat();
+  await girisYap('mudur@deneme.osgb', '1234');
+  kontrol('Kurum kapsamı kendi işyerini içerir', ISG.yetki.kapsam().indexOf('iy1') > -1);
+  kontrol('Kurum kapsamı başka işyerini içermez', ISG.yetki.kapsam().indexOf('iy2') < 0);
+  kontrol('Salt okunur rolde yazma modu red', ISG.yetki.yazmaModu('iy1') === 'red', ISG.yetki.yazmaModu('iy1'));
+  kontrol('Kurum görünümü yalnız kendi işyerini taşır', (ISG.yetki.gorunum().isyerleri || []).length === 1,
+    String((ISG.yetki.gorunum().isyerleri || []).length));
+  await sayfaAc('#kurum');
+  kontrol('Kurum panosu açılır', /Onay yetkisi durumu/.test(metin('#gorunum')));
+  kontrol('Kurum panosu menüde görünür', doc.getElementById('menuKurum').hidden === false);
+  kontrol('Onay kuyruğu kurum müdüründe gizli', doc.getElementById('menuOnaylar').hidden === true);
+
+  /* Temizlik: işyeri bağı, hesap ve kurum kaydı geri alınır. */
+  ISG.yetki.oturumKapat();
+  await girisYap('mehmetkurt0948@gmail.com', '1234');
+  ISG.depo.isyeriKaydet(Object.assign({}, anaIsyeri, { kurumId: ilkKurumId }));
+  ISG.depo.kullaniciSil(denemeMudur.id);
+  ISG.depo.kurumSil(denemeKurum.id);
+  kontrol('Temizlik sonrası kurum sayısı eski hâlinde',
+    ISG.depo.al().kurumlar.every((k) => k.id !== denemeKurum.id));
+  kontrol('Temizlik sonrası işyeri bağı korundu',
+    (ISG.depo.al().isyerleri.filter((i) => i.id === 'iy1')[0] || {}).kurumId === ilkKurumId);
+
+  /* İşyeri formu kurum bağını taşır; kart listesinde kurum adı görünür. */
+  await sayfaAc('#isyerleri');
+  doc.querySelector('[data-islem="isyeri-duzenle"]').click();
+  await bekle(120);
+  const iyFormu = doc.getElementById('isyeriForm');
+  kontrol('İşyeri formunda kurum alanı var', !!iyFormu.elements.kurumId);
+  kontrol('Kurum seçenekleri dolu', !!iyFormu.elements.kurumId && iyFormu.elements.kurumId.options.length > 1,
+    iyFormu.elements.kurumId ? String(iyFormu.elements.kurumId.options.length) : 'yok');
+  doc.querySelector('#isyeriDiyalog [data-kapat]').click();
+  await bekle(100);
+  kontrol('İşyeri kartı kurum adını gösterir', /Bağlı kurum/.test(metin('#gorunum')));
+
+  console.log('\n20) İşyeri onay modeli (deneysel anahtar)');
+  /* Model yalnız `ayarlar.onayModeli` anahtarıyla açılır; anahtar kapanınca
+     eski rol davranışı aynen döner. */
+  ISG.depo.ayarKaydet({ onayModeli: 'isyeri' });
+  kontrol('İşyeri onay modeli açıldı', ISG.yetki.onayModeli() === 'isyeri', ISG.yetki.onayModeli());
+  kontrol('Tehlikeli işyeri eşiği A/B', ISG.yetki.onayEsigi('tehlikeli').join('/') === 'A/B');
+  kontrol('Çok tehlikeli eşiği yalnız A', ISG.yetki.onayEsigi('cokTehlikeli').join('/') === 'A');
+  kontrol('Tek uzmanlı işyeri tekUzman modunda', ISG.yetki.onayDurumu('iy1').mod === 'tekUzman',
+    ISG.yetki.onayDurumu('iy1').mod);
+  kontrol('Uzmansız işyeri uzman-yok modunda', ISG.yetki.onayDurumu('iy3').mod === 'uzman-yok',
+    ISG.yetki.onayDurumu('iy3').mod);
+
+  await girisYap('buse.senol@ornek.com', '1234');
+  kontrol('Tek uzmanlı işyerinde yetkili doğrudan yazar', ISG.yetki.yazmaModu('iy1') === 'dogrudan',
+    ISG.yetki.yazmaModu('iy1'));
+  kontrol('Kapsam dışı işyeri kapsam-disi döner', ISG.yetki.yazmaModu('iy3') === 'kapsam-disi',
+    ISG.yetki.yazmaModu('iy3'));
+  const talepOnce = ISG.depo.al().talepler.length;
+  ISG.depo.personelKaydet({ id: '', isyeriId: 'iy1', adSoyad: 'Model Testi', sicil: '91', durum: 'aktif' });
+  kontrol('Doğrudan yazma kaydı oluşturdu',
+    ISG.depo.al().personel.some((p) => p.adSoyad === 'Model Testi'));
+  kontrol('Doğrudan yazmada talep oluşmadı', ISG.depo.al().talepler.length === talepOnce);
+  ISG.yetki.oturumKapat();
+
+  /* İşyeri çok tehlikeliye alınınca eşik yalnız A olur: B ve C sınıfı uzmanlar
+     onaylayan sayılmaz, talep "yetkili eksik" durumunda bekler. */
+  await girisYap('mehmetkurt0948@gmail.com', '1234');
+  const modelTestiKisi = ISG.depo.al().personel.filter((p) => p.adSoyad === 'Model Testi')[0];
+  if (modelTestiKisi) { ISG.depo.personelSil(modelTestiKisi.id); }
+  const iy1Kayit = ISG.depo.al().isyerleri.filter((i) => i.id === 'iy1')[0];
+  const ilkTehlike = iy1Kayit.tehlikeSinifi;
+  const cUzman = ISG.depo.kullaniciKaydet({
+    id: '', adSoyad: 'C Sınıfı Uzman', eposta: 'cuzman@deneme.test', sifre: '1234',
+    rol: 'yetkili', uzmanSinifi: 'C', kurumId: ilkKurumId, isyerleri: ['iy1'], aktif: true
+  });
+  ISG.depo.isyeriKaydet(Object.assign({}, iy1Kayit, { tehlikeSinifi: 'cokTehlikeli' }));
+  const cokUzman = ISG.yetki.onayDurumu('iy1');
+  kontrol('İki uzmanlı işyerinde sınıf eşiği aranır', cokUzman.mod === 'eksik', cokUzman.mod);
+  kontrol('Eşiği karşılamayan uzman onaylayan sayılmaz', cokUzman.onaylayanIdler.length === 0,
+    String(cokUzman.onaylayanIdler.length));
+  await girisYap('buse.senol@ornek.com', '1234');
+  kontrol('Uygun onay yetkilisi yokken yazma eksik moduna düşer', ISG.yetki.yazmaModu('iy1') === 'eksik',
+    ISG.yetki.yazmaModu('iy1'));
+  const eksikTalep = ISG.depo.personelKaydet({
+    id: '', isyeriId: 'iy1', adSoyad: 'Eksik Yetki Testi', sicil: '92', durum: 'aktif'
+  });
+  kontrol('Eksik yetkide kayıt doğrudan yazılmaz',
+    !ISG.depo.al().personel.some((p) => p.adSoyad === 'Eksik Yetki Testi'));
+  kontrol('Eksik yetkide talep kuyruğa girer', eksikTalep && eksikTalep.yetkiDurumu === 'eksik',
+    eksikTalep && eksikTalep.yetkiDurumu);
+  ISG.yetki.oturumKapat();
+
+  await girisYap('mehmetkurt0948@gmail.com', '1234');
+  ISG.depo.ayarKaydet({ onayModeli: 'rol' });
+  kontrol('Rol modeli geri yüklendi', ISG.yetki.onayModeli() === 'rol', ISG.yetki.onayModeli());
+  ISG.depo.kullaniciSil(cUzman.id);
+  ISG.depo.isyeriKaydet(Object.assign({}, ISG.depo.al().isyerleri.filter((i) => i.id === 'iy1')[0],
+    { tehlikeSinifi: ilkTehlike }));
+  const eksikKayit = ISG.depo.al().personel.filter((p) => p.adSoyad === 'Eksik Yetki Testi')[0];
+  if (!eksikKayit) {
+    const bekleyen = ISG.depo.al().talepler.filter((t) => t.yetkiDurumu === 'eksik');
+    bekleyen.forEach((t) => { ISG.yetki.talepReddet(t.id, 'Test temizliği'); });
+  }
+  kontrol('Model testi verisi temizlendi',
+    ISG.depo.al().kullanicilar.every((k) => k.id !== cUzman.id));
+  kontrol('İşyeri tehlike sınıfı geri yüklendi',
+    (ISG.depo.al().isyerleri.filter((i) => i.id === 'iy1')[0] || {}).tehlikeSinifi === ilkTehlike,
+    (ISG.depo.al().isyerleri.filter((i) => i.id === 'iy1')[0] || {}).tehlikeSinifi);
 
   console.log('\nSonuç: ' + gecen + ' geçti, ' + hata + ' başarısız');
   dom.window.close();

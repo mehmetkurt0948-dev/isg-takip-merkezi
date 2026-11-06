@@ -19,6 +19,45 @@
     cokTehlikeli: { ad: 'Çok tehlikeli', temelSaat: 16, yenilemeYil: 1, riskYenilemeYil: 2, acilYenilemeYil: 2 }
   };
 
+  /* İş güvenliği uzmanı sınıfları. `kod` hesap kaydında saklanan değerdir;
+     boş değer "belirtilmedi" demektir (uydurma sınıf atanmaz). */
+  ISG.UZMAN_SINIFLARI = [
+    { kod: 'A', ad: 'A sınıfı', kisa: 'A' },
+    { kod: 'B', ad: 'B sınıfı', kisa: 'B' },
+    { kod: 'C', ad: 'C sınıfı', kisa: 'C' }
+  ];
+
+  /* Uzman sınıfı tek biçime indirilir: 'a', 'A sınıfı', 'A SINIFI' → 'A'.
+     Tanınmayan değer boş döner; bu, "sınıfı olmayan uzman onay yetkilisi
+     sayılmaz" kuralının girdisidir. */
+  ISG.uzmanSinifiKodu = function (deger) {
+    var metin = String(deger === null || deger === undefined ? '' : deger)
+      .replace(/\s+/g, ' ').trim().toLocaleUpperCase('tr-TR');
+    if (!metin) { return ''; }
+    var ilk = metin.charAt(0);
+    return 'ABC'.indexOf(ilk) >= 0 ? ilk : '';
+  };
+
+  ISG.uzmanSinifiAdi = function (deger) {
+    var kod = ISG.uzmanSinifiKodu(deger);
+    if (!kod) { return 'Sınıf belirtilmedi'; }
+    for (var i = 0; i < ISG.UZMAN_SINIFLARI.length; i += 1) {
+      if (ISG.UZMAN_SINIFLARI[i].kod === kod) { return ISG.UZMAN_SINIFLARI[i].ad; }
+    }
+    return kod + ' sınıfı';
+  };
+
+  /* Uygulama içi onay yetkisi eşiği: işyerinin tehlike sınıfına göre çok uzmanlı
+     işyerinde onay verebilecek en düşük uzman sınıfları. Bu tablo MEVZUATIN
+     GÖREVLENDİRME ŞARTI DEĞİLDİR; uygulamanın kendi değişiklik onayı kuralıdır.
+     (20.07.2013 tarihli Yönetmelik uzman görevlendirmesini düzenler, "onay
+     yetkilisi" diye bir kavram tanımlamaz.) */
+  ISG.ONAY_ESIGI = {
+    cokTehlikeli: ['A'],
+    tehlikeli: ['A', 'B'],
+    az: ['A', 'B', 'C']
+  };
+
   ISG.EGITIM_TURLERI = [
     { id: 'temel', ad: 'Temel İSG eğitimi', yenilemeYil: null, saat: null, not: '8 / 12 / 16 saat • 3 / 2 / 1 yılda yenilenir' },
     { id: 'ilkYardim', ad: 'İlk yardım', yenilemeYil: 3, saat: 16, not: 'Sertifika 3 yıl geçerli' },
@@ -397,8 +436,14 @@
   };
 
   ISG.ilgiliKayit = function (veri, anahtar, isyeriId) {
-    var liste = veri[anahtar] || [];
-    var bulunan = liste.filter(function (k) { return k.isyeriId === isyeriId; })[0];
+    var liste = (veri && veri[anahtar]) || [];
+    /* Kimlikler her yerde dizi olarak taşınmaz (içe aktarma/sayaç kaynakları);
+       karşılaştırma metne çevrilerek yapılır ki aynı işyerinin kaydı bulunamasın
+       ve yanlış kayıt diğerinin yerine kullanılmasın. */
+    var hedef = String(isyeriId === null || isyeriId === undefined ? '' : isyeriId);
+    var bulunan = liste.filter(function (k) {
+      return String((k && k.isyeriId !== null && k.isyeriId !== undefined) ? k.isyeriId : '') === hedef;
+    })[0];
     return bulunan || null;
   };
 
@@ -486,6 +531,378 @@
       sinif: sinif,
       ekip: ekip
     };
+  };
+
+  /* ---------- Zorunlu acil durum ekipleri: oran ve sayım kuralları ----------
+     Mevzuat (Acil Durum Yönetmeliği ve 17.12.2013 tarihli Eğitim Yönetmeliği) ekip
+     mevcudu için sabit bir sayı vermez; yerleşik uygulama çalışan sayısının tehlike
+     sınıfına göre oranlanmasıdır:
+       • Söndürme / kurtarma / koruma: az tehlikeli 1/50, tehlikeli 1/40, çok tehlikeli 1/30
+       • İlk yardım: az tehlikeli 1/20, tehlikeli 1/15, çok tehlikeli 1/10
+     Kesirli sonuç yukarı yuvarlanır; hiçbir zorunlu ekip 3 kişiden az olamaz. Oranlar
+     tek yerden değiştirilir. Çalışan sayısı ya da tehlike sınıfı eksikse sayı
+     UYDURULMAZ (0 gösterilip "gerek yok" izlenimi verilmez): hesap geçersiz sayılır ve
+     kullanıcı eksik alanı girmesi için uyarılır. */
+  var ACIL_EQIP_ORANLARI = {
+    az: { sondurme: 50, kurtarma: 50, koruma: 50, ilkYardim: 20 },
+    tehlikeli: { sondurme: 40, kurtarma: 40, koruma: 40, ilkYardim: 15 },
+    cokTehlikeli: { sondurme: 30, kurtarma: 30, koruma: 30, ilkYardim: 10 }
+  };
+  var ACIL_EQIP_ENAZ = 3;
+  ISG.ACIL_EQIP_ORANLARI = ACIL_EQIP_ORANLARI;
+  ISG.ACIL_EQIP_ENAZ = ACIL_EQIP_ENAZ;
+
+  /* Zorunlu dört ekip. `rolAdlari` plan kaydındaki görev adlarıyla eşleşir; eski
+     sürümlerde yazılan adlar `eskiRolAdlari` içinde tutulur ki eski kayıtlar yeniden
+     düzenlenmek zorunda kalmasın. `belgeEgitim` doluysa üyenin sayılabilmesi için o
+     eğitim türünün (ya da üyenin belge tarihinin) süresinin dolmamış olması gerekir. */
+  ISG.ACIL_EQIP_TANIMLARI = [
+    { id: 'sondurme', ad: 'Söndürme ekibi',
+      gorev: 'Yangına ilk müdahale, söndürme ve tahliyeye destek',
+      rolAdlari: ['Yangın söndürme ekibi'],
+      eskiRolAdlari: ['Söndürme ekibi', 'Yangın söndürme'],
+      belgeEgitim: '', belgeEtiketi: '' },
+    { id: 'kurtarma', ad: 'Kurtarma ekibi',
+      gorev: 'Arama, kurtarma ve tahliye çalışmaları',
+      rolAdlari: ['Kurtarma ekibi', 'Tahliye / arama kurtarma'],
+      eskiRolAdlari: ['Arama kurtarma', 'Tahliye / Arama Kurtarma'],
+      belgeEgitim: '', belgeEtiketi: '' },
+    { id: 'koruma', ad: 'Koruma ekibi',
+      gorev: 'Alan güvenliği, kayıt ve envanter koruması',
+      rolAdlari: ['Koruma ekibi'],
+      eskiRolAdlari: ['Koruma/Güvenlik ekibi', 'Koruma / Güvenlik ekibi', 'Savunma/GS ekibi', 'Savunma / GS ekibi'],
+      belgeEgitim: '', belgeEtiketi: '' },
+    { id: 'ilkYardim', ad: 'İlk yardım ekibi',
+      gorev: 'Olay yerinde ilk yardım uygulaması',
+      rolAdlari: ['İlk yardım ekibi'],
+      eskiRolAdlari: ['İlk Yardım Ekibi', 'Ilk yardim ekibi', 'İlk yardımcılar'],
+      belgeEgitim: 'ilkYardim', belgeEtiketi: 'İlk yardım sertifikası' }
+  ];
+
+  /* Türkçe karakter duyarlı karşılaştırma: "Çok Tehlikeli" ile "çok tehlikeli" aynı. */
+  function metinKucuk(deger) {
+    var metin = String(deger === null || deger === undefined ? '' : deger).replace(/\s+/g, ' ').trim();
+    try { return metin.toLocaleLowerCase('tr-TR'); } catch (hata) { return metin.toLowerCase(); }
+  }
+
+  var TEHLIKE_SINIF_KODLARI = {
+    'az': 'az', 'az tehlikeli': 'az',
+    'tehlikeli': 'tehlikeli',
+    'coktehlikeli': 'cokTehlikeli', 'çoktehlikeli': 'cokTehlikeli',
+    'cok tehlikeli': 'cokTehlikeli', 'çok tehlikeli': 'cokTehlikeli'
+  };
+
+  /* Tehlike sınıfı tek biçime indirilir: kayıt anahtarı ('cokTehlikeli'), etiket
+     ('Çok tehlikeli') ya da dışa aktarımdan gelen düz metin kabul edilir. */
+  ISG.tehlikeSinifiKodu = function (deger) {
+    if (ISG.RISK_SINIFLARI && ISG.RISK_SINIFLARI[String(deger)]) { return String(deger); }
+    var metin = metinKucuk(deger);
+    return TEHLIKE_SINIF_KODLARI[metin] || '';
+  };
+
+  /* "1.140", "1140 ", 1140 → 1140; boş/sıfır/geçersiz → 0 (sayım yapılamaz). */
+  function tamsayiOku(deger) {
+    if (deger === null || deger === undefined || deger === '') { return 0; }
+    var ham = String(deger).replace(/\s/g, '');
+    var sayi = Number(ham);
+    if (!isFinite(sayi)) { sayi = parseInt(ham.replace(/[^\d]/g, ''), 10); }
+    sayi = Math.floor(sayi || 0);
+    return sayi > 0 ? sayi : 0;
+  }
+  ISG.tamsayiOku = tamsayiOku;
+
+  function bugunIso() {
+    var simdi = new Date();
+    var ay = String(simdi.getMonth() + 1);
+    var gun = String(simdi.getDate());
+    return simdi.getFullYear() + '-' + (ay.length < 2 ? '0' + ay : ay) + '-' + (gun.length < 2 ? '0' + gun : gun);
+  }
+  ISG.bugunIso = bugunIso;
+
+  /* ISO (YYYY-AA-GG) ve gerçek takvime uyan tarih kabul edilir; 2026-02-31 reddedilir. */
+  ISG.tarihGecerliMi = function (deger) {
+    var metin = String(deger || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(metin)) { return false; }
+    var parca = metin.split('-');
+    var tarih = new Date(Number(parca[0]), Number(parca[1]) - 1, Number(parca[2]), 12, 0, 0, 0);
+    return tarih.getFullYear() === Number(parca[0]) &&
+      tarih.getMonth() === Number(parca[1]) - 1 &&
+      tarih.getDate() === Number(parca[2]);
+  };
+
+  /* Ekip sayısında esas alınan çalışan sayısı. İşyeri kartındaki sayı ile kayıtlı
+     personel listesi çeliştiğinde GERÇEK sayı (büyüğü) kullanılır; böylece listesi
+     kabarık bir işyeri az kişiyle hesaplanmaz. Kaynak ve uyarı döner ki ekranda
+     "hangi sayıya göre hesaplandı" görünsün. */
+  ISG.acilCalisanSayisi = function (isyeri, veri) {
+    var isyeriId = isyeri && isyeri.id !== null && isyeri.id !== undefined ? String(isyeri.id) : '';
+    var kayitSayisi = tamsayiOku(isyeri && isyeri.calisanSayisi);
+    var kayitliPersonel = 0;
+    if (veri && isyeriId) {
+      kayitliPersonel = (veri.personel || []).filter(function (kisi) {
+        return String(kisi.isyeriId === null || kisi.isyeriId === undefined ? '' : kisi.isyeriId) === isyeriId;
+      }).length;
+    }
+    var sayi = Math.max(kayitSayisi, kayitliPersonel);
+    return {
+      isyeriId: isyeriId,
+      calisanSayisi: sayi,
+      isyeriSayisi: kayitSayisi,
+      kayitliPersonel: kayitliPersonel,
+      kaynak: sayi ? (kayitliPersonel > kayitSayisi ? 'Kayıtlı personel' : 'İşyeri kaydı') : '',
+      eksik: sayi === 0,
+      uyari: (kayitSayisi && kayitliPersonel > kayitSayisi) ?
+        'Personel listesinde ' + kayitliPersonel + ' kişi var, işyeri kartında ' + kayitSayisi +
+        ' çalışan yazıyor. Hesap ' + kayitliPersonel + ' kişi üzerinden yapıldı; işyeri kartını güncelleyin.' : ''
+    };
+  };
+
+  /* Oran tablosundan zorunlu mevcut. Dönüş: {gecerli, neden, satirlar:[…], gerekli}. */
+  ISG.acilEkipGereksinimi = function (tehlikeSinifi, calisanSayisi) {
+    var sinifKodu = ISG.tehlikeSinifiKodu(tehlikeSinifi);
+    var sayi = tamsayiOku(calisanSayisi);
+    var neden = '';
+    if (!sinifKodu) { neden = 'Tehlike sınıfı tanımlı değil (az / tehlikeli / çok tehlikeli).'; }
+    else if (!sayi) { neden = 'Çalışan sayısı girilmemiş ya da 0; zorunlu ekip sayısı hesaplanamıyor.'; }
+    var oranlar = sinifKodu ? (ACIL_EQIP_ORANLARI[sinifKodu] || {}) : {};
+    var toplam = 0;
+    var satirlar = ISG.ACIL_EQIP_TANIMLARI.map(function (tanim) {
+      var oran = oranlar[tanim.id] ? Number(oranlar[tanim.id]) : 0;
+      var gerekli = (sinifKodu && sayi && oran) ? Math.max(ACIL_EQIP_ENAZ, Math.ceil(sayi / oran)) : 0;
+      toplam += gerekli;
+      return {
+        id: tanim.id,
+        ad: tanim.ad,
+        gorev: tanim.gorev,
+        belgeEgitim: tanim.belgeEgitim || '',
+        belgeEtiketi: tanim.belgeEtiketi || '',
+        rolAdlari: (tanim.rolAdlari || []).concat(tanim.eskiRolAdlari || []),
+        oran: oran,
+        oranEtiketi: oran ? '1/' + oran : '',
+        calisan: sayi,
+        gerekli: gerekli,
+        eksikHesap: !sinifKodu || !sayi
+      };
+    });
+    return {
+      gecerli: !neden,
+      neden: neden,
+      sinifKodu: sinifKodu,
+      sinifAdi: (ISG.RISK_SINIFLARI[sinifKodu] || {}).ad || '',
+      calisanSayisi: sayi,
+      enaz: ACIL_EQIP_ENAZ,
+      satirlar: satirlar,
+      gerekli: toplam
+    };
+  };
+
+
+  /* Üyeyi kişi olarak tanımlayan anahtar: personel kimliği önceliklidir, personel
+     listesinde olmayan kişilerde ad kullanılır. Aynı kişinin aynı ekibe iki kez
+     yazılması mevcut sayısını şişirmez. */
+  function ekipKisiKimligi(uye) {
+    var kimlik = String((uye && uye.personelId) || '').trim();
+    if (kimlik) { return 'p:' + kimlik; }
+    var ad = metinKucuk((uye && uye.ad) || '');
+    return ad ? 'a:' + ad : '';
+  }
+
+  /* Belge/eğitim süresi denetimi. Tarih yoksa 'tarihsiz' (kişi sayılır ama uyarılır),
+     geçmişse 'suresiDoldu' (kişi sayılmaz). Belge tarihi hem üyenin kendi alanından hem
+     Eğitimler kaydından (kimlik ya da ad eşleşmesiyle) okunur; böylece alan adı farklı
+     olan eski veride de çalışır. İlk yardım dışındaki ekiplerde denetim yapılmaz. */
+  function uyeBelgeDurumu(uye, tanim, veri, bugun) {
+    if (!tanim.belgeEgitim) { return { durum: 'gerekmiyor', tarih: '', etiket: '' }; }
+    var etiket = tanim.belgeEtiketi || tanim.belgeEgitim;
+    var adaylar = [];
+    if (uye.gecerlilik) { adaylar.push(String(uye.gecerlilik)); }
+    var kims = [];
+    var pid = String(uye.personelId || '').trim();
+    if (pid) { kims.push(pid); }
+    var ad = metinKucuk(uye.ad || '');
+    if (ad) {
+      ((veri && veri.personel) || []).forEach(function (kisi) {
+        if (metinKucuk(kisi.adSoyad || '') === ad) { kims.push(String(kisi.id)); }
+      });
+    }
+    ((veri && veri.egitimler) || []).forEach(function (kayit) {
+      if (String(kayit.tur || '') !== tanim.belgeEgitim) { return; }
+      if (!kayit.gecerlilik) { return; }
+      if (kims.indexOf(String(kayit.personelId || '')) < 0) { return; }
+      adaylar.push(String(kayit.gecerlilik));
+    });
+    var okunan = adaylar.filter(function (deger) { return ISG.tarihGecerliMi(deger); }).sort();
+    var enYeni = okunan.length ? okunan[okunan.length - 1] : '';
+    if (!enYeni) { return { durum: 'tarihsiz', tarih: adaylar[0] || '', etiket: etiket }; }
+    return enYeni >= bugun
+      ? { durum: 'gecerli', tarih: enYeni, etiket: etiket }
+      : { durum: 'suresiDoldu', tarih: enYeni, etiket: etiket };
+  }
+
+
+  /* Ekip tablosunun tek gerçeği: her zorunlu ekip için gerekli / kayıtlı / onaylı
+     kişi, eksik, belge durumu, mükerrer ve çakışma uyarıları. Ekran ve CSV bu nesneyi
+     okur; hesaplama burada, tek yerde yapılır. */
+  ISG.acilEkipDurumu = function (isyeri, planKaydi, veri) {
+    var sayim = ISG.acilCalisanSayisi(isyeri, veri);
+    var gereksinim = ISG.acilEkipGereksinimi(isyeri && isyeri.tehlikeSinifi, sayim.calisanSayisi);
+    var uyarilar = [];
+    if (sayim.uyari) { uyarilar.push(sayim.uyari); }
+    if (!gereksinim.gecerli) { uyarilar.push(gereksinim.neden + ' Ekip ihtiyacı hesaplanamadı, eksik alanı doldurun.'); }
+    var bugun = bugunIso();
+    var uyeler = (planKaydi && ISG.depo && typeof ISG.depo.acilEkipUyeleri === 'function')
+      ? ISG.depo.acilEkipUyeleri(planKaydi)
+      : ((planKaydi && planKaydi.ekip) || []);
+    var kisiEkipleri = {};
+    var satirlar = gereksinim.satirlar.map(function (satir) {
+      var gruptakiler = uyeler.filter(function (uye) {
+        return satir.rolAdlari.indexOf(acilRolAdi(uye && uye.rol)) > -1;
+      });
+      var kisiler = {}, onayli = 0, tarihsiz = [], suresiDolan = [], mukerrer = 0;
+      gruptakiler.forEach(function (uye) {
+        var kimlik = ekipKisiKimligi(uye);
+        var ad = String((uye && uye.ad) || '').trim();
+        if (!kimlik) { uyarilar.push(satir.ad + ' satırında adı olmayan kişi var; sayıya dahil edilmedi.'); return; }
+        if (kisiler[kimlik]) { mukerrer += 1; return; }
+        var belge = uyeBelgeDurumu(uye || {}, satir, veri, bugun);
+        kisiler[kimlik] = { ad: ad || '(adsız)', belge: belge.durum, tarih: belge.tarih };
+        if (!kisiEkipleri[kimlik]) { kisiEkipleri[kimlik] = { ad: ad || '(adsız)', ekipler: [] }; }
+        kisiEkipleri[kimlik].ekipler.push(satir.ad);
+        if (belge.durum === 'suresiDoldu') { suresiDolan.push({ ad: ad || '(adsız)', tarih: belge.tarih }); return; }
+        if (belge.durum === 'tarihsiz') { tarihsiz.push({ ad: ad || '(adsız)', etiket: belge.etiket }); }
+        onayli += 1;
+      });
+      if (mukerrer) { uyarilar.push(satir.ad + ' ekibinde ' + mukerrer + ' mükerrer kayıt var; aynı kişi bir kez sayıldı.'); }
+      var kisiSayisi = Object.keys(kisiler).length;
+      var eksik = gereksinim.gecerli ? Math.max(0, satir.gerekli - onayli) : 0;
+      return {
+        id: satir.id, ad: satir.ad, gorev: satir.gorev, rolAdlari: satir.rolAdlari,
+        oranEtiketi: satir.oranEtiketi, calisan: satir.calisan, gerekli: satir.gerekli,
+        uyeSayisi: gruptakiler.length, kisiSayisi: kisiSayisi, onayli: onayli, eksik: eksik,
+        durum: !gereksinim.gecerli ? 'hesaplanamadi' : (kisiSayisi === 0 ? 'yok' : (eksik > 0 ? 'eksik' : 'tamam')),
+        kisiler: Object.keys(kisiler).map(function (anahtar) { return kisiler[anahtar]; }),
+        tarihsiz: tarihsiz, suresiDolan: suresiDolan, mukerrer: mukerrer
+      };
+    });
+    var cakismalar = Object.keys(kisiEkipleri).filter(function (anahtar) {
+      return kisiEkipleri[anahtar].ekipler.length > 1;
+    }).map(function (anahtar) {
+      return { ad: kisiEkipleri[anahtar].ad, ekipler: kisiEkipleri[anahtar].ekipler };
+    });
+    cakismalar.forEach(function (cakisma) {
+      uyarilar.push(cakisma.ad + ' birden fazla zorunlu ekipte görünüyor (' + cakisma.ekipler.join(', ') +
+        '); zorunlu mevcut her ekip için ayrı kişi görevlendirin.');
+    });
+    var ozet = { gerekli: gereksinim.gerekli, kisi: 0, onayli: 0, eksik: 0, eksikEkip: 0, tarihsiz: 0, suresiDoldu: 0 };
+    satirlar.forEach(function (satir) {
+      ozet.kisi += satir.kisiSayisi;
+      ozet.onayli += satir.onayli;
+      ozet.eksik += satir.eksik;
+      ozet.tarihsiz += satir.tarihsiz.length;
+      ozet.suresiDoldu += satir.suresiDolan.length;
+      if (gereksinim.gecerli && satir.kisiSayisi === 0) { ozet.eksikEkip += 1; }
+    });
+    return {
+      isyeriId: sayim.isyeriId,
+      calisan: sayim,
+      gereksinim: gereksinim,
+      gecerli: gereksinim.gecerli,
+      satirlar: satirlar,
+      cakismalar: cakismalar,
+      uyarilar: uyarilar,
+      gorevEksik: gereksinim.gecerli && ozet.eksikEkip > 0,
+      eksik: ozet.eksik,
+      ozet: ozet
+    };
+  };
+
+
+
+  /* Görünüm köprüsü: görev (rol) adı hangi zorunlu ekibin satırıdır? Koordinatör,
+     işyeri hekimi gibi zorunlu olmayan görevler satır dışı kalır (null) ve ekran onlara
+     "gerekli sayısı" rozeti basmaz. Eski rol adları da aynı satıra bağlanır. */
+  ISG.acilEkipSatiri = function (durum, rolAdi) {
+    if (!durum || !durum.satirlar) { return null; }
+    var ad = acilRolAdi(rolAdi);
+    return durum.satirlar.filter(function (satir) {
+      return (satir.rolAdlari || []).indexOf(ad) > -1;
+    })[0] || null;
+  };
+
+
+  /* Acil durum planı tarih denetimi: biçimi bozuk ya da takvimi olmayan tarih, ileri
+     tarih ve tutarsız sıra KAYDI ENGELLER. Yenileme vadesinin geçmiş olması ise tek
+     başına engel değildir (vade geciktiğini gösterir; geçmiş tarihi silmeye zorlamaz). */
+  ISG.acilPlanTarihKontrol = function (alanlar, tehlikeSinifi) {
+    var etiketler = { hazirlanma: 'Hazırlanma tarihi', sonYenileme: 'Son yenileme tarihi', tatbikat: 'Son tatbikat tarihi' };
+    var hatalar = [], uyarilar = [], degerler = {};
+    Object.keys(etiketler).forEach(function (alan) {
+      degerler[alan] = String((alanlar || {})[alan] || '').trim();
+    });
+    Object.keys(etiketler).forEach(function (alan) {
+      var deger = degerler[alan];
+      if (!deger) { return; }
+      if (!ISG.tarihGecerliMi(deger)) {
+        hatalar.push(etiketler[alan] + ' geçerli bir tarih değil («' + deger + '»). Takvimden YYYY-AA-GG biçiminde seçin.');
+        return;
+      }
+      if (deger > bugunIso()) {
+        hatalar.push(etiketler[alan] + ' bugünden (' + bugunIso() + ') ileri bir tarih olamaz; yapılmamış bir çalışmayı işlenmiş gibi göstermeyin.');
+      }
+    });
+    if (!hatalar.length && degerler.hazirlanma && degerler.sonYenileme && degerler.sonYenileme < degerler.hazirlanma) {
+      hatalar.push('Son yenileme tarihi (' + degerler.sonYenileme + ') hazırlanma tarihinden (' + degerler.hazirlanma + ') eski olamaz.');
+    }
+    if (!degerler.hazirlanma && !degerler.sonYenileme) {
+      hatalar.push('Hazırlanma ya da son yenileme tarihinden biri zorunlu; aksi hâlde en geç yenileme tarihi hesaplanamaz.');
+    } else if (!degerler.sonYenileme) {
+      uyarilar.push('Son yenileme girilmedi; en geç yenileme tarihi hazırlanma tarihine (' + degerler.hazirlanma + ') göre hesaplanıyor.');
+    }
+    if (!degerler.tatbikat) {
+      uyarilar.push('Son tatbikat tarihi boş: tatbikat ayrı izlenen bir çalışma ve kayıt zorunluluğudur; plan yenilemesi tatbikat yerine geçmez.');
+    }
+    var sinif = ISG.RISK_SINIFLARI[ISG.tehlikeSinifiKodu(tehlikeSinifi)] || null;
+    var esas = degerler.sonYenileme || degerler.hazirlanma;
+    var enGec = (sinif && esas && ISG.tarihGecerliMi(esas)) ? ISG.yilEkle(esas, sinif.acilYenilemeYil) : '';
+    if (!sinif) { uyarilar.push('Tehlike sınıfı okunamadığı için en geç yenileme tarihi hesaplanamadı.'); }
+    return { hatalar: hatalar, uyarilar: uyarilar, enGec: enGec, gecerli: hatalar.length === 0 };
+  };
+
+  /* Ekip ve tarih denetimleri her zaman bir "alan nesnesi" üzerinden yapılır.
+     Henüz kaydı olmayan işyerinde `null` yerine bu boş nesne kullanılır; böylece
+     "tarih girilmedi" uyarısı ile "kayıt yok" durumu aynı akışta değerlendirilir. */
+  ISG.acilPlanBosKayit = function () {
+    return { hazirlanma: '', sonYenileme: '', tatbikat: '' };
+  };
+
+  /* Tarih denetiminin kısa yazısı: kartlarda ve Excel çıktısında tek satıra sığar.
+     Hatalar tek tek yazılmaz ("N tarih hatası" + ilk hatanın kendisi); ayrıntılı
+     liste diyalohta ve ISG.acilPlanTarihMetni ile uyarı kutularında gösterilir. */
+  ISG.acilPlanTarihOzet = function (sonuc) {
+    var kontrol = sonuc || {};
+    var hatalar = kontrol.hatalar || [];
+    var uyarilar = kontrol.uyarilar || [];
+    if (hatalar.length) {
+      return hatalar[0] + (hatalar.length > 1 ? ' (+' + (hatalar.length - 1) + ' tarih hatası daha)' : '');
+    }
+    if (uyarilar.length) {
+      return uyarilar[0] + (uyarilar.length > 1 ? ' (+' + (uyarilar.length - 1) + ' tarih uyarısı daha)' : '');
+    }
+    return null;
+  };
+
+  /* Uyarı kutuları ve onay soruları için ayrıntılı yazı: her satır bir kalem.
+     Satır başına numara konulur; kullanıcı hangi tarihi düzelteceğini karıştırmaz. */
+  ISG.acilPlanTarihMetni = function (sonuc) {
+    var kontrol = sonuc || {};
+    var satirlar = [];
+    (kontrol.hatalar || []).forEach(function (metin, sira) {
+      satirlar.push((kontrol.hatalar.length > 1 ? (sira + 1) + '. ' : '') + metin);
+    });
+    (kontrol.uyarilar || []).forEach(function (metin, sira) {
+      satirlar.push((kontrol.uyarilar.length > 1 ? (sira + 1) + '. ' : '') + metin);
+    });
+    return satirlar.join('\n');
   };
 
   /* ---------- KVKK: kimlik numarası maskeleme ----------
@@ -732,6 +1149,7 @@
   var depoDurumu = { veri: null, kalici: true, dinleyiciler: [] };
 
   var LISTE_ANAHTARLARI = [
+    'kurumlar',
     'egitimler', 'riskler', 'olaylar', 'dosyalar', 'belgeler', 'planlar', 'tespitler',
     'riskEkipleri', 'acilPlanlar', 'mevzuat',
     'kullanicilar', 'talepler', 'denetim', 'saglikTakip'
@@ -760,6 +1178,41 @@
     veri.isyerleri = Array.isArray(veri.isyerleri) ? veri.isyerleri : [];
     veri.personel = Array.isArray(veri.personel) ? veri.personel : [];
     veri.ayarlar = veri.ayarlar || {};
+
+    /* v10: kurum varlığı. Önce yalnızca `ayarlar.kurum` serbest metni vardı;
+       OSGB Müdürünün kurum kapsamı ve kurum bazlı raporlama için gerçek kayıt
+       gerekir. Göç tek yönlüdür ve veri silmez: metin doluysa tek kurum kaydı
+       üretilir, tek kurum varsa işyerleri ve kullanıcılar ona bağlanır.
+       Üretim tarihi veriden türetilir; her açılışta yeni damga yazılırsa
+       bulut eşitlemesi kaydı sürekli "değişmiş" sayardı. */
+    var kurumAdi = String(veri.ayarlar.kurum || '').trim();
+    if (!veri.kurumlar.length && kurumAdi) {
+      veri.kurumlar.push({
+        id: 'kr1', ad: kurumAdi,
+        olusturma: veri.olusturma || new Date().toISOString()
+      });
+    }
+    veri.kurumlar.forEach(function (kurum) {
+      if (!kurum || typeof kurum !== 'object') { return; }
+      kurum.id = String(kurum.id || '');
+      kurum.ad = String(kurum.ad || '').trim();
+    });
+    veri.kurumlar = veri.kurumlar.filter(function (kurum) { return kurum && kurum.id; });
+    var tekKurum = veri.kurumlar.length === 1 ? veri.kurumlar[0].id : '';
+    if (tekKurum) {
+      veri.isyerleri.forEach(function (isyeri) {
+        if (isyeri && !isyeri.kurumId) { isyeri.kurumId = tekKurum; }
+      });
+    }
+
+    /* Uzman sınıfı (A/B/C) tek biçime indirilir; tanınmayan değer boşaltılır.
+       Boş sınıf "belirtilmedi" sayılır ve o hesap onay yetkilisi olarak
+       sayılmaz — uydurma sınıf atanmaz. */
+    (veri.kullanicilar || []).forEach(function (kullanici) {
+      if (!kullanici || typeof kullanici !== 'object') { return; }
+      kullanici.uzmanSinifi = ISG.uzmanSinifiKodu(kullanici.uzmanSinifi);
+      kullanici.kurumId = String(kullanici.kurumId || (tekKurum || ''));
+    });
 
     /* v7: kayıt bazlı eşitleme bilgisi. `kayit` kimlik→son değişiklik zamanı,
        `silinen` silinen kayıtların mezar taşı zamanıdır. */
@@ -1905,8 +2358,16 @@
     var bulunan = (ISG.ACIL_ROLLERI || []).filter(function (rol) {
       return rol.id === metin || rol.ad === metin;
     })[0];
-    return bulunan ? bulunan.ad : metin;
+    if (bulunan) { return bulunan.ad; }
+    /* Ekipte tek kişi vardı: eski sürümlerde görev adı farklı yazılmış olabilir
+       ('Söndürme ekibi' → 'Yangın söndürme ekibi'). Eski ad tek biçime indirilir. */
+    var eski = (ISG.ACIL_EQIP_TANIMLARI || []).filter(function (tanim) {
+      var adlar = (tanim.rolAdlari || []).concat(tanim.eskiRolAdlari || []);
+      return adlar.some(function (ad) { return ad === metin; });
+    })[0];
+    return eski ? eski.rolAdlari[0] : metin;
   }
+  ISG.acilRolAdi = acilRolAdi;
 
   /* Acil durum planındaki üyeler; kimliği olmayan eski kayıtlara geçici kimlik verilir. */
   ISG.depo.acilEkipUyeleri = function (kayit, rol) {
@@ -2027,7 +2488,12 @@
     var yeni = uyeNesnesi(rolAdi, temiz, personelId, ek);
     var anahtar = uyeAnahtari(yeni);
     var eslesen = ekip.filter(function (uye) {
-      return acilRolAdi(uye.rol) === rolAdi && uyeAnahtari(uye) === anahtar;
+      if (acilRolAdi(uye.rol) !== rolAdi) { return false; }
+      /* Personel kimliği varsa mükerrer denetimi kimlikle yapılır: ad düzeltmesi
+         aynı kişiyi ikinci satıra taşımaz. Kimlik yoksa ad ölçüt alınır. */
+      var uyePid = String(uye.personelId || '');
+      if (personelId && uyePid) { return String(uyePid) === String(personelId); }
+      return uyeAnahtari(uye) === anahtar;
     })[0];
     if (eslesen) {
       Object.keys(yeni).forEach(function (alan) {
@@ -2311,8 +2777,61 @@
     var veri = depo.al();
     veri.ayarlar = veri.ayarlar || {};
     Object.keys(alanlar || {}).forEach(function (anahtar) { veri.ayarlar[anahtar] = alanlar[anahtar]; });
+    /* Kurum adı ayarlardan da yazılabiliyor (eski ekran). Kurum kaydı tek
+       kaynak olduğundan metin ile kayıt birbirinden kopmamalı: ad değişince
+       tek kurum kaydı da güncellenir, hiç yoksa oluşturulur. */
+    if (Object.prototype.hasOwnProperty.call(alanlar || {}, 'kurum')) {
+      var ad = String(veri.ayarlar.kurum || '').trim();
+      veri.kurumlar = Array.isArray(veri.kurumlar) ? veri.kurumlar : [];
+      if (!veri.kurumlar.length && ad) {
+        veri.kurumlar.push({ id: 'kr1', ad: ad, olusturma: new Date().toISOString() });
+      } else if (veri.kurumlar.length) {
+        veri.kurumlar[0].ad = ad || veri.kurumlar[0].ad;
+      }
+    }
     depo.kaydet();
     return veri.ayarlar;
+  };
+
+  /* ---------- Kurum kayıtları ----------
+     OSGB Müdürünün kapsamı kurum üzerinden belirlenir. Kurum silinirken
+     işyerleri ve kullanıcılar SİLİNMEZ; yalnızca kurum bağı boşaltılır, aksi
+     hâlde tek bir kurum kaydını silmek bütün İSG kayıtlarını götürürdü. */
+  ISG.depo.kurumKaydet = function (kayit) {
+    var veri = depo.al();
+    var girdi = kayit || {};
+    girdi.ad = String(girdi.ad || '').trim();
+    if (!girdi.ad) { throw new Error('Kurum adı zorunlu.'); }
+    var sonuc = kaydetListede(veri.kurumlar, girdi, 'kr');
+    depo.kaydet();
+    return sonuc;
+  };
+
+  ISG.depo.kurumSil = function (id) {
+    var veri = depo.al();
+    if (!id) { return null; }
+    var silinen = (veri.kurumlar || []).filter(function (kurum) { return kurum.id === id; })[0];
+    if (!silinen) { return null; }
+    veri.kurumlar = silListeden(veri.kurumlar, id);
+    (veri.isyerleri || []).forEach(function (isyeri) {
+      if (isyeri && isyeri.kurumId === id) { isyeri.kurumId = ''; }
+    });
+    (veri.kullanicilar || []).forEach(function (kullanici) {
+      if (kullanici && kullanici.kurumId === id) { kullanici.kurumId = ''; }
+    });
+    /* Kurum listesi boşaldıysa serbest metin de temizlenir; aksi hâlde göç
+       aynı kurumu yeniden üretirdi. */
+    if (!veri.kurumlar.length && veri.ayarlar) { veri.ayarlar.kurum = ''; }
+    depo.kaydet();
+    return silinen;
+  };
+
+  /* İşyerinin kurum kimliği: kayıt alanı yoksa tek kurum varsayılır. */
+  ISG.depo.isyeriKurumId = function (isyeriId) {
+    var veri = depo.al();
+    var isyeri = (veri.isyerleri || []).filter(function (kayit) { return kayit.id === isyeriId; })[0];
+    if (isyeri && isyeri.kurumId) { return isyeri.kurumId; }
+    return (veri.kurumlar || []).length === 1 ? veri.kurumlar[0].id : '';
   };
 })(window);
 

@@ -14,7 +14,7 @@
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="assets/css/style.css?v=fd96c8bc">
+  <link rel="stylesheet" href="assets/css/style.css?v=8960a4e8">
 </head>
 <body class="oturum-yok">
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -109,6 +109,9 @@
         </button>
         <button type="button" class="menu-oge" data-sayfa="onaylar" id="menuOnaylar" hidden>
           <svg class="ikon" aria-hidden="true"><use href="#i-check"></use></svg><span>Onay kuyruğu</span><b class="menu-rozet" id="rozetOnay" hidden></b>
+        </button>
+        <button type="button" class="menu-oge" data-sayfa="kurum" id="menuKurum" hidden>
+          <svg class="ikon" aria-hidden="true"><use href="#i-chart"></use></svg><span>Kurum panosu</span>
         </button>
         <button type="button" class="menu-oge" data-sayfa="mevzuat">
           <svg class="ikon" aria-hidden="true"><use href="#i-law"></use></svg><span>Mevzuat ve kapsam</span>
@@ -207,6 +210,10 @@
         <label class="alan">
           <span>Çalışan sayısı</span>
           <input type="number" name="calisanSayisi" min="0" max="100000" step="1" value="0">
+        </label>
+        <label class="alan">
+          <span>Bağlı kurum (OSGB)</span>
+          <select name="kurumId" id="isyeriKurum"></select>
         </label>
         <label class="alan">
           <span>SGK sicil no</span>
@@ -377,6 +384,19 @@
         <label class="alan">
           <span>Şifre</span>
           <input type="password" name="sifre" maxlength="64" autocomplete="new-password" placeholder="En az 4 karakter">
+        </label>
+        <label class="alan">
+          <span>Bağlı kurum (OSGB)</span>
+          <select name="kurumId" id="kullaniciKurum"></select>
+        </label>
+        <label class="alan">
+          <span>Uzman sınıfı</span>
+          <select name="uzmanSinifi" id="kullaniciUzmanSinifi">
+            <option value="">Belirtilmedi</option>
+            <option value="A">A sınıfı</option>
+            <option value="B">B sınıfı</option>
+            <option value="C">C sınıfı</option>
+          </select>
         </label>
         <label class="alan">
           <span>Durum</span>
@@ -1025,10 +1045,12 @@
           <input type="date" name="tatbikat">
         </label>
       </div>
+      <div id="acilTarihUyari"></div>
       <fieldset class="alan genis" style="margin-bottom:12px">
         <legend>Plan hazırlama ekibi</legend>
+        <div id="acilPlanIhtiyac"></div>
         <div id="acilPlanEkip"></div>
-        <p class="alan-ipucu" style="margin-top:8px">Her göreve birden fazla kişi ekleyebilirsiniz (ör. iki işyeri hekimi). Kişileri işyeri personelinden seçebilir, belge bilgilerini ekip üyesi penceresinde kaydedebilirsiniz.</p>
+        <p class="alan-ipucu" style="margin-top:8px">Her göreve birden fazla kişi ekleyebilirsiniz (ör. iki işyeri hekimi). Kişileri işyeri personelinden seçebilir, belge bilgilerini ekip üyesi penceresinde kaydedebilirsiniz. Zorunlu dört ekibin mevcudu, işyerinin çalışan sayısı ve tehlike sınıfına göre yönetmelik ekindeki oranlarla otomatik karşılaştırılır.</p>
       </fieldset>
       <section class="belge-kutu" aria-labelledby="acilPlanBelgeBaslik">
         <div class="belge-ust">
@@ -1186,24 +1208,24 @@
 
   <noscript><p class="noscript">Bu uygulama JavaScript gerektirir. Lütfen tarayıcınızda JavaScript'i etkinleştirin.</p></noscript>
 
-  <script src="assets/js/varsayilan-veri.js?v=239b83b7"></script>
+  <script src="assets/js/varsayilan-veri.js?v=64d36db3"></script>
   <script src="assets/js/kontrol-listeleri.js?v=430de5a3"></script>
-  <script src="assets/js/depo.js?v=a42120cc"></script>
+  <script src="assets/js/depo.js?v=39d7f24d"></script>
   <script src="assets/js/bicim.js?v=df2337ea"></script>
   <script src="assets/js/bulut-kimlik.js?v=c22d436d"></script>
   <script src="assets/js/bulut.js?v=ca99ce81"></script>
-  <script src="assets/js/yetki.js?v=c0a401d1"></script>
+  <script src="assets/js/yetki.js?v=e242323f"></script>
   <script src="assets/js/saglik-takip.js?v=f6d30d70"></script>
   <script src="assets/js/saglik-toplu.js?v=30fd72d0"></script>
   <script src="assets/js/saglik-calisma-kitabi.js?v=945bb2d9"></script>
   <script src="assets/js/excel.js?v=394d9d94"></script>
   <script src="assets/js/personel-toplu.js?v=c1da8dfb"></script>
   <script src="assets/js/plan-toplu.js?v=200e3c61"></script>
-  <script src="assets/js/sayfalar.js?v=c64892d6"></script>
+  <script src="assets/js/sayfalar.js?v=afe1695d"></script>
   <script src="assets/js/sayfalar-kayit.js?v=72be2dd0"></script>
-  <script src="assets/js/sayfalar-rapor.js?v=0afee3ba"></script>
+  <script src="assets/js/sayfalar-rapor.js?v=3c54f4f5"></script>
   <script src="assets/js/giris.js?v=89968189"></script>
-  <script src="assets/js/uygulama.js?v=3ca9a733"></script>
+  <script src="assets/js/uygulama.js?v=19601004"></script>
 </body>
 </html>
 

@@ -171,14 +171,95 @@
     }).join('') + '</div>';
   }
 
+  /* Zorunlu ekip satırının kısa rozeti: görev satırının yanında "kaç kişi gerekli,
+     kaç kişi kayıtlı" bilgisini gösterir. Zorunlu olmayan görevlerde (koordinatör,
+     işyeri hekimi vb.) boş döner — o satırlarda ihtiyaç aranmaz. */
+  function ihtiyacRozeti(satir) {
+    if (!satir) { return ''; }
+    if (satir.durum === 'hesaplanamadi') { return B.rozet('sayı hesaplanamadı', 'notr'); }
+    var metin = 'gerekli ' + satir.gerekli + ' · kayıtlı ' + satir.kisiSayisi;
+    var sinif = 'uyari';
+    if (satir.durum === 'tamam') { sinif = 'iyi'; }
+    else if (satir.durum === 'yok') { sinif = 'tehlike'; metin += ' · ekip yok'; }
+    else if (satir.eksik > 0) { metin += ' · ' + satir.eksik + ' eksik'; }
+    if (satir.onayli !== satir.kisiSayisi) { metin += ' · geçerli ' + satir.onayli; }
+    return B.rozet(metin, sinif);
+  }
+
+  /* Kişi bazlı belge notları: süresi dolan sayılmaz, tarihi işlenmemiş kişi uyarılır. */
+  function belgeNotu(satir) {
+    if (!satir) { return ''; }
+    var notlar = [];
+    var adlar = function (liste) {
+      return liste.slice(0, 3).map(function (k) { return k.ad; }).join(', ') +
+        (liste.length > 3 ? ' (+' + (liste.length - 3) + ')' : '');
+    };
+    if (satir.suresiDolan && satir.suresiDolan.length) {
+      notlar.push('Süresi dolmuş belge: ' + adlar(satir.suresiDolan) + ' — kişi sayılmadı.');
+    }
+    if (satir.tarihsiz && satir.tarihsiz.length) {
+      notlar.push('Belge tarihi işlenmemiş: ' + adlar(satir.tarihsiz) + '.');
+    }
+    return notlar.length ? '<span class="ihtiyac-not">' + kacis(notlar.join(' · ')) + '</span>' : '';
+  }
+
+  /* Otomatik hesaplanan zorunlu ekip mevcudu bloğu. Kart, diyalog ve CSV/CSV dışı
+     görünüm aynı nesneyi (ISG.acilEkipDurumu) okur; burada yalnızca yazıma çevrilir. */
+  function ekipIhtiyacOzeti(durum, secenekler) {
+    if (!durum) { return ''; }
+    var sec = secenekler || {};
+    var g = durum.gereksinim || {};
+    var ozet = durum.ozet || {};
+    var ust = '';
+    if (!durum.gecerli) { ust = B.rozet('Hesaplanamadı', 'notr'); }
+    else if (durum.gorevEksik) { ust = B.rozet((ozet.eksikEkip || 0) + ' ekip hiç yok', 'tehlike'); }
+    else if ((ozet.eksik || 0) > 0) { ust = B.rozet(ozet.eksik + ' kişi eksik', 'uyari'); }
+    else { ust = B.rozet('Mevcut yeterli', 'iyi'); }
+    var oranlar = {};
+    (durum.satirlar || []).forEach(function (satir) {
+      if (!satir.oranEtiketi) { return; }
+      if (satir.id === 'ilkYardim') { oranlar.ilk = satir.oranEtiketi; }
+      else { oranlar.diger = satir.oranEtiketi; }
+    });
+    var alt = [(durum.calisan && durum.calisan.calisanSayisi) ?
+      durum.calisan.calisanSayisi + ' çalışan (' + durum.calisan.kaynak + ')' : 'Çalışan sayısı girilmemiş'];
+    if (g.sinifAdi) { alt.push(g.sinifAdi + ' sınıfı'); }
+    if (oranlar.diger) { alt.push('söndürme/kurtarma/koruma ' + oranlar.diger); }
+    if (oranlar.ilk) { alt.push('ilk yardım ' + oranlar.ilk); }
+    alt.push('her ekip en az ' + (g.enaz || 0) + ' kişi');
+    var satirlar = sec.kompakt ? '' : '<div class="ihtiyac-liste">' + (durum.satirlar || []).map(function (satir) {
+      var sinif = satir.durum === 'tamam' ? 'tamam' :
+        (satir.durum === 'yok' ? 'tehlike' : (satir.durum === 'hesaplanamadi' ? 'notr' : 'uyari'));
+      return '<div class="ihtiyac-satir ' + sinif + '">' +
+        '<span class="ihtiyac-ad">' + kacis(satir.ad) + '</span>' +
+        ihtiyacRozeti(satir) +
+        belgeNotu(satir) +
+        '</div>';
+    }).join('') + '</div>';
+    var uyarilar = (durum.uyarilar || []).map(function (metin) {
+      return '<div class="uyari-serit">' + B.ikon('i-alert') + kacis(metin) + '</div>';
+    }).join('');
+    var cakisma = (durum.cakismalar || []).map(function (kisi) {
+      return '<div class="uyari-serit">' + B.ikon('i-alert') + kacis(kisi.ad) + ' aynı anda ' +
+        kacis(kisi.ekipler.join(', ')) + ' ekiplerinde sayılmış.</div>';
+    }).join('');
+    return '<div class="ekip-ihtiyac' + (sec.kompakt ? ' kompakt' : '') + '">' +
+      '<div class="ihtiyac-ust"><b>Zorunlu ekip mevcudu</b>' + ust + '</div>' +
+      '<p class="kucuk muted">' + kacis(alt.join(' · ')) + '</p>' +
+      satirlar + cakisma + uyarilar +
+      '</div>';
+  }
+
   /* Görev grubu listesi: risk kartı, acil durum kartı ve acil plan diyaloğu aynı
-     düzeni kullanır. `uyelerAl` verilen roldeki kişi listesini döndürür. */
-  function ekipListesi(kaynak, isyeriId, roller, uyelerAl, bosMetin) {
+     düzeni kullanır. `uyelerAl` verilen roldeki kişi listesini döndürür.
+     `durumAl` verilirse (acil durum planı) her göreve ihtiyaca göre rozet basılır. */
+  function ekipListesi(kaynak, isyeriId, roller, uyelerAl, bosMetin, durumAl) {
     return '<div class="rol-list">' + roller.map(function (rol) {
       var uyeler = uyelerAl(rol) || [];
       var anahtar = kaynak === 'acil' ? rol.ad : rol.id;
       return '<div class="rol-satir"><span class="rol-ad">' + kacis(rol.ad) + '</span>' +
         rolOzeti(uyeler, bosMetin) +
+        (durumAl ? ihtiyacRozeti(durumAl(rol)) : '') +
         ekipAraclari(kaynak, isyeriId, anahtar, uyeler) + '</div>' +
         uyeAltSatirlari(kaynak, isyeriId, anahtar, uyeler);
     }).join('') + '</div>';
@@ -186,6 +267,25 @@
 
   /* Diyalog ve kartlar aynı listeyi üretir; tek kaynak korunur. */
   SAYFALAR.ekipListesi = ekipListesi;
+  SAYFALAR.ekipIhtiyacOzeti = ekipIhtiyacOzeti;
+  SAYFALAR.ihtiyacRozeti = ihtiyacRozeti;
+
+  /* Tarih denetimi sonuçlarının (ISG.acilPlanTarihKontrol ve benzerleri) yazıma
+     çevrilmiş hâli: engelleyen hatalar kırmızı, bilgilendiren uyarılar amber şerit.
+     Boş sonuç boş döner — diyalohta yer kaplamaz. Kartlar tek satır istediği için
+     orada ISG.acilPlanTarihOzet kullanılır, bu şeritler ayrıntı isteyen yere girer. */
+  function uyariSeritleri(sonuc) {
+    var hatalar = (sonuc && sonuc.hatalar) || [];
+    var uyarilar = (sonuc && sonuc.uyarilar) || [];
+    if (!hatalar.length && !uyarilar.length) { return ''; }
+    return hatalar.map(function (metin) {
+      return '<div class="uyari-serit">' + B.ikon('i-alert') + kacis(metin) + '</div>';
+    }).join('') +
+      uyarilar.map(function (metin) {
+        return '<div class="uyari-serit uyari">' + B.ikon('i-alert') + kacis(metin) + '</div>';
+      }).join('');
+  }
+  SAYFALAR.uyariSeritleri = uyariSeritleri;
 
   function riskKarti(isyeri, hesap) {
     var kayit = ISG.ilgiliKayit(hesap, 'riskEkipleri', isyeri.id);
@@ -277,6 +377,19 @@
     var sinif = ISG.RISK_SINIFLARI[isyeri.tehlikeSinifi] || { ad: '', acilYenilemeYil: 4 };
     var ekip = ozet.ekip || [];
     var ekipRolleri = ISG.ACIL_ROLLERI;
+    /* Zorunlu ekip mevcudu otomatik hesaplanır (yönetici sayı girmeden). */
+    var durum = ISG.acilEkipDurumu(isyeri, kayit, hesap);
+    var tarihKontrol = ISG.acilPlanTarihKontrol(kayit || ISG.acilPlanBosKayit(), isyeri.tehlikeSinifi);
+    /* Kart, listede tek satır durur: hataların tam listesi diyaloğa bırakılır,
+       burada yalnızca ilk sebep ve kalanların sayısı görünür (ISG.acilPlanTarihOzet). */
+    var tarihOzet = ISG.acilPlanTarihOzet(tarihKontrol);
+    var tarihSerit = !tarihOzet ? '' : '<div class="uyari-serit' +
+      (tarihKontrol.gecerli ? ' uyari' : '') + '">' +
+      B.ikon(tarihKontrol.gecerli ? 'i-info' : 'i-alert') + kacis(tarihOzet) + '</div>';
+    var ihtiyacRozet = !durum.gecerli ? B.rozet('Ekip sayısı hesaplanamadı', 'notr') :
+      (durum.gorevEksik ? B.rozet(durum.ozet.eksikEkip + ' ekip eksik', 'tehlike') :
+        (durum.ozet.eksik > 0 ? B.rozet(durum.ozet.eksik + ' kişi eksik', 'uyari') :
+          B.rozet('Mevcut yeterli', 'iyi')));
 
     return '<article class="risk-kart">' +
       '<div class="risk-kart-ust">' +
@@ -295,6 +408,7 @@
           '<div class="mini-kutu"><span>En geç yenileme</span><b>' + (ozet.enGec ? B.tarih(ozet.enGec) : 'Girilmedi') + '</b></div>' +
           '<div class="mini-kutu"><span>Olağan üst sınır</span><b>' + sinif.acilYenilemeYil + ' yıl</b></div>' +
         '</div>' +
+        (tarihSerit ? '<div style="margin-top:8px">' + tarihSerit + '</div>' : '') +
         '<p class="bolum-aciklama" style="margin-top:8px">' + kacis(sinif.ad) + ' sınıfında plan en geç ' + sinif.acilYenilemeYil +
           ' yılda bir yenilenir. İşyeri, çalışan sayısı veya ekip değişikliği planı daha önce gözden geçirmeyi gerektirebilir.</p>' +
       '</div>' +
@@ -306,15 +420,18 @@
       '<div>' +
         '<div class="satir-arac" style="justify-content:space-between;margin-bottom:7px">' +
           '<p class="bolum-baslik">Acil durum planı hazırlama ekibi</p>' +
-          (ekip.length ? B.rozet(ekip.length + ' kişi', 'iyi') : B.rozet('Kişi eklenmedi', 'tehlike')) +
+          ihtiyacRozet +
         '</div>' +
         ekipListesi('acil', isyeri.id, ekipRolleri, function (rol) {
           return ekip.filter(function (k) { return k.rol === rol.ad; });
-        }, 'Kişi eklenmedi') +
+        }, 'Kişi eklenmedi', function (rol) {
+          return ISG.acilEkipSatiri(durum, rol.ad);
+        }) +
+        ekipIhtiyacOzeti(durum, { kompakt: true }) +
         '<p style="margin-top:8px"><button type="button" class="dugme ince" data-islem="ekip-uye" ' +
           'data-kaynak="acil" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') +
           'Ekip üyesi ekle</button></p>' +
-        '<p class="bolum-aciklama" style="margin-top:8px">Plan hazırlanırken görev alan işveren/işveren vekili, iş güvenliği uzmanı ve diğer ilgili kişileri işyeri bazında kaydedin.</p>' +
+        '<p class="bolum-aciklama" style="margin-top:8px">Plan hazırlanırken görev alan işveren/işveren vekili, iş güvenliği uzmanı ve diğer ilgili kişileri işyeri bazında kaydedin. Zorunlu dört ekibin mevcudu, yönetmelik ekindeki oranlara göre işyerinin çalışan sayısından otomatik hesaplanır.</p>' +
       '</div>' +
     '</article>';
   }
@@ -324,9 +441,31 @@
     var isyerleri = (hesap.isyerleri || []).filter(function (isyeri) { return !UI.kapsam || isyeri.id === UI.kapsam; });
     var kartlar = isyerleri.map(function (isyeri) { return acilKarti(isyeri, hesap); }).join('');
 
+    /* Sayfa özeti: kartları tek tek açmadan hangi işyerinde ne eksik, görünsün. */
+    var toplam = { eksikKisi: 0, eksikEkip: 0, eksikIsyeri: 0, tarihHata: 0, tarihUyari: 0 };
+    isyerleri.forEach(function (isyeri) {
+      var kayit = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeri.id);
+      var durum = ISG.acilEkipDurumu(isyeri, kayit, hesap);
+      toplam.eksikKisi += durum.ozet.eksik;
+      toplam.eksikEkip += durum.gorevEksik ? durum.ozet.eksikEkip : 0;
+      if (!durum.gecerli || durum.gorevEksik || durum.ozet.eksik > 0) { toplam.eksikIsyeri += 1; }
+      var tarih = ISG.acilPlanTarihKontrol(kayit || ISG.acilPlanBosKayit(), isyeri.tehlikeSinifi);
+      if (!tarih.gecerli) { toplam.tarihHata += 1; }
+      else if ((tarih.uyarilar || []).length) { toplam.tarihUyari += 1; }
+    });
+    var uyarilar = [];
+    if (toplam.eksikEkip) { uyarilar.push(toplam.eksikEkip + ' zorunlu ekip hiç oluşturulmamış'); }
+    if (toplam.eksikKisi) { uyarilar.push('gereklinin altında ' + B.sayi(toplam.eksikKisi) + ' kişi'); }
+    if (toplam.tarihHata) { uyarilar.push(toplam.tarihHata + ' işyerinde plan tarihi hatalı'); }
+    if (toplam.tarihUyari) { uyarilar.push(toplam.tarihUyari + ' işyerinde plan tarihi için gözden geçirme uyarısı'); }
+    var uyariblok = uyarilar.length ?
+      '<div class="uyari-serit">' + kacis(uyarilar.join(' · ') + '. Zorunlu ekip mevcudu, işyerinin çalışan sayısı ve tehlike sınıfına göre otomatik hesaplanır.') + '</div>' :
+      (isyerleri.length ? '<div class="uyari-serit tamam">Zorunlu dört ekibin mevcudu yönetmelik ekindeki oranların üzerinde.</div>' : '');
+
     return P.sayfaBaslik('ACİL DURUM PLANI', 'Acil durum planı', 'İşyeri bazında kayıt ve durum takibi',
       '<button type="button" class="dugme" data-islem="acil-csv">' + B.ikon('i-download') + 'Excel indir</button>') +
       P.kapsamSecici(hesap) +
+      uyariblok +
 
       '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
         '<h2>Acil durum planı ve destek ekipleri</h2>' +
@@ -352,6 +491,17 @@
       var kapsamMetni = kullanici.tumIsyerleri ? 'Tüm işyerleri'
         : ((kullanici.isyerleri || []).map(isyeriAdi).join(', ') || 'İşyeri tanımlı değil');
       var kendiHesabi = !!(oturum && oturum.kullaniciId === kullanici.id);
+      /* Kurum ve uzman sınıfı onay yetkisini belirler; listede görünmezse
+         yönetici neden onay yetkilisi atanamadığını anlayamaz. */
+      var kurumId = kullanici.kurumId || '';
+      if (!kurumId && (hesap.kurumlar || []).length === 1) { kurumId = hesap.kurumlar[0].id; }
+      var kurum = (hesap.kurumlar || []).filter(function (kayit) { return kayit.id === kurumId; })[0];
+      var kurumAdi = kurum ? (kurum.ad || '') : '';
+      var sinifKodu = typeof ISG.uzmanSinifiKodu === 'function'
+        ? ISG.uzmanSinifiKodu(kullanici.uzmanSinifi) : '';
+      var sinifAdi = sinifKodu && tanim.id === 'yetkili'
+        ? (typeof ISG.uzmanSinifiAdi === 'function' ? ISG.uzmanSinifiAdi(sinifKodu) : sinifKodu + ' sınıfı') : '';
+      var ekBilgi = [kurumAdi, sinifAdi].filter(function (parca) { return parca; }).join(' · ');
       var islemler = yonetici
         ? '<button type="button" class="dugme kucuk" data-islem="kullanici-duzenle" data-id="' + kacis(kullanici.id) + '">Düzenle</button>' +
           '<button type="button" class="dugme kucuk" data-islem="kullanici-sifre" data-id="' + kacis(kullanici.id) + '">Şifre ver</button>' +
@@ -362,12 +512,34 @@
         '<span class="muted">' + kacis(kullanici.eposta) + '</span>' +
         B.rozet(tanim.ad, ROL_ROZET[tanim.id] || 'bilgi') +
         '<span class="muted">' + kacis(kapsamMetni) + '</span>' +
+        (ekBilgi ? '<span class="muted kucuk">' + kacis(ekBilgi) + '</span>' : '') +
         '<span class="sag">' +
           '<span class="muted kucuk">' + (kullanici.sonGiris ? 'Son giriş ' + B.tarih(kullanici.sonGiris) : 'Henüz giriş yapmadı') + '</span>' +
           islemler +
         '</span>' +
       '</div>';
     }).join('');
+
+    /* Onay yetkilisi eksik işyerleri: işyeri onay modeli açıkken karar verecek
+       uzmanı olmayan işyerleri burada listelenir; yönetici atamayı buradan
+       görüp kullanıcı ekranından düzeltir. Rol modelinde liste boş döner. */
+    var eksikYetkili = (yonetici && typeof ISG.yetki.yetkiliEksikListe === 'function')
+      ? ISG.yetki.yetkiliEksikListe() : [];
+    var eksikBlok = eksikYetkili.length
+      ? '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
+          '<h2>Onay yetkilisi eksik</h2>' +
+          '<p>İşyeri onay modeli açık. Bu işyerlerinde onay verecek uzman yok; ' +
+          'gönderilen değişiklikler karar bekler.</p></div>' +
+          '<div class="kart-ic">' + eksikYetkili.map(function (durum) {
+            var esikMetni = (durum.esik || []).map(function (kod) { return kod + ' sınıfı'; }).join(' / ') || 'tanımsız';
+            return '<div class="rol-satir">' +
+              '<span>' + kacis(durum.isyeriAd || durum.isyeriId || '') +
+                '<small class="muted"> · eşik: ' + kacis(esikMetni) +
+                ' · uzman: ' + B.sayi(durum.uzmanSayisi) + '</small></span>' +
+              '<b>' + B.rozet(durum.mod === 'eksik' ? 'Sınıf uygun değil' : 'Uzman atanmamış', 'uyari') + '</b>' +
+            '</div>';
+          }).join('') + '</div></section>'
+      : '';
 
     return P.sayfaBaslik('KULLANICILAR VE YETKİLER', 'Kullanıcılar ve yetkiler', 'Siteye giriş yapacak kişiler ve erişim kapsamları') +
       '<section class="kart ekip-kart">' +
@@ -385,6 +557,123 @@
         '</div>' +
         (satirlar ? '<div class="kullanici-list">' + satirlar + '</div>' :
           '<div class="kart-ic">' + B.bosDurum('Kayıtlı kullanıcı yok', 'Yeni kullanıcı düğmesiyle ilk hesabı tanımlayın.', 'i-team') + '</div>') +
+      '</section>' +
+      eksikBlok;
+  };
+
+  /* ---------- Kurum denetim panosu (salt okunur) ---------- */
+
+  /* OSGB Müdürü kendi kurumunun işyerlerini, onay yetkilisi durumunu ve
+     bekleyen taleplerini izler. Ekran SALT OKUNUR: hiçbir düğme kayıt
+     değiştirmez, veri katmanı da bu rolde yazmayı reddeder. Şifre ve sağlık
+     verisi bu görünüme taşınmaz; kullanıcı satırları `kullaniciOzet()` ile
+     süzülmüş kopyadan gelir. */
+  var ONAY_MOD_ADI = {
+    tekUzman: 'Tek uzman · doğrudan yazma',
+    onayli: 'Onay zorunlu · yetkili var',
+    eksik: 'Onay yetkilisi eksik',
+    'uzman-yok': 'Uzman atanmamış'
+  };
+  var ONAY_MOD_ROZET = { tekUzman: 'bilgi', onayli: 'iyi', eksik: 'uyari', 'uzman-yok': 'tehlike' };
+  var TALEP_DURUM_ADI = { bekliyor: 'Bekliyor', onaylandi: 'Onaylandı', reddedildi: 'Reddedildi' };
+
+  SAYFALAR.kurum = function () {
+    var hesap = veri();
+    var oturum = ISG.yetki ? ISG.yetki.oturum() : null;
+    var kurumId = (oturum && oturum.kurumId) || '';
+    var kurumlar = hesap.kurumlar || [];
+    var kurum = kurumlar.filter(function (kayit) { return kayit.id === kurumId; })[0] ||
+      (kurumlar.length === 1 ? kurumlar[0] : null);
+    var isyerleri = hesap.isyerleri || [];
+    var kullanicilar = hesap.kullanicilar || [];
+    var talepler = hesap.talepler || [];
+
+    var satirlar = isyerleri.map(function (isyeri) {
+      var durum = ISG.yetki.onayDurumu(isyeri.id);
+      var yetkiliAdlari = durum.onaylayanIdler.map(function (id) {
+        var kisi = kullanicilar.filter(function (k) { return k.id === id; })[0];
+        return kisi ? (kisi.adSoyad || '') : '';
+      }).filter(function (ad) { return ad; });
+      var sinifMetni = durum.esik.length
+        ? durum.esik.map(function (kod) { return kod + ' sınıfı'; }).join(' / ')
+        : 'tanımsız';
+      var sinif = ISG.RISK_SINIFLARI[isyeri.tehlikeSinifi];
+      return '<tr>' +
+        '<td>' + kacis(isyeri.ad || '') + '</td>' +
+        '<td>' + kacis(sinif ? sinif.ad : (isyeri.tehlikeSinifi || '—')) + '</td>' +
+        '<td class="sayi-sutun">' + B.sayi(durum.uzmanSayisi) + '</td>' +
+        '<td>' + B.rozet(ONAY_MOD_ADI[durum.mod] || durum.mod, ONAY_MOD_ROZET[durum.mod] || 'notr') +
+          '<small class="muted"> · eşik: ' + kacis(sinifMetni) + '</small></td>' +
+        '<td>' + kacis(yetkiliAdlari.length ? yetkiliAdlari.join(', ') : '—') + '</td>' +
+      '</tr>';
+    }).join('');
+
+    var eksik = isyerleri.filter(function (isyeri) {
+      var mod = ISG.yetki.onayDurumu(isyeri.id).mod;
+      return mod === 'eksik' || mod === 'uzman-yok';
+    }).length;
+
+    var talepSatirlari = talepler.slice().sort(function (a, b) {
+      return String(b.olusturma || '').localeCompare(String(a.olusturma || ''));
+    }).slice(0, 20).map(function (talep) {
+      var durumAdi = TALEP_DURUM_ADI[talep.durum] || talep.durum || '';
+      var durumRozet = talep.durum === 'onaylandi' ? 'iyi' : (talep.durum === 'reddedildi' ? 'tehlike' : 'uyari');
+      return '<div class="rol-satir">' +
+        '<span>' + kacis((talep.isyeriAd || talep.isyeriId || '') + ' · ' + (talep.etiket || '')) +
+          '<small class="muted"> · ' + kacis(talep.kullaniciAd || '') +
+          (talep.olusturma ? ' · ' + B.tarih(talep.olusturma) : '') + '</small></span>' +
+        '<b>' + B.rozet(durumAdi, durumRozet) + '</b>' +
+      '</div>';
+    }).join('');
+
+    var ekipSatirlari = kullanicilar.map(function (kisi) {
+      var tanim = ISG.yetki.rolTanimi(kisi.rol);
+      var kapsamMetni = kisi.tumIsyerleri ? 'Tüm işyerleri'
+        : ((kisi.isyerleri || []).map(function (id) { return ISG.isyeriAdi(hesap, id); }).join(', ') || 'İşyeri tanımlı değil');
+      var sinif = kisi.uzmanSinifi && tanim.id === 'yetkili'
+        ? ' · ' + (ISG.uzmanSinifiAdi ? ISG.uzmanSinifiAdi(kisi.uzmanSinifi) : kisi.uzmanSinifi) : '';
+      return '<div class="rol-satir">' +
+        '<span>' + kacis(kisi.adSoyad || '') + '<small class="muted"> · ' + kacis(kapsamMetni) + '</small></span>' +
+        '<b>' + kacis(tanim.ad + sinif) + (kisi.aktif === false ? ' ' + B.rozet('Pasif', 'notr') : '') + '</b>' +
+      '</div>';
+    }).join('');
+
+    return P.sayfaBaslik('KURUM DENETİM PANOSU',
+      kurum ? kurum.ad : 'Kurum kaydı yok',
+      'Salt okunur kurumsal gözetim · kayıt değiştirme yetkisi yoktur',
+      B.rozet('Salt okunur', 'notr')) +
+      '<section class="kart"><div class="kart-ic"><div class="kpi-izgara">' +
+        istKutu('İşyeri', B.sayi(isyerleri.length), 'kuruma bağlı', 'i-building', 'soluk') +
+        istKutu('Kurum kullanıcısı', B.sayi(kullanicilar.length), 'aktif ve pasif', 'i-team', 'soluk') +
+        istKutu('Onay yetkilisi eksik', B.sayi(eksik), 'atanmalı', 'i-alert', eksik ? 'uyari' : '') +
+        istKutu('Bekleyen talep', B.sayi(talepler.filter(function (t) { return t.durum === 'bekliyor'; }).length), 'karar bekliyor', 'i-check', 'soluk') +
+      '</div></div></section>' +
+
+      '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
+        '<h2>Onay yetkisi durumu</h2>' +
+        '<p>Tek uzmanlı işyerinde uzman doğrudan yazar; çok uzmanlı işyerinde tehlike sınıfına uygun sınıftaki uzman onay verir.</p>' +
+      '</div>' +
+      (satirlar ? '<div class="tablo-kap"><table class="tablo-kucuk"><thead><tr>' +
+        '<th>İşyeri</th><th>Tehlike sınıfı</th><th class="sag">Uzman</th>' +
+        '<th>Onay durumu</th><th>Onay yetkilisi</th>' +
+        '</tr></thead><tbody>' + satirlar + '</tbody></table></div>' :
+        '<div class="kart-ic">' + B.bosDurum('İşyeri yok', 'Kuruma bağlı işyeri kaydı bulunmuyor.', 'i-building') + '</div>') +
+      '</section>' +
+
+      '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
+        '<h2>Bekleyen ve sonuçlanan talepler</h2>' +
+        '<p>Karar yetkisi onay yetkilisinde ve yöneticidedir; bu ekran yalnızca izler.</p></div>' +
+        '<div class="kart-ic">' +
+          (talepSatirlari || '<p class="bolum-aciklama">Kurum kapsamında onay talebi bulunmuyor.</p>') +
+        '</div>' +
+      '</section>' +
+
+      '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
+        '<h2>Kurum ekibi</h2>' +
+        '<p>Rol, kapsam ve uzman sınıfı; şifre ve sağlık verisi bu ekranda yer almaz.</p></div>' +
+        '<div class="kart-ic">' +
+          (ekipSatirlari || '<p class="bolum-aciklama">Kurum kullanıcısı bulunmuyor.</p>') +
+        '</div>' +
       '</section>';
   };
 

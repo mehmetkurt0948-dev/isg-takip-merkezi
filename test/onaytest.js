@@ -99,7 +99,7 @@ const SENARYOLAR = [
    `arada` verilirse talep olustuktan SONRA (yonetici oturumunda) calisir; bulut
    gidip gelme / baska bir kullanicinin yazmasi gibi ara durumlar boyle kurulur. */
 let toplam = 0, basarisiz = 0;
-function senaryo(ad, args, dogrula, arada, beklenenHata) {
+function senaryo(ad, args, dogrula, arada, beklenenHata, beklenenUyari) {
   toplam += 1;
   D.geriYukle(tohum());
   const yetkili = D.kullaniciBul('u-yetkili');
@@ -125,6 +125,20 @@ function senaryo(ad, args, dogrula, arada, beklenenHata) {
   if (beklenenHata) {
     if (!ok(hataMesaji.indexOf(beklenenHata) >= 0,
       ad + ': onay su gerekceyle engellendi' + (hataMesaji ? ' | ' + hataMesaji : ' | hata yok'))) { basarisiz += 1; }
+    return;
+  }
+  if (beklenenUyari) {
+    /* Cakisma sozlesmesi: kayit talepten sonra gercekten degistiyse onay
+       ENGELLENMEZ, istek uygulanir; uyari karar notuna ve denetim kaydina islenir.
+       Eylem alan bazli oldugu icin digerin yazdigi alan kayda dokunmaz. */
+    if (!ok(!hataMesaji, ad + ': cakismada onay engellenmedi' + (hataMesaji ? ' | HATA: ' + hataMesaji : ''))) { basarisiz += 1; }
+    const sonTalep = D.talepBul(talep.id);
+    if (!ok(sonTalep && sonTalep.durum === 'onaylandi', ad + ': cakisan talep uyarisiyla kapatildi')) { basarisiz += 1; }
+    if (!ok(sonTalep && String(sonTalep.kararNotu || '').indexOf(beklenenUyari) >= 0,
+      ad + ': uyari karar notuna islendi')) { basarisiz += 1; }
+    if (!ok((D.al().denetim || []).some(function (k) { return String(k.ozet || '').indexOf('UYARI:') >= 0; }),
+      ad + ': uyari denetim kaydina islendi')) { basarisiz += 1; }
+    if (!ok(dogrula(D.al()), ad + ': degisiklik kayda uygulandi')) { basarisiz += 1; }
     return;
   }
   if (!ok(!hataMesaji, ad + ': yonetici onayladi' + (hataMesaji ? ' | HATA: ' + hataMesaji : ''))) {
@@ -169,14 +183,18 @@ senaryo('planDurumDegistir', ['pl-test-1', 'tamamlandi'],
     D.kaydet();
   });
 
-/* Kayit gercekten baska bir kullanici tarafindan degistirildiyse koruma
-   calismaya devam etmeli: eski degerin uzerine yazilmaz. */
-senaryo('planDurumDegistir', ['pl-test-1', 'tamamlandi'], () => true,
+/* Kayit gercekten baska bir kullanici tarafindan degistirildiyse onay ARTIK
+   ENGELLENMEZ (uyari-temelli sozlesme): yonetici neyi onayladigini ekranda gorur,
+   istek her hâlükârda uygulanir; üzerine yazilan degisiklik ise iz birakir — uyari
+   karar notuna ve denetim kaydina islenir. Eylem alan bazli oldugu icin digerin
+   yazdigi alan (tanim) kayda dokunmaz, yalnizca talep edilen alan yazilir. */
+senaryo('planDurumDegistir', ['pl-test-1', 'tamamlandi'],
+  (v) => v.planlar[0].durum === 'tamamlandi' && v.planlar[0].tanim === 'Baska bir kullanici yazdi',
   (veri) => {
     veri.planlar[0].tanim = 'Baska bir kullanici yazdi';
     D.kaydet();
   },
-  'Talebi reddedip');
+  null, 'değişmiş');
 
 console.log('\nSenaryo: ' + toplam + ' | basarisiz: ' + basarisiz);
 

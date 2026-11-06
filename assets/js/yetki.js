@@ -14,9 +14,15 @@
       aciklama: 'Tüm işyerleri; kayıtlar doğrudan uygulanır, onay kuyruğunu yönetir.',
       tumIsyerleri: true, dogrudanYazar: true, onaylar: true, yonetir: true
     },
+    osgbMuduru: {
+      id: 'osgbMuduru', ad: 'OSGB Müdürü', kisa: 'OSGB Müdürü',
+      aciklama: 'Kendi kurumundaki bütün işyerlerini izler ve raporlar; mesleki kayıtları değiştirmez, onay vermez.',
+      tumIsyerleri: false, kurumKapsami: true, saltOkunur: true,
+      dogrudanYazar: false, onaylar: false, yonetir: false
+    },
     yetkili: {
       id: 'yetkili', ad: 'Yetkili', kisa: 'Yetkili',
-      aciklama: 'Atandığı işyerlerinde çalışır; değişiklikler yönetici onayına gönderilir.',
+      aciklama: 'Atandığı işyerlerinde çalışır; değişiklikler yetki modeline göre doğrudan ya da onaya gönderilir.',
       tumIsyerleri: false, dogrudanYazar: false, onaylar: false, yonetir: false
     },
     goruntuleyici: {
@@ -32,6 +38,11 @@
     'kurum sahibi': 'yonetici',
     'kurum yoneticisi': 'yonetici',
     'kurum yöneticisi': 'yonetici',
+    osgbmuduru: 'osgbMuduru',
+    'osgb müdürü': 'osgbMuduru',
+    'osgb muduru': 'osgbMuduru',
+    'osgb müdür': 'osgbMuduru',
+    'osgb mudur': 'osgbMuduru',
     yetkili: 'yetkili',
     'isg uzmani': 'yetkili',
     'isg uzmanı': 'yetkili',
@@ -97,6 +108,9 @@
       rol: rolCoz(kullanici.rol),
       isyerleri: (kullanici.isyerleri || []).slice(),
       tumIsyerleri: kullanici.tumIsyerleri === true,
+      kurumId: kullanici.kurumId || '',
+      uzmanSinifi: typeof ISG.uzmanSinifiKodu === 'function'
+        ? ISG.uzmanSinifiKodu(kullanici.uzmanSinifi) : (kullanici.uzmanSinifi || ''),
       giris: oturumKaydi.giris || ''
     };
   }
@@ -127,12 +141,29 @@
 
   /* ---------- Kapsam ---------- */
 
+  /* Oturum sahibinin erişebildiği işyeri kimlikleri.
+     Yönetici → tüm işyerleri; OSGB Müdürü → yalnız KENDİ KURUMUNDAKİ işyerleri;
+     diğerleri → atandığı işyerleri. Kurum dışına çıkış yolu yoktur. */
   function kapsam() {
     var o = oturum();
     if (!o) { return []; }
-    /* Rolü tüm işyerleri kapsayanlar ya da yöneticinin "Tüm işyerleri" dediği kullanıcılar. */
-    if (rolTanimi(o.rol).tumIsyerleri || o.tumIsyerleri) {
-      return (D.al().isyerleri || []).map(function (isyeri) { return isyeri.id; });
+    var veri = D.al();
+    var rol = rolTanimi(o.rol);
+    if (rol.tumIsyerleri) {
+      return (veri.isyerleri || []).map(function (isyeri) { return isyeri.id; });
+    }
+    if (rol.kurumKapsami) {
+      if (!o.kurumId) { return []; }
+      var tekKurum = (veri.kurumlar || []).length === 1 ? veri.kurumlar[0].id : '';
+      return (veri.isyerleri || []).filter(function (isyeri) {
+        if (!isyeri) { return false; }
+        var kurumId = isyeri.kurumId || tekKurum;
+        return kurumId === o.kurumId;
+      }).map(function (isyeri) { return isyeri.id; });
+    }
+    /* Rolü tüm işyerlerini kapsamayan ama "Tüm işyerleri" işaretli kullanıcı. */
+    if (o.tumIsyerleri) {
+      return (veri.isyerleri || []).map(function (isyeri) { return isyeri.id; });
     }
     return o.isyerleri.slice();
   }
@@ -154,6 +185,7 @@
       surum: veri ? veri.surum : 4,
       olusturma: veri ? veri.olusturma : '',
       ayarlar: ayarlar,
+      kurumlar: [],
       isyerleri: [], personel: [], egitimler: [], riskler: [], olaylar: [],
       dosyalar: [], belgeler: [], planlar: [], tespitler: [],
       riskEkipleri: [], acilPlanlar: [], kullanicilar: [], talepler: [],
@@ -161,15 +193,43 @@
     };
   }
 
-  /* Arayüzün gördüğü veri: oturum sahibinin işyeri kapsamına göre süzülmüş kopya. */
+  /* Kullanıcı kaydının arayüze verilebilen alanları. Şifre ve şifre değişim
+     zamanı hiçbir görünüme taşınmaz; gözetim ekranı yalnızca kimlik, sınıf ve
+     kapsam bilgisini görür. */
+  function kullaniciOzet(kullanici) {
+    if (!kullanici) { return null; }
+    return {
+      id: kullanici.id, adSoyad: kullanici.adSoyad || '', eposta: kullanici.eposta || '',
+      rol: kullanici.rol, gorev: kullanici.gorev || '',
+      isyerleri: (kullanici.isyerleri || []).slice(),
+      tumIsyerleri: kullanici.tumIsyerleri === true,
+      kurumId: kullanici.kurumId || '',
+      uzmanSinifi: kullanici.uzmanSinifi || '',
+      aktif: kullanici.aktif, sonGiris: kullanici.sonGiris || ''
+    };
+  }
+
+  /* Arayüzün gördüğü veri: oturum sahibinin işyeri (ya da kurum) kapsamına göre
+     süzülmüş kopya. OSGB Müdürü kendi kurumundaki işyerlerini, o işyerlerinin
+     taleplerini ve kullanıcı listesini (şifresiz) görür; başka kurumun kaydı
+     hiçbir listede görünmez. */
   function kapsamliVeri(veri) {
     if (!veri) { return veri; }
     var o = oturum();
     if (!o) { return bosVeri(veri); }
     var rol = rolTanimi(o.rol);
-    if (rol.tumIsyerleri || o.tumIsyerleri) { return veri; }
+    if (rol.tumIsyerleri) { return veri; }
+    var kurumGorunumu = !!rol.kurumKapsami;
 
-    var izinli = o.isyerleri || [];
+    if (!kurumGorunumu && o.tumIsyerleri) { return veri; }
+
+    var izinli = kapsam();
+    var kurumIdleri = {};
+    (veri.isyerleri || []).forEach(function (isyeri) {
+      if (isyeri && izinli.indexOf(isyeri.id) >= 0) { kurumIdleri[isyeri.kurumId || ''] = true; }
+    });
+    var tekKurum = (veri.kurumlar || []).length === 1 ? veri.kurumlar[0].id : '';
+
     var dosyalar = diziSuz(veri.dosyalar, izinli);
     var dosyaIdleri = dosyalar.map(function (dosya) { return dosya.id; });
 
@@ -178,17 +238,35 @@
     ayarlar.kullanici = o.adSoyad;
     ayarlar.gorev = rol.ad + (o.gorev ? ' · ' + o.gorev : '');
 
-    var kendi = D.kullaniciBul(o.kullaniciId);
-    var kullanicilar = kendi ? [{
-      id: kendi.id, adSoyad: kendi.adSoyad, eposta: kendi.eposta, rol: kendi.rol,
-      gorev: kendi.gorev, isyerleri: (kendi.isyerleri || []).slice(),
-      aktif: kendi.aktif, sonGiris: kendi.sonGiris || ''
-    }] : [];
+    /* Kurum müdürü gözetim için kurumundaki uzmanları görür (şifresiz);
+       diğer roller yalnızca kendi hesabını görür. */
+    var kullanicilar;
+    if (kurumGorunumu) {
+      kullanicilar = (veri.kullanicilar || []).filter(function (kullanici) {
+        if (!kullanici) { return false; }
+        var kurumId = kullanici.kurumId || tekKurum;
+        return !!o.kurumId && kurumId === o.kurumId;
+      }).map(kullaniciOzet).filter(Boolean);
+    } else {
+      kullanicilar = [kullaniciOzet(D.kullaniciBul(o.kullaniciId))].filter(Boolean);
+    }
+
+    var talepler;
+    if (kurumGorunumu) {
+      talepler = (veri.talepler || []).filter(function (talep) {
+        return !!talep && izinli.indexOf(talep.isyeriId) >= 0;
+      });
+    } else {
+      talepler = (veri.talepler || []).filter(function (talep) { return talep.kullaniciId === o.kullaniciId; });
+    }
 
     return {
       surum: veri.surum,
       olusturma: veri.olusturma,
       ayarlar: ayarlar,
+      kurumlar: (veri.kurumlar || []).filter(function (kurum) {
+        return !!kurum && (kurum.id === o.kurumId || (kurumGorunumu && kurumIdleri[kurum.id]));
+      }),
       isyerleri: diziSuz(veri.isyerleri, izinli, 'id'),
       personel: diziSuz(veri.personel, izinli),
       egitimler: diziSuz(veri.egitimler, izinli),
@@ -201,8 +279,11 @@
       riskEkipleri: diziSuz(veri.riskEkipleri, izinli),
       acilPlanlar: diziSuz(veri.acilPlanlar, izinli),
       kullanicilar: kullanicilar,
-      talepler: (veri.talepler || []).filter(function (talep) { return talep.kullaniciId === o.kullaniciId; }),
-      denetim: (veri.denetim || []).filter(function (kayit) { return kayit.kullaniciId === o.kullaniciId; }),
+      talepler: talepler,
+      denetim: (veri.denetim || []).filter(function (kayit) {
+        if (kurumGorunumu) { return izinli.indexOf(kayit.isyeriId) >= 0; }
+        return kayit.kullaniciId === o.kullaniciId;
+      }),
       mevzuat: veri.mevzuat || []
     };
   }
@@ -356,6 +437,78 @@
     return kayitIsyeri(kayitBul(String(ilk)));
   }
 
+  /* ---------- Onay yetkisi motoru ----------
+     İki katman vardır:
+       1) `ayarlar.onayModeli !== 'isyeri'` (bugünkü varsayılan): yönetici
+          doğrudan yazar, diğer yazarların değişikliği talebe dönüşür.
+       2) `ayarlar.onayModeli === 'isyeri'`: işyeri bazlı model — tek aktif uzman
+          doğrudan yazar; çok uzmanlı işyerinde tehlike sınıfına uygun sınıftaki
+          uzman onay yetkilisidir; uygun uzman yoksa talep "yetkili eksik" bekler.
+     Model ayrı bir anahtarla açıldığı için canlı veri tek hamlede davranış
+     değiştirmez; anahtar silinirse eski davranışa dönülür. */
+
+  function onayModeli() {
+    var ayarlar = (D.al() || {}).ayarlar || {};
+    return ayarlar.onayModeli === 'isyeri' ? 'isyeri' : 'rol';
+  }
+
+  function onayEsigi(tehlikeSinifi) {
+    var kod = typeof ISG.tehlikeSinifiKodu === 'function'
+      ? ISG.tehlikeSinifiKodu(tehlikeSinifi) : (tehlikeSinifi || '');
+    var tablo = ISG.ONAY_ESIGI || {};
+    return (tablo[kod] || []).slice();
+  }
+
+  /* İşyerine atanmış aktif uzmanlar; pasif hesap onay yetkilisi sayılmaz. */
+  function isyeriUzmanlari(isyeriId) {
+    if (!isyeriId) { return []; }
+    var gorulen = {};
+    return (D.al().kullanicilar || []).filter(function (kullanici) {
+      if (!kullanici || kullanici.aktif === false) { return false; }
+      if (rolCoz(kullanici.rol) !== 'yetkili') { return false; }
+      var atanmis = kullanici.tumIsyerleri === true ||
+        (kullanici.isyerleri || []).indexOf(isyeriId) >= 0;
+      if (!atanmis || gorulen[kullanici.id]) { return false; }
+      gorulen[kullanici.id] = true;
+      return true;
+    });
+  }
+
+  function uzmanSinifKodu(uzman) {
+    return typeof ISG.uzmanSinifiKodu === 'function'
+      ? ISG.uzmanSinifiKodu(uzman && uzman.uzmanSinifi) : ((uzman && uzman.uzmanSinifi) || '');
+  }
+
+  /* İşyerinin onay durumu. `mod`:
+       'tekUzman'  → tek aktif uzman var; doğrudan yazar (sınıf şartı yok)
+       'onayli'    → çok uzman var, en az biri eşiği karşılıyor
+       'eksik'     → çok uzman var ama hiçbiri tehlike sınıfı eşiğini karşılamıyor
+       'uzman-yok' → işyerine atanmış aktif uzman yok */
+  function onayDurumu(isyeriId) {
+    var isyeri = (D.al().isyerleri || []).filter(function (kayit) { return kayit.id === isyeriId; })[0] || null;
+    var tehlikeSinifi = isyeri ? (isyeri.tehlikeSinifi || '') : '';
+    var esik = onayEsigi(tehlikeSinifi);
+    var uzmanlar = isyeriUzmanlari(isyeriId);
+    var uygun = uzmanlar.filter(function (uzman) {
+      var sinif = uzmanSinifKodu(uzman);
+      return !!sinif && esik.indexOf(sinif) >= 0;
+    });
+    var mod = 'uzman-yok';
+    if (uzmanlar.length === 1) { mod = 'tekUzman'; }
+    else if (uzmanlar.length > 1) { mod = uygun.length ? 'onayli' : 'eksik'; }
+    return {
+      mod: mod,
+      isyeriId: isyeriId,
+      isyeriAd: isyeri ? (isyeri.ad || '') : '',
+      tehlikeSinifi: tehlikeSinifi,
+      esik: esik,
+      uzmanSayisi: uzmanlar.length,
+      uzmanlar: uzmanlar,
+      onaylayanlar: uygun,
+      onaylayanIdler: uygun.map(function (uzman) { return uzman.id; })
+    };
+  }
+
   /* ---------- Yetki soruları ---------- */
 
   function izin(eylem, isyeriId) {
@@ -363,15 +516,71 @@
     if (!o) { return false; }
     var rol = rolTanimi(o.rol);
     if (ADMIN_ISLEMLERI[eylem]) { return !!rol.yonetir; }
-    if (eylem === 'onayla' || eylem === 'talepKarar') { return !!rol.onaylar; }
+    if (eylem === 'onayla' || eylem === 'talepKarar') {
+      if (rol.saltOkunur || rol.id === 'goruntuleyici') { return false; }
+      if (rol.onaylar) { return true; }
+      if (!isyeriId) { return onaylayiciMi(); }
+      var durum = onayDurumu(isyeriId);
+      return durum.mod === 'onayli' && durum.onaylayanIdler.indexOf(o.kullaniciId) >= 0;
+    }
     if (eylem === 'denetim') { return true; }
     if (eylem === 'ekle' || eylem === 'duzenle' || eylem === 'sil') {
-      if (rol.id === 'goruntuleyici') { return false; }
+      if (rol.saltOkunur || rol.id === 'goruntuleyici') { return false; }
       if (rol.tumIsyerleri) { return true; }
-      if (isyeriId) { return o.isyerleri.indexOf(isyeriId) > -1; }
-      return o.isyerleri.length > 0;
+      if (isyeriId) { return kapsam().indexOf(isyeriId) > -1; }
+      return kapsam().length > 0;
     }
     return true;
+  }
+
+  /* Oturum sahibi bu işyerinde yazarken hangi yol izlenir?
+       'dogrudan'    → kayıt hemen yazılır
+       'talep'       → onay kuyruğuna gider (işyerinde onay yetkilisi var)
+       'eksik'       → kuyruğa gider, "onay yetkilisi eksik" durumunda bekler
+       'kapsam-disi' → işyeri yetki kapsamı dışında
+       'red'         → rol hiç yazamaz (görüntüleyici, OSGB müdürü, oturum yok) */
+  function yazmaModu(isyeriId) {
+    var o = oturum();
+    if (!o) { return 'red'; }
+    var rol = rolTanimi(o.rol);
+    if (rol.yonetir) { return 'dogrudan'; }
+    if (rol.saltOkunur || rol.id === 'goruntuleyici') { return 'red'; }
+    if (isyeriId && kapsam().indexOf(isyeriId) < 0) { return 'kapsam-disi'; }
+    var durum = onayDurumu(isyeriId);
+    /* Rol modeli açıkken (bugünkü varsayılan) bütün yazımlar talebe dönüşür. */
+    if (onayModeli() !== 'isyeri') { return 'talep'; }
+    if (durum.mod === 'tekUzman') { return 'dogrudan'; }
+    if (durum.mod === 'onayli') { return 'talep'; }
+    return 'eksik';
+  }
+
+  /* Oturum sahibi bu talebe karar verebilir mi?
+     Yönetici mevcut yetkisini korur. Onaylayıcı uzman ise yalnız kendi
+     işyerinin, tehlike sınıfına uygun sınıftaki onay yetkilisidir; kendi
+     talebini ve kapsamı dışındaki talebi onaylayamaz. */
+  function onayYetkisi(talep) {
+    var o = oturum();
+    if (!o || !talep) { return false; }
+    var rol = rolTanimi(o.rol);
+    if (rol.saltOkunur || rol.id === 'goruntuleyici') { return false; }
+    if (talep.kullaniciId && talep.kullaniciId === o.kullaniciId) { return false; }
+    if (rol.onaylar) { return true; }
+    var durum = onayDurumu(talep.isyeriId);
+    if (durum.mod !== 'onayli') { return false; }
+    return durum.onaylayanIdler.indexOf(o.kullaniciId) >= 0;
+  }
+
+  /* Kullanıcı en az bir işyerinde onay yetkilisi mi? (menü/rozet görünürlüğü) */
+  function onaylayiciMi() {
+    var o = oturum();
+    if (!o) { return false; }
+    var rol = rolTanimi(o.rol);
+    if (rol.onaylar) { return true; }
+    if (rol.saltOkunur || rol.id === 'goruntuleyici') { return false; }
+    return kapsam().some(function (isyeriId) {
+      var durum = onayDurumu(isyeriId);
+      return durum.mod === 'onayli' && durum.onaylayanIdler.indexOf(o.kullaniciId) >= 0;
+    });
   }
 
   function degistirebilir(isyeriId) { return izin('ekle', isyeriId); }
@@ -441,7 +650,9 @@
     try { return JSON.parse(JSON.stringify(deger)); } catch (hata) { return null; }
   }
 
-  function talepYaz(ad, args, isyeriId, o) {
+  function talepYaz(ad, args, isyeriId, o, ekstra) {
+    var ek = ekstra || {};
+    var eksik = ek.yetkiDurumu === 'eksik';
     var isyeri = (D.al().isyerleri || []).filter(function (kayit) { return kayit.id === isyeriId; })[0];
     var kayitId = kayitKimligi(args);
     var tur = islemTuru(ad, kayitId);
@@ -469,23 +680,75 @@
       eskiKayit: mevcut ? kopyala(mevcut) : null,
       yeniKayit: tur === 'sil' ? null : kopyala(args[0]),
       etiket: ETIKETLER[ad] || 'Değişiklik',
-      ozet: ozetUret(ad, args),
+      ozet: ozetUret(ad, args) + (eksik ? ' · onay yetkilisi eksik' : ''),
       durum: 'bekliyor',
+      yetkiDurumu: eksik ? 'eksik' : '',
       eylem: { ad: ad, args: args }
     });
     D.denetimEkle({
       tur: 'talep', islem: ad, kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad,
       isyeriId: isyeriId, kayitId: kayitId, ozet: 'Onaya gönderildi: ' + (talep.etiket || ad)
     });
-    return { id: (args[0] && args[0].id) || talep.id, talep: talep, bekliyor: true };
+    return {
+      id: (args[0] && args[0].id) || talep.id, talep: talep, bekliyor: true, yetkiDurumu: eksik ? 'eksik' : ''
+    };
   }
 
+  /* Onay yetkilisi eksik işyerlerinin listesi: yönetici paneli bu listeyi
+     gösterip atama/sınıf düzeltmesi yapabilir. Yalnızca işyeri modeli açıkken
+     anlamlıdır; rol modelinde boş döner. */
+  function yetkiliEksikListe() {
+    var o = oturum();
+    if (!o) { return []; }
+    var rol = rolTanimi(o.rol);
+    if (!rol.yonetir && !rol.kurumKapsami) { return []; }
+    if (onayModeli() !== 'isyeri') { return []; }
+    var kapsamIdleri = kapsam();
+    return (D.al().isyerleri || []).filter(function (isyeri) {
+      return isyeri && kapsamIdleri.indexOf(isyeri.id) >= 0;
+    }).map(function (isyeri) {
+      var durum = onayDurumu(isyeri.id);
+      durum.kurumId = isyeri.kurumId || '';
+      return durum;
+    }).filter(function (durum) {
+      return durum.mod === 'eksik' || durum.mod === 'uzman-yok';
+    });
+  }
+
+  /* Yarım kalan karar kilidi kuyruğu sonsuza dek tutamasın: sekme kapanır ya da
+     cihaz donarsa "uygulaniyor"da kalan talep ne onaylanabilir ne reddedilebilir;
+     5 dakikadan eski kilit kendiliğinden çözülmüş sayılır. */
+  function bayatKilCoz() {
+    var simdi = Date.now();
+    (D.al().talepler || []).forEach(function (talep) {
+      if (talep.durum !== 'uygulaniyor') { return; }
+      var zaman = Date.parse(talep.durumTarihi || '');
+      if (isNaN(zaman) || simdi - zaman > 5 * 60 * 1000) { D.talepDurum(talep.id, 'bekliyor'); }
+    });
+  }
+
+  /* Görünür talepler:
+       - yönetici → tüm kuyruk (karar verebilir)
+       - OSGB müdürü (salt okunur kurum denetçisi) → kurumundaki tüm talepler
+       - diğerleri → kendi talepleri + onay yetkilisi olduğu talepler
+     Karar hakkı ayrıca `onayYetkisi()` ile son kapıda sınanır. */
   function talepler(hepsi) {
     var o = oturum();
     if (!o) { return []; }
+    bayatKilCoz();
     var liste = D.al().talepler || [];
-    if (!rolTanimi(o.rol).onaylar) {
-      return liste.filter(function (talep) { return talep.kullaniciId === o.kullaniciId; });
+    var rol = rolTanimi(o.rol);
+    if (rol.kurumKapsami && !rol.onaylar) {
+      var kurumIdleri = kapsam();
+      return liste.filter(function (talep) {
+        return kurumIdleri.indexOf(talep.isyeriId) > -1;
+      });
+    }
+    if (!rol.onaylar) {
+      return liste.filter(function (talep) {
+        if (talep.kullaniciId === o.kullaniciId) { return true; }
+        return onayYetkisi(talep);
+      });
     }
     if (hepsi) { return liste.slice(); }
     return liste.filter(function (talep) { return talep.durum === 'bekliyor'; });
@@ -523,57 +786,56 @@
   }
 
   /* Kayıt sürüm denetimi: talep oluşturulduktan sonra kayıt başka bir kullanıcı
-     tarafından değiştirildiyse eski değerin üzerine yazılmaz. Risk ekibi ve acil
-     durum planı işyeri kimliğiyle tutulduğu için arama işyeri kaydından yapılır. */
+     tarafından değiştirildiyse kullanıcı UYARILIR ama onay ENGELLENMEZ — onaylanan
+     istek her hâlükârda uygulanır (talep sahibi kimin değerinin geçerli olduğunu
+     kendisi karar verir). Uyarı hem karar notuna hem denetim kaydına işlenir;
+     böylece üzerine yazılan değişiklik sonradan izlenebilir. Eylemin kendisi hata
+     verirse (kayıt bulunamazsa vb.) onay tamamlanmaz; bu durumda depo katmanı
+     'Kayıt bulunamadı' gibi kendi hatasını verir. */
   function surumDenetle(talep) {
-    if (!talep) { return; }
+    if (!talep) { return ''; }
     var ad = (talep.eylem && talep.eylem.ad) || '';
-    var isyeriListe = ISYERI_KAYIT_EYLEMLERI[ad] || '';
+    var DEGISTI = 'Kayıt talep oluşturulduktan sonra değişmiş; onay yine de uygulandı ve talepteki değerler ' +
+      'yazıldı. Kaydı açılan ekrandan kontrol edin.';
     if (ISYERI_TOPLU_EYLEMLER[ad]) {
       /* Tek hedef kaydı olmayan toplu eylem: yalnızca işyeri denetlenir. */
-      if (!isyeriVar(talep.isyeriId)) { throw new Error('İşyeri artık bulunmuyor; talep uygulanmadı.'); }
-      return;
+      return isyeriVar(talep.isyeriId) ? '' : 'İşyeri artık bulunmuyor; uygulama adımı kayıt bulamayabilir.';
     }
+    var isyeriListe = ISYERI_KAYIT_EYLEMLERI[ad] || '';
     if (isyeriListe) {
-      if (ISYERI_YERINDE_EYLEMLER[ad]) { return; }
+      if (ISYERI_YERINDE_EYLEMLER[ad]) { return ''; }
       var guncelIsyeri = isyeriKayitBul(isyeriListe, talep.kayitId);
       if (talep.islemTuru === 'ekle') {
-        if (guncelIsyeri) { throw new Error('Kayıt bu arada oluşturulmuş; talep uygulanmadı.'); }
-        return;
+        return guncelIsyeri ? 'Kayıt bu arada oluşturulmuş; onaylanan istek onun üzerine yazılacak.' : '';
       }
-      if (!guncelIsyeri) { throw new Error('Kayıt artık bulunmuyor; talep uygulanmadı.'); }
-      if (!talep.eskiKayit) { return; }
-      if (kayitDegisti(guncelIsyeri, talep.eskiKayit)) {
-        throw new Error('Kayıt talep oluşturulduktan sonra değişti; eski değerin üzerine yazılmadı. ' +
-          'Talebi reddedip güncel kayıt üzerinden yeni talep isteyin.');
-      }
-      return;
+      if (!guncelIsyeri) { return 'Kayıt artık bulunmuyor; uygulama adımı hiçbir şey yazmayabilir.'; }
+      if (!talep.eskiKayit) { return ''; }
+      return kayitDegisti(guncelIsyeri, talep.eskiKayit) ? DEGISTI : '';
     }
-    if (!talep.kayitId) { return; }
+    if (!talep.kayitId) { return ''; }
     var guncel = kayitBul(talep.kayitId);
     if (talep.islemTuru === 'ekle') {
-      if (guncel) { throw new Error('Aynı kayıt bu arada oluşturulmuş; talep uygulanmadı.'); }
-      return;
+      return guncel ? 'Aynı kayıt bu arada oluşturulmuş; onaylanan istek ikinci bir kayıt olarak eklenebilir.' : '';
     }
-    if (!guncel) { throw new Error('Kayıt artık bulunmuyor; talep uygulanmadı.'); }
-    if (!talep.eskiKayit) { return; }
-    if (kayitDegisti(guncel, talep.eskiKayit)) {
-      throw new Error('Kayıt talep oluşturulduktan sonra değişti; eski değerin üzerine yazılmadı. ' +
-        'Talebi reddedip güncel kayıt üzerinden yeni talep isteyin.');
-    }
+    if (!guncel) { return 'Kayıt artık bulunmuyor; uygulama adımı hiçbir şey yazmayabilir.'; }
+    if (!talep.eskiKayit) { return ''; }
+    return kayitDegisti(guncel, talep.eskiKayit) ? DEGISTI : '';
   }
 
   function talepOnayla(id, not) {
     var o = oturum();
-    if (!o || !rolTanimi(o.rol).onaylar) { throw new Error('Talepleri onaylama yetkiniz yok.'); }
+    if (!o) { throw new Error('Talepleri onaylama yetkiniz yok.'); }
+    bayatKilCoz();
     var talep = D.talepBul(id);
     if (!talep) { throw new Error('Talep bulunamadı.'); }
-    if (talep.durum !== 'bekliyor') { throw new Error('Bu talep zaten karara bağlanmış.'); }
-    /* Kullanıcı kendi talebini onaylayamaz (yönetici olsa bile). */
+    /* Kullanıcı kendi talebini onaylayamaz (yönetici olsa bile). Kontrol,
+       onay yetkisi süzgecinden önce yapılır ki hata mesajı nedeni açıkça söylesin. */
     if (talep.kullaniciId && talep.kullaniciId === o.kullaniciId) {
-      throw new Error('Kendi oluşturduğunuz talebi onaylayamazsınız; başka bir yönetici karar vermeli.');
+      throw new Error('Kendi oluşturduğunuz talebi onaylayamazsınız; başka bir onay yetkilisi karar vermeli.');
     }
-    surumDenetle(talep);
+    if (!onayYetkisi(talep)) { throw new Error('Talepleri onaylama yetkiniz yok.'); }
+    if (talep.durum !== 'bekliyor') { throw new Error('Bu talep zaten karara bağlanmış.'); }
+    var uyari = surumDenetle(talep);
     /* Aynı talebin iki kez uygulanmasını engelleyen kilit. Uygulama hata verirse
        talep yeniden "bekliyor" durumuna döner; yarım kalan kayıt onaylanmış sayılmaz. */
     D.talepDurum(id, 'uygulaniyor');
@@ -583,20 +845,30 @@
       D.talepDurum(id, 'bekliyor');
       throw hata;
     }
-    var sonuc = D.talepKarar(id, 'onaylandi', o.adSoyad, not, o.kullaniciId);
+    /* Uyarı karar notuna işlenir: üzerine yazılan kayıtta "kimin değeri ezildi"
+       sonradan okunabilsin. */
+    var kararNotu = [not || '', uyari ? 'UYARI: ' + uyari : ''].filter(function (parca) { return parca; }).join(' — ');
+    var sonuc = D.talepKarar(id, 'onaylandi', o.adSoyad, kararNotu, o.kullaniciId);
     D.denetimEkle({
       tur: 'onay', islem: 'talepOnayla', kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad,
       isyeriId: talep.isyeriId, kayitId: talep.kayitId || '',
-      ozet: 'Onaylandı: ' + (talep.etiket || '') + ' · ' + (talep.ozet || '')
+      ozet: 'Onaylandı: ' + (talep.etiket || '') + ' · ' + (talep.ozet || '') +
+        (uyari ? ' · UYARI: ' + uyari : '')
     });
+    if (sonuc && typeof sonuc === 'object') { sonuc.uyari = uyari; }
     return sonuc;
   }
 
   function talepReddet(id, not) {
     var o = oturum();
-    if (!o || !rolTanimi(o.rol).onaylar) { throw new Error('Talepleri reddetme yetkiniz yok.'); }
+    if (!o) { throw new Error('Talepleri reddetme yetkiniz yok.'); }
+    bayatKilCoz();
     var talep = D.talepBul(id);
     if (!talep) { throw new Error('Talep bulunamadı.'); }
+    /* Kendi talebini geri çekmek serbesttir; başkasının talebini reddetmek
+       onay yetkisi ister. */
+    var kendiTalebi = !!talep.kullaniciId && talep.kullaniciId === o.kullaniciId;
+    if (!kendiTalebi && !onayYetkisi(talep)) { throw new Error('Talepleri reddetme yetkiniz yok.'); }
     if (talep.durum !== 'bekliyor') { throw new Error('Bu talep zaten karara bağlanmış.'); }
     var sonuc = D.talepKarar(id, 'reddedildi', o.adSoyad, not, o.kullaniciId);
     D.denetimEkle({
@@ -660,7 +932,8 @@
     return function () { return asil.apply(D, arguments); };
   }
 
-  var ADMIN_KORUMA = ['isyeriKaydet', 'isyeriSil', 'kullaniciKaydet', 'kullaniciSil', 'ayarKaydet', 'sifirla', 'iceAktar'];
+  var ADMIN_KORUMA = ['isyeriKaydet', 'isyeriSil', 'kullaniciKaydet', 'kullaniciSil',
+    'ayarKaydet', 'sifirla', 'iceAktar', 'kurumKaydet', 'kurumSil'];
 
   ADMIN_KORUMA.forEach(function (ad) {
     var asil = D[ad];
@@ -693,16 +966,26 @@
         return sonuc;
       }
       if (rol.id !== 'yetkili') {
-        throw new Error('Görüntüleyici hesabıyla kayıt değiştirilemez.');
+        throw new Error(rol.saltOkunur
+          ? 'Salt okunur hesap kayıt değiştiremez.'
+          : 'Görüntüleyici hesabıyla kayıt değiştirilemez.');
       }
       var isyeriId = hedefIsyeri(ad, args);
       if (!isyeriId) {
         throw new Error('Kaydın işyeri belirlenemedi, işlem onaya gönderilemedi.');
       }
-      if (o.isyerleri.indexOf(isyeriId) < 0) {
-        throw new Error('Bu işyeri yetki kapsamınızda değil.');
+      /* Yazma yolu tek karar noktasından geçer: tek uzmanlı işyerinde kayıt
+         doğrudan yazılır, çok uzmanlı işyerinde onaya gider, uygun sınıfta
+         onay yetkilisi yoksa talep "yetkili eksik" durumunda bekler. */
+      var mod = yazmaModu(isyeriId);
+      if (mod === 'red') { throw new Error('Bu işyerinde kayıt değiştirme yetkiniz yok.'); }
+      if (mod === 'kapsam-disi') { throw new Error('Bu işyeri yetki kapsamınızda değil.'); }
+      if (mod === 'dogrudan') {
+        var yazilan = asil.apply(D, args);
+        denetimYaz(ad, args, o);
+        return yazilan;
       }
-      return talepYaz(ad, args, isyeriId, o);
+      return talepYaz(ad, args, isyeriId, o, mod === 'eksik' ? { yetkiDurumu: 'eksik' } : null);
     };
   });
 
@@ -746,6 +1029,14 @@
     gorunum: function () { return kapsamliVeri(D.al()); },
     izin: izin,
     degistirebilir: degistirebilir,
+    onayModeli: onayModeli,
+    onayEsigi: onayEsigi,
+    onayDurumu: onayDurumu,
+    onayYetkisi: onayYetkisi,
+    onaylayiciMi: onaylayiciMi,
+    yazmaModu: yazmaModu,
+    isyeriUzmanlari: isyeriUzmanlari,
+    yetkiliEksikListe: yetkiliEksikListe,
     talepler: talepler,
     bekleyenSayisi: bekleyenSayisi,
     talepOnayla: talepOnayla,

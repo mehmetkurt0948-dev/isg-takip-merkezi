@@ -162,10 +162,19 @@
 
   /* ---------- İşyerleri ---------- */
 
+  /* İşyerinin bağlı olduğu kurumun adı; kurum kaydı yoksa boş döner. */
+  function isyeriKurumAdi(isyeri, hesap) {
+    var kurumId = isyeri.kurumId || '';
+    if (!kurumId && (hesap.kurumlar || []).length === 1) { kurumId = hesap.kurumlar[0].id; }
+    var kurum = (hesap.kurumlar || []).filter(function (kayit) { return kayit.id === kurumId; })[0];
+    return kurum ? (kurum.ad || '') : '';
+  }
+
   function isyeriKarti(isyeri, hesap) {
     var sinif = ISG.RISK_SINIFLARI[isyeri.tehlikeSinifi] || { ad: isyeri.tehlikeSinifi };
     var dosyaSayisi = ISG.kapsamda(hesap, isyeri.id, 'dosyalar').length;
     var calisan = ISG.kapsamda(hesap, isyeri.id, 'personel').length;
+    var kurumAdi = isyeriKurumAdi(isyeri, hesap);
     return '<article class="isyeri-kart">' +
       '<div class="isyeri-kart-ust">' +
         '<span class="isyeri-ikon">' + B.ikon('i-building') + '</span>' +
@@ -174,6 +183,7 @@
       '<h3>' + kacis(isyeri.ad) + '</h3>' +
       '<button type="button" class="isyeri-baglanti" data-islem="isyeri-dosya" data-id="' + kacis(isyeri.id) + '">Dosya kontrollerini görüntüle ' + B.ikon('i-arrow') + '</button>' +
       '<span class="isyeri-etiket">İşyeri bilgileri ve işlemler</span>' +
+      (kurumAdi ? '<div class="isyeri-satir"><span>Bağlı kurum</span><b>' + kacis(kurumAdi) + '</b></div>' : '') +
       '<div class="isyeri-satir"><span>Kayıtlı personel</span><b>' + B.sayi(calisan) + ' / ' + B.sayi(isyeri.calisanSayisi) + ' çalışan</b></div>' +
       '<div class="isyeri-satir"><span>Kontrol maddesi</span><b>' + B.sayi(dosyaSayisi) + ' madde</b></div>' +
       '<div class="isyeri-eylem">' +

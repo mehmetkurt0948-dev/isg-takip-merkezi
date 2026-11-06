@@ -5,7 +5,9 @@
    esitleme damgasi tazelenir) taklit edilir -> yonetici #onaylar sayfasindaki
    "Onayla" dugmesine basar. Hata bildirimi cikmamali, talep kuyruktan dusmeli
    ve degisiklik kayda yazilmali. Ayni akis tek kaydi olmayan isyeri duzeyi
-   toplu eylem icin de denenir; gercekten degisen kayit ise korunmali.
+   toplu eylem icin de denenir. Kayit gercekten degistiyse onay KILITLENMEZ:
+   istek uygulanir ve yonetici ayrica uyarilir (uyari karar notunda ve denetim
+   kaydinda izlenir).
    Calistirma: node test/onayui_test.js */
 const fs = require('fs');
 const path = require('path');
@@ -187,7 +189,11 @@ if (ok(!!talep, 'toplu personel talebi olusturuldu')) {
   ok((D.talepBul(talep.id) || {}).durum === 'onaylandi', 'toplu eylem talebi onaylandi');
 }
 
-/* ---------- 3) Kayit gercekten degistiyse koruma calismali ---------- */
+/* ---------- 3) Kayit gercekten degistiyse: onay yine de uygulanir + UYARI ----------
+   Surum denetimi onayi kilitlemez (yonetici neyi onayladigini ekranda gorur);
+   uyari uretir ve uyari hem karar notuna hem denetim kaydina islenir.
+   planDurumDegistir yalnizca durum/tamamlanmaTarihi yazdigi icin diger
+   kullanicinin yazdigi "tanim" alani korunur. */
 talep = talepOlustur('planDurumDegistir', ['pl-ui-1', 'tamamlandi']);
 if (ok(!!talep, 'ikinci durum degisikligi talebi olusturuldu')) {
   const baska = D.al().planlar[0];
@@ -196,11 +202,74 @@ if (ok(!!talep, 'ikinci durum degisikligi talebi olusturuldu')) {
 
   girisYap(yonetici, 'onaylar');
   const bildirim = onayTikla(talep.id);
-  ok(bildirim.indexOf('değişti') >= 0,
-    'gercek degisiklikta kullanici uyariniliyor' + (bildirim ? ': ' + bildirim.slice(0, 130) : ''));
-  ok((D.talepBul(talep.id) || {}).durum === 'bekliyor', 'talep kuyrukta kaldi, onaylanmadi');
-  ok(D.al().planlar[0].durum !== 'tamamlandi', 'eski degerin uzerine yazilmadi');
-  ok(!!onayDugmesi(talep.id), 'onaylama dugmesi hala erisilebilir (kuyruk cozulebilir)');
+  ok(bildirim.indexOf('değişmiş') >= 0 && bildirim.indexOf('yine de uygulandı') >= 0,
+    'gercek degisiklikte yonetici uyarildi' + (bildirim ? ': ' + bildirim.slice(0, 130) : ''));
+  ok(bildirim.toLocaleLowerCase('tr-TR').indexOf('onayland') >= 0,
+    'basari bildirimiyle birlikte gosterildi' + (bildirim ? ': ' + bildirim.slice(0, 90) : ''));
+  ok((D.talepBul(talep.id) || {}).durum === 'onaylandi', 'cakismaya ragmen talep kapandi');
+  ok(/UYARI:/.test(String((D.talepBul(talep.id) || {}).kararNotu || '')),
+    'uyari karar notuna islendi');
+  ok((D.al().denetim || []).some((kayit) => /UYARI:/.test(String(kayit.ozet || ''))),
+    'uyari denetim kaydina islendi');
+  ok(D.al().planlar[0].durum === 'tamamlandi', 'talepteki durum kayda yazildi');
+  ok(D.al().planlar[0].tanim === 'Başka bir kullanıcı yazdı',
+    'diger kullanicinin alani (tanim) korundu');
+  ok(!onayDugmesi(talep.id), 'onaylanan talep kuyruktan dustu');
+}
+
+/* ---------- 4) Tum kaydin uzerine yazan eylem: kaybolan alan yalnizca uyarida ----------
+   personelKaydet kaydin tamamina yazar; talebin payload'inda olmayan alan geri
+   yazilir. Bu kabul edilmis bir takastir ve denetim kaydindan geri okunabilir. */
+let personelTalep = null;
+D.geriYukle(tohum());
+girisYap(yetkili, 'panel');
+{
+  const hedef = Object.assign({}, D.al().personel[0]);
+  const sonuc = D.personelKaydet(Object.assign(hedef, { pozisyon: 'Usta başı' }));
+  personelTalep = (sonuc && sonuc.talep) || null;
+}
+if (ok(!!personelTalep, 'personel guncelleme talebi olusturuldu')) {
+  const kayit = D.al().personel.filter((p) => p.id === personelTalep.kayitId)[0];
+  kayit.gorev = 'Vardiya sorumlusu';
+  D.kaydet();
+
+  girisYap(yonetici, 'onaylar');
+  const bildirim = onayTikla(personelTalep.id);
+  ok(bildirim.indexOf('değişmiş') >= 0,
+    'tam uzerine yazan eylemde de uyari var' + (bildirim ? ': ' + bildirim.slice(0, 110) : ''));
+  ok((D.talepBul(personelTalep.id) || {}).durum === 'onaylandi', 'talep onaylandi olarak kapandi');
+  const bitim = D.al().personel.filter((p) => p.id === personelTalep.kayitId)[0];
+  ok(bitim.pozisyon === 'Usta başı', 'talepteki alan yazildi');
+  ok(!bitim.gorev, 'talepte olmayan alan geri yazildi (bilinen takas)');
+  ok((D.al().denetim || []).some((kayit) => kayit.kayitId === personelTalep.kayitId &&
+    /UYARI:/.test(String(kayit.ozet || ''))), 'ezilen alan denetim kaydinda izlendi');
+}
+
+/* ---------- 5) Yarimda kalan karar kilidi kuyrugu kilitlemesin ----------
+   Onay yarimda kalirsa (sekme kapandi / cihaz dondu) talep "uygulaniyor"da
+   kalir. Taze kilit kuyrukta gorunmez (cift onay olmasin); 5 dakikadan eski
+   kilit ise kendiliğinden çözülür ve talep yeniden onaylanabilir. */
+let kilitTalep = null;
+D.geriYukle(tohum());
+girisYap(yetkili, 'panel');
+{
+  const sonuc = D.planDurumDegistir('pl-ui-1', 'tamamlandi');
+  kilitTalep = (sonuc && sonuc.talep) || null;
+}
+if (ok(!!kilitTalep, 'kilit senaryosu talebi oluşturuldu')) {
+  D.talepDurum(kilitTalep.id, 'uygulaniyor');
+  girisYap(yonetici, 'onaylar');
+  ok(!onayDugmesi(kilitTalep.id), 'taze karar kilidi kuyrukta görünmez');
+
+  const yaris = D.talepBul(kilitTalep.id);
+  yaris.durumTarihi = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  D.kaydet();
+  girisYap(yonetici, 'onaylar');
+  ok(!!onayDugmesi(kilitTalep.id), 'bayat karar kilidi yeniden bekleyen sayıldı');
+  const kilitleme = onayTikla(kilitTalep.id);
+  ok((D.talepBul(kilitTalep.id) || {}).durum === 'onaylandi',
+    'bayat kilitli talep onaylanabildi' + (kilitleme ? ': ' + kilitleme.slice(0, 90) : ''));
+  ok(D.al().planlar[0].durum === 'tamamlandi', 'bayat kilit sonrasi degisiklik kayda yazildi');
 }
 
 console.log('\nBekleme: ' + toplam + ' | basarisiz: ' + basarisiz);

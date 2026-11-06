@@ -196,7 +196,7 @@
       isyerleri: [], personel: [], egitimler: [], riskler: [], olaylar: [],
       dosyalar: [], belgeler: [], planlar: [], tespitler: [],
       riskEkipleri: [], acilPlanlar: [], mevzuat: [], saglikTakip: [],
-      kullanicilar: ISG.YONETICI_HESAP(), talepler: [], denetim: [],
+      kurumlar: [], kullanicilar: ISG.YONETICI_HESAP(), talepler: [], denetim: [],
       senkron: { kayit: {}, silinen: {}, ayarlar: '' }
     };
   };

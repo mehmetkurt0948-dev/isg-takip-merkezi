@@ -1,8 +1,9 @@
 # İSG Takip Merkezi — çalışma alanı (v4)
 
-> İşyeri bazlı İSG takibi: giriş/roller, personel, dosya kontrolleri, çalışma
-> planı, saha/DÖF, risk değerlendirmesi, acil durum planı, ekip davetleri,
-> onay kuyruğu ve mevzuat kapsamı.
+> İşyeri bazlı İSG takibi: giriş/roller, kurum (OSGB) kaydı ve kurum panosu,
+> personel, dosya kontrolleri, çalışma planı, saha/DÖF, risk değerlendirmesi,
+> zorunlu ekipli acil durum planı, ekip davetleri, onay kuyruğu ve mevzuat
+> kapsamı.
 > **Statik** uygulama: build yok, CDN yok — tarayıcıda çalışır. Kayıtlar önce
 > `localStorage`'a yazılır; **isteğe bağlı Supabase eşitlemesi** açılırsa aynı
 > kayıtlar birden çok cihazda **kayıt bazında birleştirilerek** paylaşılır
@@ -20,7 +21,7 @@ kayıt tabloları.
 |---|---|
 | **Giriş** | Oturum katmanı: e-posta/şifre doğrulama, hatalı şifre uyarısı, davet kodu ile hesap açma, **6 haneli e-posta koduyla şifre sıfırlama**, oturumu tarayıcıda hatırlama, çıkışta onay |
 | **Genel bakış** | Tüm işyerlerinden türetilen görev motoru: geciken / bugün / yaklaşan / tarihsiz işler, öncelik sıralı liste, işyeri bazında durum tablosu |
-| **İşyerleri** | Kurum şeridi (ana kurum, ad değiştir, tüm verileri sil), işyeri kartları (tehlike sınıfı, çalışan ve kontrol maddesi sayısı), işyeri CRUD |
+| **İşyerleri** | Kurum şeridi (kurum adı, ad değiştir, tüm verileri sil), işyeri kartları (kurum, tehlike sınıfı, çalışan ve kontrol maddesi sayısı), kurum seçimli işyeri CRUD |
 | **Personel listesi** | İşyeri bazında bloklar, sicil/TC/meslek/departman/şube/kıdem/telefon/cinsiyet kolonları, arama, detay açma, eğitim kayıtları, gerçek **XLSX şablonu** ve XLSX/CSV içe-dışa aktarma, "listeyi temizle" |
 | **Sağlık takibi** | İşyeri hekimi sağlık kayıtları: personel, işyeri, tarih, doktor, kan grubu, alerji, kronik hastalık, ilaç, engel durumu, son muayene, çalışma yasağı, izinsizlik ve not alanları; hassas alanlar cihazda şifreli saklanır, kayıt ekleme/güncelleme yönetici ve yetkilide, silme yalnızca yöneticide. Personel veya işyeri silinse de muayene kayıtları silinmez: kişi adı, sicil ve işyeri adı kayda dondurulur, listede "silinmiş personel" rozetiyle okunmaya devam eder; silme onayında kaç kaydın korunduğu belirtilir; **tam personel listesi** (muayene kaydı olmayanlar dâhil, arama + durum + işyeri filtresi, kişi geçmişi ve kayıt düzenleme/silme), **üç gruplu katlanır kayıt formu**, **Excel şablonu / içe aktarma (ön izleme + onay) / dışa aktarma** |
 | **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma, **belge eki yükle / görüntüle / indir / kaldır** (belge başına ≤ 1 MB, `localStorage`) |
@@ -29,10 +30,11 @@ kayıt tabloları.
 | **Yönetim raporu** | Tarih aralığı, açık/geciken iş, doğrulama bekleyen, dönemde tamamlanan, işyeri bazında karşılaştırma tablosu, Excel (CSV) çıktısı |
 | **İstatistikler** | On iki özet KPI, **iş kazası / meslek hastalığı veri girişi ve ortak kayıt listesi** (tarihe göre sıralı; satırdan düzenle / kapat / sil, kapsam işyeriyle "Kaza bildir" ve "Meslek hastalığı bildir") ve iş kazası analizi: **aylık kaza sıklığı (sütun grafik)**, **KSO / KAO / KSH oranları ve 12 aylık oran tablosu**, **kök neden dağılımı**, **neden × vücut bölgesi ısı matrisi**, yaralanma bölgesi/türü, **şiddet sınıfı (SGK)**, **vardiya**, **haftanın günü**, işyeri, departman, kıdem ve iş günü kaybı dağılımları, en çok kazaya uğrayan personel; personel, eğitim, DÖF, risk ve belge dağılımları; kapsam filtresi |
 | **Risk değerlendirmesi** | İşyeri başına son değerlendirme / en geç yenileme / olağan üst sınır, 6 rollü ekip listesi, rol bazlı **ekip üyesi ekle / değiştir / kaldır**, eksik rol uyarısı, **risk belgesi yükle / görüntüle / indir**, 5×5 risk kayıt tablosu |
-| **Acil durum planı** | Çalışan sayısı, plan tarihi, yenileme sınırı (tehlike sınıfına göre), 5 rollü destek ekibi (destek elemanı dâhil), rol bazlı **ekip üyesi ekle / değiştir / kaldır**, **plan belgesi yükle / görüntüle / indir**, plan/ekip kaydı |
-| **Ekip ve davetler** | E-posta + rol + yetkili işyeri seçimiyle davet oluşturma, davet listesi ve iptal |
+| **Acil durum planı** | Çalışan sayısı, plan tarihi, **tarih denetimi** (hazırlanma / son yenileme zorunlu, takvimce geçerli, en geç yenileme tarihi), yenileme sınırı (tehlike sınıfına göre), **zorunlu dört ekipte gerekli / kayıtlı / onaylı mevcut** (yönetmelik oranlarından otomatik), rol bazlı **ekip üyesi ekle / değiştir / kaldır**, **plan belgesi yükle / görüntüle / indir**, plan/ekip kaydı |
+| **Ekip ve davetler** | E-posta + rol + **kurum** + yetkili işyeri seçimiyle davet oluşturma, davet listesi ve iptal; **kullanıcılar ve yetkiler** bölümünde rol, kapsam, kurum ve **uzman sınıfı (A/B/C)**, **onay yetkilisi eksik** işyerleri listesi |
 | **Mevzuat ve kapsam** | 20 başlıklı katalog (kanun/yönetmelik/tebliğ/rehber/standart), kategori ve konu araması, teyit durumu, seçili işyeri kapsam özeti, Mevzuat Bilgi Sistemi bağlantısı |
-| **Onay kuyruğu** | Yetkili kullanıcıların yazma işlemlerinden doğan talepler: işlem özeti, işyeri, talep sahibi, onayla / reddet, bekleyen sayısı rozeti, denetim izi |
+| **Onay kuyruğu** | Yetkili kullanıcıların yazma işlemlerinden doğan talepler: işlem özeti, işyeri, talep sahibi, **dağıtık onay yetkilisi** bilgisi, onayla / reddet, bekleyen sayısı rozeti, denetim izi |
+| **Kurum denetim panosu** | Yalnızca **OSGB Müdürü** görür (salt okunur): kurumun işyeri sayısı, kullanıcı sayısı, **onay yetkilisi eksik işyeri** sayacı, bekleyen talep sayacı, işyeri başına uzman sayısı + onay durumu (tek uzman / onay zorunlu / yetkili eksik / uzman yok) + eşik sınıfı, son 20 talep ve kurum ekibi listesi |
 
 Ek yetenekler: `localStorage` kalıcılığı, **isteğe bağlı Supabase bulut
 eşitlemesi** (cihazlar arası ortak kayıt), JSON yedek al / geri yükle, işyeri
@@ -47,8 +49,31 @@ sıfırlama, rol bazlı yetki ve onay akışı.
 | Rol | Kapsam | Yazma | Onay kuyruğu |
 |---|---|---|---|
 | **Yönetici** | Tüm işyerleri | Doğrudan yazar | Görür ve yönetir |
-| **Yetkili** | Yalnızca atandığı işyerleri | Talebe dönüşür, yönetici onayı gerekir | Görmez |
+| **OSGB Müdürü** | Kendi **kurumu** (`kurumId`) | Yok — salt okunur | Görmez, karar vermez; **kurum denetim panosu**nu görür |
+| **Yetkili** | Yalnızca atandığı işyerleri | Talebe dönüşür; **işyeri onay modeli** açıksa tek uzmanda doğrudan, çok uzmanda eşik sınıfındaki uzmanın onayıyla | Onay yetkilisiyse görür |
 | **Görüntüleyici** | Yalnızca atandığı işyerleri | Yok (`salt-okunur` gövde sınıfı) | Görmez |
+
+**Kurum (OSGB) ve uzman sınıfı.** Her işyeri bir `kurumId` taşır; üst düzey
+`kurumlar` listesi kurum kayıtlarını tutar. Yetkili kullanıcıda **uzman sınıfı**
+(`uzmanSinifi`: `A` / `B` / `C`) tutulur ve onay eşiğiyle karşılaştırılır:
+
+| Tehlike sınıfı | Onay yetkilisi olabilecek uzman sınıfı |
+|---|---|
+| Çok tehlikeli | A |
+| Tehlikeli | A veya B |
+| Az tehlikeli | A, B veya C |
+
+**İki onay modeli.** `ayarlar.onayModeli` boş/`rol` iken bugünkü davranış sürer:
+yönetici doğrudan yazar, diğer yazarların değişikliği talebe dönüşür. Değer
+`isyeri` yapıldığında onay işyeri bazına iner: işyerinde **tek aktif uzman**
+varsa o uzman doğrudan yazar; **birden çok uzman** varsa tehlike sınıfına uygun
+sınıftaki uzman(lar) onay yetkilisidir ve diğerlerinin değişikliği talebe döner;
+uygun sınıfta uzman yoksa talep **"onay yetkilisi eksik"** durumunda bekler ve
+onaylanamaz. Pasif hesaplar onay yetkilisi sayılmaz. Model ayrı bir anahtarla
+açıldığı için canlı veri tek hamlede davranış değiştirmez; anahtar silinirse
+eski davranışa dönülür. `ISG.yetki.onayDurumu(isyeriId)` bu kararı
+(`tekUzman` / `onayli` / `eksik` / `uzman-yok`) ve eşik sınıflarını döndürür;
+onay kuyruğu, kurum panosu ve `tools/yetki-envanter.js` aynı hesabı kullanır.
 
 Site **boş açılır**; kayıtlı tek hesap yönetici hesabıdır (şifre: `1234`):
 
@@ -216,6 +241,9 @@ ve "Öncelikli işler" sayısı bu dağılımdan hesaplanır.
 | Yüksekte çalışma / KKD | 2 yıl |
 | Risk değerlendirmesi olağan üst sınır | Az **6**, tehlikeli **4**, çok tehlikeli **2** yıl |
 | Acil durum planı yenileme | Az **6**, tehlikeli **4**, çok tehlikeli **2** yıl |
+| Acil durum planı tarih denetimi | Hazırlanma **veya** son yenileme zorunlu; ikisi de varsa son yenileme hazırlanmadan eski olamaz; biçimi bozuk / takvim dışı / **ileri tarih** kaydı engeller. Vade geçmişi engellemez, gecikme olarak gösterilir; son tatbikat boşsa uyarı verilir (`ISG.acilPlanTarihKontrol`) |
+| Zorunlu acil durum ekipleri | Söndürme / kurtarma / koruma: az **1/50**, tehlikeli **1/40**, çok tehlikeli **1/30**; ilk yardım: **1/20 · 1/15 · 1/10**; kesir yukarı yuvarlanır, **en az 3 kişi**. Çalışan sayısı veya tehlike sınıfı yoksa sayı uydurulmaz, hesap geçersiz sayılır (`ISG.acilEkipGereksinimi`, `ISG.acilEkipDurumu`) |
+| Uzman sınıfı / onay eşiği | Onay yetkilisi olabilecek en düşük sınıf: çok tehlikeli **A**, tehlikeli **A–B**, az tehlikeli **A–C**. Bu tablo uygulamanın **değişiklik onayı** kuralıdır, mevzuatın görevlendirme şartı değildir (`ISG.ONAY_ESIGI`) |
 | Belge uyarı eşiği | Yenilemeye ≤ 14 gün: sarı, < 0 gün: kırmızı |
 | İş kazası bildirimi | SGK'ya en geç **3 iş günü** içinde; iş günü kaybı 0–365 gün |
 | İş kazası istatistiği | Kıdem = işe başlama ↔ kaza tarihi (tam yıl); şiddet aralıkları 0 / 1–3 / 4–7 / 8–14 / 15+ gün |
@@ -227,40 +255,50 @@ ve "Öncelikli işler" sayısı bu dağılımdan hesaplanır.
 
 ```text
 isg-takip-merkezi/
-├─ index.html                 # iskelet, SVG ikon sprite, 19 <dialog> formu
+├─ index.html                 # iskelet, SVG ikon sprite, <dialog> formları
 ├─ 404.html                   # Pages için "sayfa bulunamadı" ekranı
 ├─ manifest.webmanifest       # PWA kimliği, tema rengi, simgeler
 ├─ .nojekyll                  # GitHub Pages Jekyll işlemesini kapatır
 ├─ assets/
 │  ├─ css/style.css           # açık tema, bileşenler, duyarlı + yazdırma
-│  ├─ img/
-│  │  ├─ favicon.svg          # simge kaynağı (vektör)
-│  │  ├─ ikon-192.png         # manifest / Android
-│  │  ├─ ikon-512.png         # manifest / maskable
-│  │  └─ apple-touch-icon.png # iOS ana ekran
+│  ├─ img/                    # favicon.svg + ikon-192/512 + apple-touch-icon
 │  └─ js/
-│     ├─ ornek-veri.js        # boş tohum (BOS_VERI), örnek/tanıtım verisi, katalog üretimi, mevzuat
+│     ├─ varsayilan-veri.js   # boş tohum (BOS_VERI), örnek/tanıtım verisi, katalog üretimi, mevzuat
 │     ├─ kontrol-listeleri.js # ÜRETİLMİŞ: işyeri bazlı hazır dosya kontrol listeleri (Word/Excel çıktısı)
-│     ├─ depo.js              # alan kuralları, localStorage, CRUD, görev motoru
+│     ├─ depo.js              # alan kuralları, localStorage, CRUD, görev motoru, uzman sınıfı, acil ekip
 │     ├─ bicim.js             # tarih/rozet/CSV/sayfalama yardımcıları
-│     ├─ yetki.js             # oturum, roller, işyeri kapsamı, onay kuyruğu
+│     ├─ yetki.js             # oturum, roller (OSGB müdürü), kurum kapsamı, onay eşiği/modeli, onay kuyruğu
 │     ├─ excel.js             # bağımlılıksız XLSX yazıcı/okuyucu (ZIP + OpenXML)
+│     ├─ personel-toplu.js    # personel Excel/CSV şablonu, ayrıştırma, toplu kayıt
 │     ├─ plan-toplu.js        # yıllık çalışma planı: şablon üretimi, Excel/CSV ayrıştırma, toplu kayıt/silme, XLSX çıktısı
+│     ├─ saglik-takip.js      # sağlık kayıtları kasası (hassas alanlar cihazda şifreli)
+│     ├─ saglik-toplu.js      # sağlık Excel şablonu, içe aktarma analizi, dışa aktarma
+│     ├─ saglik-calisma-kitabi.js # sağlık çalışma kitabı yardımcıları
 │     ├─ bulut.js             # isteğe bağlı Supabase eşitleme katmanı (REST)
+│     ├─ bulut-kimlik.js      # bulut oda kodu / anahtar yardımcıları
 │     ├─ sayfalar.js          # Genel bakış, İşyerleri, Personel
 │     ├─ sayfalar-kayit.js    # Dosya kontrolleri, Çalışma planı, Saha/DÖF
-│     ├─ sayfalar-rapor.js    # Rapor, İstatistik, Risk, Acil durum, Ekip, Mevzuat, Onaylar
+│     ├─ sayfalar-rapor.js    # Rapor, İstatistik, Risk, Acil durum, Ekip, Kurum panosu, Mevzuat, Onaylar
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (645 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (816 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (27 kontrol)
 │  ├─ kontrol-listesi.js      # Word (.docx) / Excel (.xlsx) kontrol listesini hazır şablona çevirir
 │  ├─ kontrol-listesi-kaynaklari.json  # Excel dosya adı → işyeri kodu/ad eşleşmesi (toplu dönüşüm)
 │  ├─ kontrol-listeleri/      # dönüştürülmüş işyeri listeleri (ASKI-1.json, ASKI-2.json, …)
+│  ├─ personel-aktar.js       # kurum personel Excel'ini yedek + delta ile işyerine aktarır (dry-run varsayılan)
+│  ├─ plan-aktar.js           # yıllık plan Excel'ini aynı güvenlik sırasıyla aktarır
+│  ├─ saglik-aktar.js         # sağlık takip Excel'ini saglikTakip yığınına aktarır (analiz / --yaz)
+│  ├─ yetki-envanter.js       # SALT OKUNUR: işyeri başına uzman sınıfı ve onay yetkilisi envanteri
+│  ├─ varlik-surum.js         # varlık sürüm damgası (yaz / --denetle)
+│  ├─ hooks-kur.js            # git kancalarını kurar (prepare)
 │  ├─ ikon.js                 # favicon.svg → PNG simgeler
-│  └─ yayin-hazirla.js        # yayin/ klasörünü üretir
-├─ package.json               # npm test / test:belge / ikon / yayin
+│  ├─ demo-veri.js            # tanıtım verisi üreticisi
+│  ├─ yayin-hazirla.js        # yayin/ klasörünü üretir
+│  └─ yayin-dogrula.js        # canlı sürümün yerelle aynı olduğunu doğrular
+├─ test/                      # modül testleri (jsdom): kullanıcı, sağlık, senkron, giriş, onay
+├─ package.json               # npm test / test:* / envanter / surum / yayin
 └─ README.md
 ```
 
@@ -272,9 +310,11 @@ doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
 ```js
 {
   surum: 4,
-  ayarlar: { kurum, kullanici, gorev, sonMevzuatKontrolu },
-  kullanicilar: [{ id, adSoyad, eposta, sifre, rol, gorev, isyerleri: [], aktif, sonGiris }],
-  isyerleri: [{ id, ad, tehlikeSinifi, calisanSayisi, sgkSicil, yetkili, adres, sektor, ana }],
+  ayarlar: { kurum, kullanici, gorev, sonMevzuatKontrolu, onayModeli },
+  kurumlar: [{ id, ad, kisa, telefon, eposta, adres, not }],
+  kullanicilar: [{ id, adSoyad, eposta, sifre, rol, gorev, kurumId, uzmanSinifi,
+                   isyerleri: [], aktif, sonGiris }],
+  isyerleri: [{ id, kurumId, ad, tehlikeSinifi, calisanSayisi, sgkSicil, yetkili, adres, sektor, ana }],
   personel:  [{ id, isyeriId, sicil, adSoyad, tc, meslek, departman, grupKodu, sube, iseBaslama, telefon, cinsiyet, durum }],
   egitimler: [{ id, personelId, isyeriId, tur, tarih, sureSaat, egitmen, gecerlilik }],
   dosyalar:  [{ id, isyeriId, no, bolum, madde, durum, sorumlu, yenileme, kontrolTarihi, aciklama }],
@@ -300,6 +340,20 @@ doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
   }
 }
 ```
+
+**Kurum (OSGB) kapsamı.** `kurumlar` üst düzey listesi OSGB kayıtlarını tutar;
+her işyeri `kurumId` ile bir kuruma bağlanır (boş `kurumId` "kurum dışı / bağımsız
+işyeri" demektir). OSGB Müdürü rolündeki hesap `kurumId` taşır ve yalnızca o
+kurumun işyerlerini, personelini, kayıtlarını ve şifresiz kullanıcı listesini
+görür; başka kurumun kaydı hiçbir listede görünmez (`ISG.yetki.kapsam`,
+`ISG.yetki.kapsamliVeri`). Kullanıcı `uzmanSinifi` alanı onay eşiğiyle
+karşılaştırılır; tanınmayan ya da boş değer "sınıf belirtilmedi" sayılır ve o
+hesap onay yetkilisi olmaz (`ISG.uzmanSinifiKodu`, `ISG.ONAY_ESIGI`).
+
+`acilPlanlar[].ekip` zorunlu dört ekibin (söndürme, kurtarma, koruma, ilk
+yardım) üyelerini `rol` + `personelId` ile taşır; ekip tablosunun gerekli /
+kayıtlı / onaylı sayıları bu diziden ve işyerinin çalışan sayısından türetilir,
+ayrı bir yerde saklanmaz.
 
 `senkron` alanı bulut eşitlemesinin temelidir:
 
@@ -396,18 +450,24 @@ Test:
 
 ```powershell
 npm install
-npm test                     # 645 kontrol + belge testi (27 kontrol), başarısızda çıkış kodu 1
+npm test                     # 816 kontrol + belge testi (27 kontrol), başarısızda çıkış kodu 1
 npm run test:belge           # yalnızca belge eki testi (27 kontrol)
+npm run test:onay            # onay motoru + onay arayüzü (eşik, dağıtık yetkili, "yetkili eksik")
+npm run envanter             # SALT OKUNUR: işyeri başına uzman sınıfı / onay yetkilisi dökümü
+npm run surum:denetle        # varlık ?v= damgaları yerelle uyuşuyor mu
 ```
 
 Test; yükleme, **boş açılış ve örnek veri temizliği** (0 kayıt, boş ekran
 dolaşımı, mezar taşı üretimi, `ornekYukle()` ve düğme akışı), **giriş/oturum**,
-**rol ve işyeri kapsamı**,
+**rol ve işyeri kapsamı**, **kurum (OSGB) kapsamı ve OSGB Müdürü salt okunur
+panosu**, **uzman sınıfı / onay eşiği** (tek uzman doğrudan yazar, çok uzmanda
+eşik sınıfı onaylar, uygun sınıf yoksa "onay yetkilisi eksik"),
 **onay kuyruğu ve denetim izi**, iş kuralları, kapsam filtresi, personel CRUD,
 eğitim geçerliliği, dosya filtreleri ve sayfalama, DÖF oluşturma, plan
 tamamlama, **yıllık plan şablonu / Excel toplu yükleme / seçimle ve yıl bazında
 toplu silme / XLSX gidiş-dönüşü**, saha, risk/acil kayıtları ve belge ekleri,
-istatistikler, rapor,
+**acil durum planı tarih denetimi ile zorunlu dört ekibin gerekli/kayıtlı/onaylı
+mevcudu**, istatistikler, rapor,
 davet, mevzuat, şifre sıfırlama kodu, bulut eşitleme (ayar doğrulama, gönderim,
 indirme, çevrimdışı hata, bağlantı kesme), yapısal
 kontroller (tekrarlanan id, SVG referansı, göreli yollar), JSON yedekleme,
@@ -900,6 +960,43 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.21.0 — Kurum (OSGB) desteği, uzman sınıfına göre onay eşiği, zorunlu acil ekipler
+
+- **Kurum kaydı ve kapsam.** `kurumlar` üst düzey listesi OSGB kayıtlarını
+  tutar; işyerleri ve kullanıcılar `kurumId` ile bu kayda bağlanır. Boş
+  `kurumId` işyerinin kurumsuz (bağımsız) çalışmaya devam ettiği anlamına
+  gelir; tek kurumlu kurulumda alan otomatik seçilir. Kurum silinirken
+  işyerleri ve kullanıcılar silinmez, yalnızca bağ boşaltılır
+  (`ISG.depo.kurumKaydet` / `kurumSil`). Ayarlardaki eski serbest metin
+  `ayarlar.kurum` tek kurum kaydıyla eşitlenir.
+- **OSGB Müdürü rolü ve kurum panosu.** Yeni rol yalnız **kendi
+  kurumundaki** işyerlerini görür; yazma yetkisi yoktur. "Kurum panosu"
+  menüsü yalnız yönetici ve kurum kapsamlı rolde görünür: kurumun işyeri ve
+  kullanıcı sayıları, işyeri başına onay yetkilisi durumu, bekleyen talepler
+  ve kurum ekibi salt okunur listelenir (`SAYFALAR.kurum`).
+- **Uzman sınıfı ve onay eşiği.** Kullanıcıya `uzmanSinifi` (A/B/C) alanı
+  eklendi. Değişiklik onayı isteyen hesap, işyerinin tehlike sınıfına göre
+  `ISG.ONAY_ESIGI` eşiğini karşılamalıdır: çok tehlikeli **A**, tehlikeli
+  **A–B**, az tehlikeli **A–C**. Sınıf boş/bilinmiyorsa hesap onay yetkilisi
+  sayılmaz; uygun sınıfta uzman yoksa ekran "onay yetkilisi eksik" uyarısı
+  verir ve `npm run envanter` bunu işyeri bazında döker.
+- **İki onay modeli.** `ayarlar.onayModeli` boş/`rol` iken mevcut davranış
+  sürer; `isyeri` seçilirse onay işyeri bazlı dağıtık yetkililere gider.
+- **Acil durum planı tarih denetimi.** `ISG.acilPlanTarihKontrol` gelecekteki
+  hazırlanma/yenileme tarihlerini reddeder, süresi geçmiş planı yalnız
+  "gecikmiş" olarak işaretler, son tatbikat tarihi yoksa uyarı üretir.
+- **Zorunlu dört ekip.** Söndürme, kurtarma, koruma ve ilk yardım ekipleri
+  çalışan sayısı ve tehlike sınıfına göre oranla (1/50 · 1/40 · 1/30, ilk
+  yardım 1/20 · 1/15 · 1/10, yukarı yuvarlanır, en az 3) hesaplanır; çalışan
+  sayısı veya tehlike sınıfı yoksa gereksinim geçersizdir. Üyeler
+  `acilPlanlar[].ekip` altında rol + personel kimliğiyle tutulur, gerekli /
+  kayıtlı / onaylı mevcut karşılaştırması türetilir.
+- **Yeni araçlar ve testler.** `tools/yetki-envanter.js` (salt okunur onay
+  yetkilisi envanteri), `tools/saglik-aktar.js` (sağlık aktarım köprüsü),
+  `tools/varlik-surum.js --denetle`, `tools/hooks-kur.js` ve
+  `tools/yayin-dogrula.js`. Test kapsamı **816 kontrol + 27 belge kontrolü**;
+  `npm run test:onay` onay motoru ve arayüzünü ayrıca koşar.
 
 ### 2.20.0 — Çalışma planı durumu on seçenekli yeni modele göç etti
 

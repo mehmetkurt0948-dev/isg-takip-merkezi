@@ -794,6 +794,30 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .rol-satir > b { flex: 1 1 150px; min-width: 0; overflow-wrap: anywhere; }
 .rol-satir .rol-arac { display: flex; gap: 6px; flex: none; margin-left: auto; }
 .rol-satir .rol-arac .dugme { padding: 4px 8px; font-size: 11.5px; line-height: 1.2; white-space: nowrap; }
+
+/* ---------- Zorunlu ekip mevcudu (acil durum planı) ---------- */
+/* Mevcut/yeterli sayıları yönetmelik oranlarından otomatik hesaplanır; burada
+   yalnızca sonuç yazıya dökülür (kart, diyalog ve rapor aynı bloğu kullanır). */
+.ekip-ihtiyac {
+  display: grid; gap: 8px; min-width: 0; margin-top: 10px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: #fff;
+}
+.ekip-ihtiyac.kompakt { margin-top: 8px; padding: 8px 10px; background: #fbfcfe; }
+.ihtiyac-ust { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; }
+.ihtiyac-ust b { font-size: 12.5px; }
+.ihtiyac-liste { display: grid; gap: 5px; }
+.ihtiyac-satir {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 5px 9px;
+  padding: 7px 9px; border-left: 3px solid var(--line-strong); border-radius: 6px;
+  background: #fbfcfe; font-size: 12px;
+}
+.ihtiyac-satir.tamam { border-left-color: var(--green); }
+.ihtiyac-satir.uyari { border-left-color: var(--amber); background: var(--amber-bg); }
+.ihtiyac-satir.tehlike { border-left-color: var(--red); background: var(--red-bg); }
+.ihtiyac-ad { font-weight: 600; overflow-wrap: anywhere; }
+.ihtiyac-not { flex: 1 1 100%; color: var(--ink-soft); font-size: 11.5px; }
+.uyari-serit.uyari { border-color: var(--amber-line); background: var(--amber-bg); color: var(--amber); }
+.uyari-serit.tamam { border-color: var(--green-line); background: var(--green-bg); color: var(--green); }
 .akis { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 0; color: var(--brand); font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; }
 .akis:hover { color: var(--brand-2); }
 
@@ -899,6 +923,9 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
   background: var(--red-bg);
   color: var(--red);
   font-size: 12px;
+  /* Uyarı metni çok satırlı gelebilir (ISG.acilPlanTarihMetni gibi numaralı listeler);
+     satır sonları yutulmasın. */
+  white-space: pre-line;
 }
 .ipucu {
   margin-top: 8px;

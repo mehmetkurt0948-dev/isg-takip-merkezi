@@ -303,7 +303,8 @@
     return yoneticiHesap().concat([
       {
         id: 'u2', adSoyad: 'Buse Şenol', eposta: 'buse.senol@ornek.com', sifre: '1234',
-        rol: 'yetkili', gorev: 'B sınıfı İSG uzmanı', isyerleri: ['iy1', 'iy2'], aktif: true, sonGiris: ''
+        rol: 'yetkili', gorev: 'B sınıfı İSG uzmanı', uzmanSinifi: 'B',
+        isyerleri: ['iy1', 'iy2'], aktif: true, sonGiris: ''
       },
       {
         id: 'u3', adSoyad: 'Selin Aydın', eposta: 'selin.aydin@ornek.com', sifre: '1234',
