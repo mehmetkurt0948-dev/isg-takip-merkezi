@@ -302,6 +302,25 @@
     riskEkipUyeEkle: 1, riskEkipUyeSil: 1, acilEkipEkle: 1, acilEkipSil: 1
   };
 
+  /* İşyeriyle çalışıp kaydı yerinde değiştirmeyen toplu eylemler: ilk argüman
+     gene işyeri kimliğidir, ama eylem ya yeni kayıt ekler (toplu yükleme) ya da
+     filtreyle birden çok kaydın tek alanını günceller (dosya durumu) ya da liste
+     siler (personel temizliği). Tek bir hedef kayıt olmadığından "talep anındaki
+     kayıt" aranmaz; denetim işyerinin hâlâ var olmasıyla sınırlıdır. Bu liste
+     olmadığında sürüm denetimi işyeri kimliğini kayıtlar arasında arıyor ve
+     "Kayıt artık bulunmuyor" diyip Onayla düğmesini kalıcı olarak kilitliyordu. */
+  var ISYERI_TOPLU_EYLEMLER = {
+    personelTemizle: 'sil', personelTopluEkle: 'ekle', planTopluEkle: 'ekle',
+    dosyaDurumToplu: 'guncelle', listeUygula: 'ekle', listeGeriAl: 'sil'
+  };
+
+  function isyeriVar(isyeriId) {
+    if (!isyeriId) { return false; }
+    return (D.al().isyerleri || []).some(function (isyeri) {
+      return isyeri && isyeri.id === isyeriId;
+    });
+  }
+
   function isyeriKayitBul(listeAdi, isyeriId) {
     if (!listeAdi || !isyeriId || typeof ISG.ilgiliKayit !== 'function') { return null; }
     return ISG.ilgiliKayit(D.al(), listeAdi, isyeriId) || null;
@@ -359,6 +378,12 @@
 
   /* ---------- Onay kuyruğu ---------- */
 
+  /* Durum sözlüklerinden görünür adı bulur. */
+  function durumAdi(sozluk, anahtar) {
+    var tanim = sozluk && sozluk[anahtar];
+    return (tanim && tanim.ad) ? tanim.ad : String(anahtar || '');
+  }
+
   function ozetUret(ad, args) {
     var etiket = ETIKETLER[ad] || 'Değişiklik';
     /* Toplu personelde ilk argüman işyeri kimliği, ikincisi kayıt listesidir. */
@@ -374,6 +399,18 @@
       var filtre = args[0] || {};
       return etiket + ' · ' + (filtre.yil ? filtre.yil + ' yılı' : 'seçili kayıtlar') +
         (filtre.idler && filtre.idler.length ? ' · ' + filtre.idler.length + ' kayıt' : '');
+    }
+    /* Tek argümanlı durum eylemlerinde gönderilen kayıt nesnesi yoktur; karar
+       veriyor yönetici neyin değişeceğini özet satırından okuyabilir. */
+    if (ad === 'planDurumDegistir') {
+      return etiket + ' → ' + durumAdi(ISG.PLAN_DURUMLARI, ISG.planDurumNormal
+        ? ISG.planDurumNormal(args[1]) : args[1]);
+    }
+    if (ad === 'tespitDurumDegistir') {
+      return etiket + ' → ' + durumAdi(ISG.TESPIT_DURUMLARI, args[1]);
+    }
+    if (ad === 'dosyaDurumToplu') {
+      return etiket + ' → ' + durumAdi(ISG.DOSYA_DURUMLARI, args[1]) + ' (incelenmemiş tüm dosyalar)';
     }
     var ilk = args[0];
     if (Array.isArray(ilk)) { return etiket + ' · ' + ilk.length + ' kayıt'; }
@@ -411,6 +448,10 @@
     /* Risk ekibi ve acil durum planında args[0] işyeri kimliğidir: eski değer
        işyeri kaydından okunur, böylece yönetici gerçek değişikliği görür. */
     var isyeriListe = ISYERI_KAYIT_EYLEMLERI[ad] || '';
+    /* args[0] işyeri kimliği olup tek kayıtla eşleşmeyen toplu eylemlerde kayıt
+       aranmaz; aksi hâlde talep, onaylanamaz hâlde kuyrukta kalırdı. */
+    var toplu = ISYERI_TOPLU_EYLEMLER[ad] || '';
+    if (toplu) { kayitId = ''; tur = toplu; }
     var mevcut = isyeriListe ? isyeriKayitBul(isyeriListe, kayitId || isyeriId) : (kayitId ? kayitBul(kayitId) : null);
     if (isyeriListe) { kayitId = kayitId || isyeriId; tur = mevcut ? 'guncelle' : 'ekle'; }
     var talep = D.talepKaydet({
@@ -423,7 +464,7 @@
       modul: SAYFA_ESLEME[ad] || 'panel',
       sayfa: SAYFA_ESLEME[ad] || 'panel',
       kayitId: kayitId,
-      kayitTur: isyeriListe ? 'isyeri' : 'kayit',
+      kayitTur: isyeriListe || toplu ? 'isyeri' : 'kayit',
       islemTuru: tur,
       eskiKayit: mevcut ? kopyala(mevcut) : null,
       yeniKayit: tur === 'sil' ? null : kopyala(args[0]),
@@ -471,14 +512,30 @@
     return (sonuc && typeof sonuc === 'object') ? kopyala(sonuc) : true;
   }
 
+  /* Eski/yeni kayıt karşılaştırması. Depodaki kayitEsit() anahtar sırasını ve
+     eşitleme damgasını yok sayar; düz JSON.stringify, buluta gidip gelen ya da
+     başka bir yazımla damgası tazedelenen kaydı "değişmiş" sayar ve talep
+     hiçbir cihazda onaylanamaz hâle gelirdi. Eski depo sürümlerine karşı
+     fallback olarak metin karşılaştırması korunur. */
+  function kayitDegisti(guncel, eskiKayit) {
+    if (typeof D.kayitEsit === 'function') { return !D.kayitEsit(guncel, eskiKayit); }
+    return JSON.stringify(guncel) !== JSON.stringify(eskiKayit);
+  }
+
   /* Kayıt sürüm denetimi: talep oluşturulduktan sonra kayıt başka bir kullanıcı
      tarafından değiştirildiyse eski değerin üzerine yazılmaz. Risk ekibi ve acil
      durum planı işyeri kimliğiyle tutulduğu için arama işyeri kaydından yapılır. */
   function surumDenetle(talep) {
     if (!talep) { return; }
-    var isyeriListe = ISYERI_KAYIT_EYLEMLERI[(talep.eylem && talep.eylem.ad) || ''] || '';
+    var ad = (talep.eylem && talep.eylem.ad) || '';
+    var isyeriListe = ISYERI_KAYIT_EYLEMLERI[ad] || '';
+    if (ISYERI_TOPLU_EYLEMLER[ad]) {
+      /* Tek hedef kaydı olmayan toplu eylem: yalnızca işyeri denetlenir. */
+      if (!isyeriVar(talep.isyeriId)) { throw new Error('İşyeri artık bulunmuyor; talep uygulanmadı.'); }
+      return;
+    }
     if (isyeriListe) {
-      if (ISYERI_YERINDE_EYLEMLER[(talep.eylem && talep.eylem.ad) || '']) { return; }
+      if (ISYERI_YERINDE_EYLEMLER[ad]) { return; }
       var guncelIsyeri = isyeriKayitBul(isyeriListe, talep.kayitId);
       if (talep.islemTuru === 'ekle') {
         if (guncelIsyeri) { throw new Error('Kayıt bu arada oluşturulmuş; talep uygulanmadı.'); }
@@ -486,7 +543,7 @@
       }
       if (!guncelIsyeri) { throw new Error('Kayıt artık bulunmuyor; talep uygulanmadı.'); }
       if (!talep.eskiKayit) { return; }
-      if (JSON.stringify(guncelIsyeri) !== JSON.stringify(talep.eskiKayit)) {
+      if (kayitDegisti(guncelIsyeri, talep.eskiKayit)) {
         throw new Error('Kayıt talep oluşturulduktan sonra değişti; eski değerin üzerine yazılmadı. ' +
           'Talebi reddedip güncel kayıt üzerinden yeni talep isteyin.');
       }
@@ -500,7 +557,7 @@
     }
     if (!guncel) { throw new Error('Kayıt artık bulunmuyor; talep uygulanmadı.'); }
     if (!talep.eskiKayit) { return; }
-    if (JSON.stringify(guncel) !== JSON.stringify(talep.eskiKayit)) {
+    if (kayitDegisti(guncel, talep.eskiKayit)) {
       throw new Error('Kayıt talep oluşturulduktan sonra değişti; eski değerin üzerine yazılmadı. ' +
         'Talebi reddedip güncel kayıt üzerinden yeni talep isteyin.');
     }

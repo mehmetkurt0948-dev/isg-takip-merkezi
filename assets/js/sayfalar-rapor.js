@@ -1055,6 +1055,10 @@
         if (alan === 'id') { return; }
         ekle(alan, '', yeni[alan]);
       });
+    } else if (!talep.yeniKayit) {
+      /* Durum değiştirme gibi tek alanlı eylemlerde gönderilen kayıt nesnesi
+         yoktur; eski kaydın alanlarını yanına "—" yazmak değişmemiş alanı
+         değişmiş gibi gösterir. Ne değişeceği üstteki özet satırındadır. */
     } else {
       var alanlar = Object.keys(yeni).concat(Object.keys(eski)).filter(function (alan, sira, liste) {
         return alan !== 'id' && liste.indexOf(alan) === sira;

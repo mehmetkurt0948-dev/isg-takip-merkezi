@@ -931,15 +931,19 @@
 
   /* Anahtar sırasından ve liste sırasından bağımsız karşılaştırma metni.
      Sunucu jsonb alanı anahtarları yeniden sıraladığı için düz metin
-     karşılaştırması yanıltıcı olurdu. */
-  function kanonikMetin(deger) {
+     karşılaştırması yanıltıcı olurdu. `atlananlar` verilirse o alanlar metne
+     girmez (bkz. ISG.depo.kayitEsit). */
+  function kanonikMetin(deger, atlananlar) {
     if (deger === null || deger === undefined) { return 'null'; }
     if (typeof deger !== 'object') { return JSON.stringify(deger); }
     if (Array.isArray(deger)) {
-      return '[' + deger.map(kanonikMetin).join(',') + ']';
+      return '[' + deger.map(function (uye) { return kanonikMetin(uye, atlananlar); }).join(',') + ']';
     }
-    return '{' + Object.keys(deger).sort().map(function (anahtar) {
-      return JSON.stringify(anahtar) + ':' + kanonikMetin(deger[anahtar]);
+    var anahtarlar = Object.keys(deger).filter(function (anahtar) {
+      return !atlananlar || !atlananlar[anahtar];
+    }).sort();
+    return '{' + anahtarlar.map(function (anahtar) {
+      return JSON.stringify(anahtar) + ':' + kanonikMetin(deger[anahtar], atlananlar);
     }).join(',') + '}';
   }
 
@@ -2177,6 +2181,25 @@
     var veri = depo.al();
     veri.talepler = silListeden(veri.talepler, id);
     depo.kaydet();
+  };
+
+  /* Onay bekleyen talep sayısı; `isyeriId` verilirse yalnızca o işyeri sayılır.
+     Uygulama kabuğu bu sayıyı rozette gösterir. */
+  ISG.depo.talepBekleyenSayisi = function (isyeriId) {
+    return (depo.al().talepler || []).filter(function (talep) {
+      if (talep.durum !== 'bekliyor') { return false; }
+      return !isyeriId || talep.isyeriId === isyeriId;
+    }).length;
+  };
+
+  /* İki kaydın ANLAM olarak eşit olup olmadığını verir; onay kuyruğunun sürüm
+     denetimi bunu kullanır. Anahtar sırası (sunucu jsonb anahtarları yeniden
+     sıralıyor) ve kaydet()'in her yazımda tazelediği eşitleme damgası değişimi
+     bildirmez. Düz JSON.stringify karşılaştırması, hiçbir alanına dokunulmamış
+     kaydı "değişmiş" sayıp yöneticinin Onayla düğmesini kilitliyordu. */
+  var SURUM_ATLANAN = { guncelleme: 1 };
+  ISG.depo.kayitEsit = function (birinci, ikinci) {
+    return kanonikMetin(birinci, SURUM_ATLANAN) === kanonikMetin(ikinci, SURUM_ATLANAN);
   };
 
   /* ---------- Denetim izi ---------- */

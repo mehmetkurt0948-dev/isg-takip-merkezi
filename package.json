@@ -15,6 +15,7 @@
     "test:saglik": "node test/sagliktest.js && node test/sagliktoplutest.js",
     "test:senkron": "node test/senkrontest.js",
     "test:giris": "node test/girisbuluttest.js",
+    "test:onay": "node test/onaytest.js && node test/onayui_test.js",
     "ikon": "node tools/ikon.js",
     "liste": "node tools/kontrol-listesi.js",
     "yayin": "node tools/yayin-hazirla.js",
