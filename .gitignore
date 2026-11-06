@@ -31,3 +31,12 @@ _tmp-plan/
 test/d_dbg_*
 -ara.txt
 test-baseline.txt
+
+# Tek seferlik teshis/QA dosyalari (_s12.txt, _g6.txt, _kurtar/, out-*.js ...)
+# Bunlar calisma agacinin kokune birakilir; depoya asla girmez.
+_*.txt
+_*.js
+_*.json
+_*.csv
+_*.log
+_kurtar/
