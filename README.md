@@ -800,6 +800,46 @@ Modül `assets/js/saglik-toplu.js` (`ISG.saglikToplu`) altındadır; `analizEt`,
 `uygula`, `sablonSayfalar`, `sablonIndir`, `disaAktarSayfalar`, `disaAktar` ve
 `onizlemeSatirlari` arayüzden bağımsız test edilir (`test/sagliktoplutest.js`).
 
+### 6.6.1. Geliştirme aracı: `tools/saglik-aktar.js`
+
+İşyeri hekiminden gelen sağlık takip Excel'ini uygulamanın kendi `saglikTakip`
+yığınına aktaran köprü (`personel-aktar.js` ile aynı kalıp; modüller jsdom
+içinde yüklenir, yani şifreleme ve kayıt kuralları arayüzdekiyle aynıdır):
+
+```bash
+# 1) ANALİZ (varsayılan): hiçbir yere yazmaz, rapor üretir
+node tools/saglik-aktar.js "saglik.xlsx" --rapor=saglik-raporu.txt
+
+# 2) Buluttaki gerçek veri üzerinden analiz + örnek kayıt
+node tools/saglik-aktar.js saglik.xlsx --bulut --sinir=40
+
+# 3) YAZMA: yedeği alır, deltasını yazar
+node tools/saglik-aktar.js saglik.xlsx --bulut --yaz
+node tools/saglik-aktar.js saglik.xlsx --bulut --yaz --sifirla   # önceki aktarımı tazele
+```
+
+- **Eşleştirme sırası** T.C. Kimlik No → Sicil No → Ad Soyad; eşleşmeyen kişi
+  raporlanır ve **kişisiz sağlık kaydı açılmaz**.
+- Kişi başına **yıl başına bir kayıt** üretilir (tarih doluysa); `Sonuç` →
+  `sonMuayene`, sevk → `calismaYasagi`, meslek → `calismaSesi`. Diğer sayfalar
+  (YÜKSEK RİSKLİ, MALULİYET …) eşleşen kişinin kaydına bayrak/not olarak işlenir.
+- Aynı `personelId + tarih` ikilisi **mükerrer** sayılır, ikinci kez yazılmaz.
+- `--yaz` en az bir veri kaynağı (`--bulut` veya `--yerel=veri.json`) ister;
+  `--sifirla` yalnızca bu araçla açılmış kayıtları siler, elle girilenlere
+  dokunmaz. `--isyeri=` verilirse aktarım tek iş yeriyle sınırlanır.
+
+## 6.7. Yetki envanteri (salt okunur): `tools/yetki-envanter.js`
+
+Onay modelini açmadan önce "hangi işyeri tek uzmanlı (doğrudan yazma) kalacak,
+nerede onay yetkilisi eksik" sorusunu yanıtlar. Demo verisi ya da bir JSON
+yedeği üzerinde çalışır; **hiçbir dosyaya yazmaz, buluta bağlanmaz**:
+
+```powershell
+npm run envanter                          # demo verisi üzerinde
+node tools/yetki-envanter.js --yedek yedek.json
+node tools/yetki-envanter.js --json       # raporu JSON olarak
+```
+
 ## 7. Yayınlama (GitHub Pages)
 
 Uygulama tamamen statiktir: sunucu tarafı, derleme adımı, veritabanı veya API
