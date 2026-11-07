@@ -1851,6 +1851,13 @@
   saglikKasasi.kayitlar = saglikKasasi.kayitlar || [];
   saglikKasasi.talepler = saglikKasasi.talepler || [];
   saglikKasasi.calismaKitabi = saglikKasasi.calismaKitabi || null;
+  /* İşyeri başına kitap kayıtları; eski tek-kitap alanı (calismaKitabi) ayrı
+     durur ve görünümlere taşınmaz (bkz. saglikCalismaKitabiEski). */
+  saglikKasasi.calismaKitaplari = Array.isArray(saglikKasasi.calismaKitaplari)
+    ? saglikKasasi.calismaKitaplari.filter(function (kayit) {
+      return !!kayit && typeof kayit === 'object' && String(kayit.isyeriId || '').trim() !== '';
+    })
+    : [];
   var tasindi = false;
   if (!okunanVeri) {
     for (var geri = 0; geri < ESKI_ANAHTARLAR.length && !okunanVeri; geri += 1) {
@@ -3130,12 +3137,64 @@
   ISG.depo.saglikYetkiliMi = function (kullaniciId) {
     return (saglikKasasi.talepler || []).some(function (x) { return x.kullaniciId === kullaniciId && x.durum === 'onaylandi'; });
   };
-  ISG.depo.saglikCalismaKitabi = function () { return saglikKasasi.calismaKitabi; };
-  ISG.depo.saglikCalismaKitabiKaydet = function (kitap) {
-    saglikKasasi.calismaKitabi = kitap;
-    global.localStorage.setItem('isgtakip.saglik.kasa', JSON.stringify(saglikKasasi));
+  /* ---------- İşyeri hekimi çalışma kitabı (işyeri başına AYRI kayıt) ----------
+     Kitap satırları bir işyerinin personelini, muayene tarihini ve tanı metnini
+     taşır. Tek bir ortak kayıt tutulduğunda hangi satırın hangi işyerine ait
+     olduğu bilinemiyordu ve ASKI-1'in satırları ASKI-2 görünümünde okunuyordu.
+     Bu yüzden kayıt İŞYERİ KİMLİĞİ olmadan yazılmaz: kimliksiz çağrı reddedilir.
+     Kimlik işyeri kimliğinden türetilir (tekKayitId), böylece aynı işyerine
+     ikinci yükleme yeni kayıt üretmez, mevcut kaydı tazeler. */
+  ISG.depo.saglikCalismaKitaplari = function () {
+    return (saglikKasasi.calismaKitaplari || []).slice();
+  };
+  ISG.depo.saglikCalismaKitabiBul = function (isyeriId) {
+    var hedef = String(isyeriId === null || isyeriId === undefined ? '' : isyeriId).trim();
+    if (!hedef) { return null; }
+    return (saglikKasasi.calismaKitaplari || []).filter(function (kayit) {
+      return kayit && String(kayit.isyeriId || '') === hedef;
+    })[0] || null;
+  };
+  ISG.depo.saglikCalismaKitabiKaydet = function (isyeriId, kitap) {
+    var hedef = String(isyeriId === null || isyeriId === undefined ? '' : isyeriId).trim();
+    if (!hedef) {
+      throw new Error('Çalışma kitabı bir işyerine bağlanmadan kaydedilemez; önce işyerini seçin.');
+    }
+    saglikKasasi.calismaKitaplari = saglikKasasi.calismaKitaplari || [];
+    var girdi = kitap || {};
+    var kayit = ISG.depo.saglikCalismaKitabiBul(hedef);
+    if (!kayit) {
+      kayit = { id: tekKayitId('ck', hedef), isyeriId: hedef };
+      saglikKasasi.calismaKitaplari.push(kayit);
+    }
+    kayit.dosyaAdi = String(girdi.dosyaAdi || '');
+    kayit.yuklemeTarihi = String(girdi.yuklemeTarihi || new Date().toISOString());
+    kayit.yukleyen = String(girdi.yukleyen || '');
+    /* Satırlar tek bir şifreli gövde olarak saklanır (sg2:); düz metin satır
+       kasada durmaz. Şifreleme/çözme saglik-calisma-kitabi.js'tedir. */
+    kayit.sifreli = String(girdi.sifreli || '');
+    try { global.localStorage.setItem('isgtakip.saglik.kasa', JSON.stringify(saglikKasasi)); }
+    catch (hata) { throw new Error('Çalışma kitabı kaydedilemedi: korumalı depolama dolu.'); }
     yayinla();
-    return kitap;
+    return kayit;
+  };
+  ISG.depo.saglikCalismaKitabiSil = function (isyeriId) {
+    var hedef = String(isyeriId === null || isyeriId === undefined ? '' : isyeriId).trim();
+    if (!hedef) { return null; }
+    var silinen = ISG.depo.saglikCalismaKitabiBul(hedef);
+    saglikKasasi.calismaKitaplari = (saglikKasasi.calismaKitaplari || []).filter(function (kayit) {
+      return !kayit || String(kayit.isyeriId || '') !== hedef;
+    });
+    global.localStorage.setItem('isgtakip.saglik.kasa', JSON.stringify(saglikKasasi));
+    return silinen;
+  };
+  /* İşyeri kimliği taşımayan eski tek-kitap kaydı. Karışık işyeri satırları
+     içerdiği için HİÇBİR görünüme taşınmaz; yalnızca sahibine varlığı bildirilir
+     ve silme izni verilir. Veri kaybı olmasın diye otomatik silinmez. */
+  ISG.depo.saglikCalismaKitabiEski = function () { return saglikKasasi.calismaKitabi || null; };
+  ISG.depo.saglikCalismaKitabiEskiTemizle = function () {
+    saglikKasasi.calismaKitabi = null;
+    global.localStorage.setItem('isgtakip.saglik.kasa', JSON.stringify(saglikKasasi));
+    return true;
   };
 
   ISG.depo.ayarKaydet = function (alanlar) {

@@ -23,7 +23,7 @@ kayıt tabloları.
 | **Genel bakış** | Tüm işyerlerinden türetilen görev motoru: geciken / bugün / yaklaşan / tarihsiz işler, öncelik sıralı liste, işyeri bazında durum tablosu |
 | **İşyerleri** | Kurum şeridi (kurum adı, ad değiştir, tüm verileri sil), işyeri kartları (kurum, tehlike sınıfı, çalışan ve kontrol maddesi sayısı), kurum seçimli işyeri CRUD |
 | **Personel listesi** | İşyeri bazında bloklar, sicil/TC/meslek/departman/şube/kıdem/telefon/cinsiyet kolonları, arama, detay açma, eğitim kayıtları, gerçek **XLSX şablonu** ve XLSX/CSV içe-dışa aktarma, "listeyi temizle" |
-| **Sağlık takibi** | İşyeri hekimi sağlık kayıtları: personel, işyeri, tarih, doktor, kan grubu, alerji, kronik hastalık, ilaç, engel durumu, son muayene, çalışma yasağı, izinsizlik ve not alanları; hassas alanlar cihazda şifreli saklanır, kayıt ekleme/güncelleme yönetici ve yetkilide, silme yalnızca yöneticide. Personel veya işyeri silinse de muayene kayıtları silinmez: kişi adı, sicil ve işyeri adı kayda dondurulur, listede "silinmiş personel" rozetiyle okunmaya devam eder; silme onayında kaç kaydın korunduğu belirtilir; **tam personel listesi** (muayene kaydı olmayanlar dâhil, arama + durum + işyeri filtresi, kişi geçmişi ve kayıt düzenleme/silme), **üç gruplu katlanır kayıt formu**, **Excel şablonu / içe aktarma (ön izleme + onay) / dışa aktarma**. **Erişim ve izolasyon:** liste, sayaç, arama, tarama özeti ve Excel çıktısı **seçili işyeriyle** sınırlıdır (`#kapsam`); kayıtlar yalnız oturum sahibinin yetkili olduğu işyerlerinden döner, işyeri kimliği boş eski kayıtlar personelin işyeriyle eşleştirilir; görüntüleme izni (`ISG.yetki.saglikIzin()`) yazma izninden ayrıdır — OSGB Müdürü ve Görüntüleyici salt okunurdur, yetkisiz erişim denemeleri denetim izine yazılır |
+| **Sağlık takibi** | İşyeri hekimi sağlık kayıtları: personel, işyeri, tarih, doktor, kan grubu, alerji, kronik hastalık, ilaç, engel durumu, son muayene, çalışma yasağı, izinsizlik ve not alanları; hassas alanlar cihazda şifreli saklanır, kayıt ekleme/güncelleme yönetici ve yetkilide, silme yalnızca yöneticide. Personel veya işyeri silinse de muayene kayıtları silinmez: kişi adı, sicil ve işyeri adı kayda dondurulur, listede "silinmiş personel" rozetiyle okunmaya devam eder; silme onayında kaç kaydın korunduğu belirtilir; **tam personel listesi** (muayene kaydı olmayanlar dâhil, arama + durum + işyeri filtresi, kişi geçmişi ve kayıt düzenleme/silme), **üç gruplu katlanır kayıt formu**, **Excel şablonu / içe aktarma (ön izleme + onay) / dışa aktarma**, **işyeri başına ayrı ve şifreli çalışma kitabı** (`ISG.saglikCalismaKitabi.kitap(isyeriId)`, yükleme işyeri seçimi ister). **Erişim ve izolasyon:** liste, sayaç, arama, tarama özeti, çalışma kitabı ve Excel çıktısı **seçili işyeriyle** sınırlıdır (`#kapsam`); kayıtlar yalnız oturum sahibinin yetkili olduğu işyerlerinden döner, işyeri kimliği boş eski kayıtlar personelin işyeriyle eşleştirilir (aktarılan personelin eski kaydı yeni işyerine taşınmaz); görüntüleme izni (`ISG.yetki.saglikIzin()`) yazma izninden ayrıdır — OSGB Müdürü ve Görüntüleyici salt okunurdur, yetkisiz erişim denemeleri denetim izine yazılır |
 | **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma, **belge eki yükle / görüntüle / indir / kaldır** (belge başına ≤ 1 MB, `localStorage`) |
 | **Çalışma planı** | İlk yardımcı ihtiyaç/mevcut karşılaştırması, yıllık plan kartları, plan kalemi CRUD, tamamlandı işaretleme, plan KPI'ları, **yıl filtresi**, **hazır Excel şablonu indir**, **Excel/CSV toplu yükleme (ön izleme + onay)**, **Excel'e aktar**, satır seçip **toplu silme** |
 | **Saha ve DÖF** | Açık/geciken/doğrulama/kapatılan tespitler, öncelik-tür filtreleri, kapatma akışı, **iş kazası ve meslek hastalığı kayıt tablosu** (personel + sicil/departman, tanı bölgesi/türü, SGK hastalık grubu, etken, kök neden sınıfı ve açıklaması, kayıp gün, sağlık kuruluşu) ve CSV çıktısı, ramak kala ve diğer olay bildirimleri |
@@ -255,7 +255,7 @@ ve "Öncelikli işler" sayısı bu dağılımdan hesaplanır.
 | Risk değerlendirmesi olağan üst sınır | Az **6**, tehlikeli **4**, çok tehlikeli **2** yıl |
 | Acil durum planı yenileme | Az **6**, tehlikeli **4**, çok tehlikeli **2** yıl |
 | Acil durum planı tarih denetimi | Hazırlanma **veya** son yenileme zorunlu; ikisi de varsa son yenileme hazırlanmadan eski olamaz; biçimi bozuk / takvim dışı / **ileri tarih** kaydı engeller. Vade geçmişi engellemez, gecikme olarak gösterilir; son tatbikat boşsa uyarı verilir (`ISG.acilPlanTarihKontrol`) |
-| Zorunlu acil durum ekipleri | Söndürme / kurtarma / koruma: az **1/50**, tehlikeli **1/40**, çok tehlikeli **1/30**; ilk yardım: **1/20 · 1/15 · 1/10**; kesir yukarı yuvarlanır, **en az 3 kişi**. Çalışan sayısı veya tehlike sınıfı yoksa sayı uydurulmaz, hesap geçersiz sayılır (`ISG.acilEkipGereksinimi`, `ISG.acilEkipDurumu`) |
+| Zorunlu acil durum ekipleri | Söndürme / kurtarma / koruma: az **1/50**, tehlikeli **1/40**, çok tehlikeli **1/30**; ilk yardım: **1/20 · 1/15 · 1/10**; kesir yukarı yuvarlanır. Yasal bir "en az 3 kişi" tabanı **yoktur** (kaldırıldı: 1 kişilik az tehlikeli işyerinde 1 kişi yeter). Çalışan sayısı veya tehlike sınıfı yoksa sayı uydurulmaz, hesap geçersiz sayılır (`ISG.acilEkipGereksinimi`, `ISG.acilEkipDurumu`) |
 | Uzman sınıfı / onay eşiği | Onay yetkilisi olabilecek en düşük sınıf: çok tehlikeli **A**, tehlikeli **A–B**, az tehlikeli **A–C**. Bu tablo uygulamanın **değişiklik onayı** kuralıdır, mevzuatın görevlendirme şartı değildir (`ISG.ONAY_ESIGI`) |
 | Belge uyarı eşiği | Yenilemeye ≤ 14 gün: sarı, < 0 gün: kırmızı |
 | İş kazası bildirimi | SGK'ya en geç **3 iş günü** içinde; iş günü kaybı 0–365 gün |
@@ -808,6 +808,21 @@ Sağlık Takibi ekranında üç Excel işlemi vardır:
 | **Sağlık kaydı Excel'den yükle** | `.xlsx` dosyasını okur, kişiyi önce **Sicil No** sonra **Ad Soyad** ile eşleştirir, satırları doğrular ve **hiçbir şey yazmadan** ön izleme diyaloğu açar. |
 | **Excel'e aktar** | Kapsamdaki sağlık kayıtlarını (çözülmüş hâliyle) XLSX olarak indirir; dosya yeniden yüklenebilir. |
 
+Ayrıca **Excel listesini yükle** düğmesi işyeri hekiminin beş sekmeli çalışma
+kitabını (TAM LİSTE, YÜKSEK RİSKLİ MESLEKLER, ÇALIŞMASI UYGUN DEĞİLDİR, SAĞLIK
+TARAMALARI EKSİK OLANLAR, MALULİYETİ OLANLAR) okur. Bu liste **işyeri başına
+ayrı** saklanır ve yükleme **işyeri seçimini zorunlu** kılar:
+
+- Kayıt `isgtakip.saglik.kasa` içindeki `calismaKitaplari[]` dizisinde,
+  kimliği `ck-<isyeriId>` olacak şekilde tutulur; satırlar `sg2:` şifreli gövde
+  hâlindedir (düz metin ad/tanı kasada durmaz).
+- Okuma tek kapıdan yapılır: `ISG.saglikCalismaKitabi.kitap(isyeriId)`; kapsam
+  dışı işyeri için `null` döner. Ekran kitabı **yalnız seçili işyerinde** açar;
+  işyeri seçilmemişse satır basılmaz, yalnız `#saglik-kitap-ozet` özeti gösterilir.
+- Dosyada "İşyeri" sütunu varsa satır seçili işyeriyle eşleşmiyorsa ayrıca
+  süzülür; işyeri bağı olmayan **eski tek-kitap kaydı hiçbir görünüme taşınmaz**
+  (sahibine bildirilir, "Eski kaydı sil" ile kaldırılır).
+
 Ön izleme diyaloğunda **Dosya satırı / Kaydedilecek / Mükerrer / Hatalı** sayıları
 ve satır satır neden listelenir. Kayıtlar yalnızca **"Kaydedilecekleri ekle"**
 onayından sonra `ISG.saglikTakip.kaydet` üzerinden yazılır; böylece hassas
@@ -1101,6 +1116,42 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.25.0 — Çalışma kitabı işyerine bağlandı; aktarılan personelin kaydı eski işyerinde kalır
+
+- **Kök neden 1 — çalışma kitabı tek ortak kayıttı.** `isgtakip.saglik.kasa`
+  içinde `calismaKitabi` adlı **tek** kayıt tutuluyor, satırların hangi işyerine
+  ait olduğu bilinmiyordu. `SAYFALAR.saglik`, kitabı `seciliIsyeri` ve
+  `ISG.yetki.saglikKapsam()` sormadan doğrudan basıyordu: ASKI-2 seçiliyken
+  ASKI-1'in personeli, muayene tarihi ve **tanı metni** okunabiliyordu (kayıt
+  tablosu, personel listesi ve Excel çıktısı ise kapsamı uyguluyordu — tek istisna
+  kitap kartıydı). Artık kayıt **işyeri başına ayrıdır**: `calismaKitaplari[]`,
+  kimlik `ck-<isyeriId>` (`tekKayitId`), işyerisiz kayıt reddedilir
+  (`ISG.depo.saglikCalismaKitabiKaydet(isyeriId, kitap)`), okuma
+  `ISG.saglikCalismaKitabi.kitap(isyeriId)` üzerinden kapsam sorularak yapılır.
+- **Yükleme işyeri seçimi ister.** `saglik-xlsx-yukle` akışı işyeri seçili
+  değilse dosyayı hiç okumaz; `ISG.saglikCalismaKitabi.oku(dosya, isyeriId)`
+  görüntüleme izni + yazma izni + kapsam denetimi yapar (OSGB Müdürü
+  yükleyemez). Geç yanıt koruması işyeri kimliğini de karşılaştırır.
+- **İki savunma hattı.** Kitap yalnız **seçili işyerinde** açılır; işyeri
+  seçilmemişse satır basılmaz, yalnız hangi işyerinde kitap olduğunu söyleyen
+  özet (`#saglik-kitap-ozet`) gösterilir. Dosyada "İşyeri" sütunu varsa satır,
+  seçili işyerinin adıyla eşleşmiyorsa ayrıca süzülür.
+- **Kitap satırları artık şifreli.** Satırlar kasaya `sg2:` gövdesi hâlinde
+  yazılır; düz metin ad/tanı `localStorage`'da durmaz.
+- **Eski tek-kitap kaydı gösterilmez.** İşyeri bağı olmadığı ve karışık işyeri
+  satırları taşıdığı için hiçbir görünüme taşınmaz; sahibine varlığı bildirilir
+  ve "Eski kaydı sil" düğmesi verilir. Veri otomatik silinmez.
+- **Kök neden 2 — personel aktarımı kaydı yeni işyerine taşıyordu.**
+  `kayitKapsamda` kaydın kendi `isyeriId`'si kapsam dışıysa **personelin** yeni
+  işyerine düşüyordu: ASKI-2'ye ait kayıt, personel ASKI-1'e aktarılınca ASKI-1
+  yetkilisinin listesine giriyordu ("Tüm yetkili işyerleri" görünümünde). Kişiye
+  düşme artık **yalnızca işyeri kimliği boş** eski kayıtlarda; ekran süzgeci
+  (`SAYFALAR.saglik`) ve silme denetimi aynı kuralı kullanır.
+- **Regresyon testleri.** `test/yetkikapsam.js` bölüm 16–18 (kitap işyeri
+  ayrımı, kripto, işyeri seçmeden yükleme reddi, kapsam dışı kitap okunamaz,
+  aktarılan personelin kaydı sızmaz); `test/sagliktest.js` ve
+  `test/sagliktoplutest.js` yeni sözleşmeye (işyeri başına kitap) güncellendi.
 
 ### 2.24.0 — Sağlık takibi erişimi, işyeri bazlı veri izolasyonu ve yönetici kapsamı
 

@@ -2728,6 +2728,28 @@
         UI.saglikListeSekmesi = Number(dugme.getAttribute('data-sekme')) || 0;
         ciz();
         break;
+      /* Çalışma kitabı özetinden işyeri seçimi: kitap yalnızca tek işyeri
+         görünümünde açılır; seçim, işyerine bağlı ekran durumunu temizler. */
+      case 'saglik-kitap-isyeri':
+        if (id && ISG.yetki.kapsamda(id)) {
+          UI.kapsam = id;
+          kapsamDurumunuTemizle();
+          UI.saglikListeSekmesi = 0;
+          UI.saglikKitapArama = '';
+          UI.saglikKitapSayfa = 1;
+          ciz(true);
+        }
+        break;
+      case 'saglik-kitap-eski-sil':
+        onayIste('Eski çalışma kitabı silinsin mi?',
+          'İşyerine bağlanmamış eski kitap kaydı silinecek. Satırlar zaten görüntülenmiyor; ' +
+          'silmeden önce gerekiyorsa ilgili işyeri için Excel dosyasını yeniden yükleyin.',
+          function () {
+            ISG.depo.saglikCalismaKitabiEskiTemizle();
+            B.bildir('İşyerine bağlanmamış eski çalışma kitabı silindi.', 'basari');
+            ciz();
+          });
+        break;
       case 'saglik-erisim-talep':
         ISG.saglikTakip.erisimTalepEt(); B.bildir('Erişim talebi kaydedildi. Yönetici aynı cihazdaki sağlık bölümünde değerlendirebilir.', 'basari'); ciz();
         break;
@@ -4297,16 +4319,24 @@
     if (saglikDosya) { saglikDosya.addEventListener('change', function () {
       var dosya = saglikDosya.files && saglikDosya.files[0];
       if (!dosya) { return; }
+      /* Kitap işyerine bağlanır: işyeri seçilmeden dosya okunmaz. Seçim
+         yalnızca görüntüyü değil SAKLAMAYI da belirler. */
+      var hedefIsyeri = UI.kapsam || '';
+      if (!hedefIsyeri) {
+        saglikDosya.value = '';
+        B.bildir('Çalışma kitabı işyeri bazında saklanır: önce yukarıdaki işyeri seçicisinden işyerini seçin.', 'uyari');
+        return;
+      }
       /* Geç yanıt koruması: dosya okunurken işyeri değişirse eski okumanın
          sonucu yeni ekranı ezmez (yalnızca bilgi verilir, yeniden çizilmez). */
       var surum = Number(UI.kapsamSurum) || 0;
-      ISG.saglikCalismaKitabi.oku(dosya).then(function (sekmeler) {
-        if ((Number(UI.kapsamSurum) || 0) !== surum) {
+      ISG.saglikCalismaKitabi.oku(dosya, hedefIsyeri).then(function (sekmeler) {
+        if ((Number(UI.kapsamSurum) || 0) !== surum || (UI.kapsam || '') !== hedefIsyeri) {
           B.bildir('Excel listesi yüklendi; işyeri değiştiği için ekran yenilenmedi.', 'bilgi');
           return;
         }
         UI.saglikListeSekmesi = 0;
-        B.bildir('Excel listesi yüklendi: ' + sekmeler.length + ' sekme.', 'basari');
+        B.bildir('Excel listesi yüklendi: ' + sekmeler.length + ' sekme · ' + ISG.isyeriAdi(veri(), hedefIsyeri) + '.', 'basari');
         ciz();
       }).catch(function (hata) { B.bildir(hata.message || 'Excel dosyası okunamadı.', 'hata'); }).finally(function () { saglikDosya.value = ''; });
     }); }

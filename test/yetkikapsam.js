@@ -304,6 +304,71 @@ function kayitEkle(personelId, isyeriId, tarih) {
     'yeniden girişte işyeri yetkisi korunuyor', ISG.yetki.kapsam().join(','));
   ok(!ISG.ui.saglikKisi, 'yeni oturumda önceki seçimler devralınmıyor');
 
+  /* 16) Calisma kitabi isyerine baglidir ve yalniz bagli isyerinde okunur.
+     Regresyon: tek ortak kayit tutuldugunda ASKI-1 satirlari ASKI-2 gorunumunde
+     okunuyordu; satirlar ayrica kasada duz metin duruyordu. */
+  girisYap(yonetici);
+  const kitapYaz = (isyeriId, ad, satirlar) => ISG.depo.saglikCalismaKitabiKaydet(isyeriId, {
+    dosyaAdi: ad, yuklemeTarihi: new Date().toISOString(), yukleyen: 'u1',
+    sifreli: ISG.saglikTakip.sifrele(JSON.stringify([{ ad: 'TAM LİSTE', satirlar: satirlar }]))
+  });
+  kitapYaz('isyeri-1', 'ASKI-1.xlsx', [
+    ['Sicil', 'Ad Soyad', 'İşyeri', 'Sonuç'], ['S-1', 'Birinci Kisi', 'ASKI - 1', 'TESHIS-1']
+  ]);
+  kitapYaz('isyeri-2', 'ASKI-2.xlsx', [
+    ['Sicil', 'Ad Soyad', 'İşyeri', 'Sonuç'],
+    ['S-2', 'Ikinci Kisi', 'ASKI - 2', 'TESHIS-2'],
+    ['S-9', 'Dokuzuncu Kisi', 'Diger Kurum Isyeri', 'TESHIS-9']
+  ]);
+  ok(ISG.depo.saglikCalismaKitaplari().length === 2, 'çalışma kitabı işyeri başına ayrı kayıt',
+    String(ISG.depo.saglikCalismaKitaplari().length));
+  const hamKasa = pencere.localStorage.getItem('isgtakip.saglik.kasa') || '';
+  ok(hamKasa.indexOf('TESHIS-1') < 0 && hamKasa.indexOf('sg2:') > -1,
+    'kitap satırları kasada düz metin durmuyor (şifreli gövde)');
+  let yuklemeReddi = '';
+  try { await ISG.saglikCalismaKitabi.oku({ name: 'x.xlsx' }, ''); }
+  catch (hata) { yuklemeReddi = hata.message; }
+  ok(/işyerine bağlanır/.test(yuklemeReddi), 'işyeri seçilmeden çalışma kitabı yüklenemez', yuklemeReddi);
+
+  const kitapMetni = () => { const e = belge.querySelector('#saglik-kitap-tablo'); return e ? e.textContent : ''; };
+  ISG.ui.kapsam = '';
+  ISG.uygulama.ciz();
+  ok(!belge.querySelector('#saglik-kitap-tablo'), 'işyeri seçilmeden kitap satırı basılmıyor');
+  ok(!!belge.querySelector('#saglik-kitap-ozet'), 'işyeri seçilmeden yalnız kitap özeti gösteriliyor');
+  ISG.ui.kapsam = 'isyeri-1';
+  ISG.uygulama.ciz();
+  ok(kitapMetni().indexOf('Birinci Kisi') > -1 && kitapMetni().indexOf('Ikinci Kisi') < 0,
+    'ASKI-1 kitabı yalnız ASKI-1 satırını gösteriyor', kitapMetni().slice(0, 120));
+  ISG.ui.kapsam = 'isyeri-2';
+  ISG.uygulama.ciz();
+  ok(kitapMetni().indexOf('Ikinci Kisi') > -1 && kitapMetni().indexOf('Birinci Kisi') < 0,
+    'ASKI-2 kitabı ASKI-1 satırını göstermiyor', kitapMetni().slice(0, 120));
+  ok(kitapMetni().indexOf('Dokuzuncu Kisi') < 0,
+    'dosyaya karışan kapsam dışı işyeri satırı süzülüyor');
+
+  /* 17) Kapsam disi isyerinin kitabi okunamaz; ozet de kapsami asmaz. */
+  girisYap(kisitliYonetici);
+  ok(ISG.saglikCalismaKitabi.kitap('isyeri-2') === null,
+    'kapsam dışı işyerinin çalışma kitabı okunamıyor');
+  ok(ISG.saglikCalismaKitabi.ozetListe().every((k) => k.isyeriId === 'isyeri-1'),
+    'kitap özeti yetki kapsamını aşmıyor',
+    ISG.saglikCalismaKitabi.ozetListe().map((k) => k.isyeriId).join(','));
+  girisYap(osgbMudur);
+  let mudurReddi = '';
+  try { await ISG.saglikCalismaKitabi.oku({ name: 'y.xlsx' }, 'isyeri-1'); }
+  catch (hata) { mudurReddi = hata.message; }
+  ok(/yalnızca yönetici/.test(mudurReddi), 'OSGB Müdürü çalışma kitabı yükleyemez (salt okunur)', mudurReddi);
+
+  /* 18) Aktarilan personel: kayit eski isyerinde kalir, yenisine sizmaz. */
+  girisYap(yonetici);
+  ISG.depo.al().personel.push({ id: 'p3', sicil: 'S-3', adSoyad: 'Aktarilan Kisi', isyeriId: 'isyeri-1', aktif: true });
+  ISG.depo.kaydet();
+  ISG.depo.saglikTakipKaydet({ id: 'sk-transfer', personelId: 'p3', isyeriId: 'isyeri-2', tarih: '2026-03-03' });
+  girisYap(kisitliYonetici);
+  ok(!ISG.saglikTakip.listele('', '').some((k) => k.id === 'sk-transfer'),
+    'aktarılan personelin ASKI-2 kaydı ASKI-1 yetkilisine görünmüyor',
+    ISG.saglikTakip.listele('', '').map((k) => k.id + ':' + (k.isyeriId || 'BOSS')).join(','));
+
   const basarisiz = !!process.exitCode;
   console.log(basarisiz ? 'BAZI YETKİ KAPSAMI TESTLERİ BAŞARISIZ' : 'TÜM YETKİ KAPSAMI TESTLERİ GEÇTİ');
   pencere.close();

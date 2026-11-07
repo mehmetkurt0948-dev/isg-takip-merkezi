@@ -144,10 +144,14 @@ function bosSatir(sicil, adSoyad, tarih) {
     for (let j = 0; j < adet; j += 1) { satirlar.push([String(j + 1), 'Kişi ' + (j + 1), '2026-01-01']); }
     return { ad: ad, satirlar: satirlar };
   });
-  ISG.depo.saglikCalismaKitabiKaydet({
-    dosyaAdi: 'test.xlsx', yuklemeTarihi: new Date().toISOString(), sekmeler: sekmeler
+  /* Kayıt işyerine bağlanır: kitap yalnızca seçili işyerinde okunur. */
+  ISG.depo.saglikCalismaKitabiKaydet('iy1', {
+    dosyaAdi: 'test.xlsx', yuklemeTarihi: new Date().toISOString(),
+    sifreli: ISG.saglikTakip.sifrele(JSON.stringify(sekmeler))
   });
   giris();
+  ISG.ui.kapsam = 'iy1';
+  ISG.uygulama.ciz();
   const sekmeMetni = belge.querySelector('.saglik-sayfa .sekme-satir').textContent;
   ok(sekmeMetni.indexOf('[object Object]') < 0, 'sekme etiketlerinde "[object Object]" yok');
   ok(sekmeMetni.indexOf('TAM LİSTE') > -1 && sekmeMetni.indexOf('MALULİYETİ OLANLAR') > -1,

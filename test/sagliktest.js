@@ -138,7 +138,12 @@ function girisYap(kullanici) {
 (async function main() {
   girisYap(yonetici);
   ok(!!sayfa(), 'saglik sayfasi render ediliyor');
-  ok(belge.querySelectorAll('.saglik-sayfa [data-islem="saglik-liste-sekme"]').length === 5, 'Excel çalışma kitabının beş sekmesi görünür');
+  /* Çalışma kitabı işyeri bazındadır: işyeri seçilmeden hiçbir satır basılmaz,
+     yalnız hangi işyerinde kitap olduğunu söyleyen özet gösterilir. */
+  ok(!belge.querySelector('#saglik-kitap-tablo'), 'işyeri seçilmeden çalışma kitabı satırı basılmıyor');
+  const kitapOzet = belge.querySelector('#saglik-kitap-ozet');
+  ok(!!kitapOzet && kitapOzet.textContent.indexOf('A Tesisi') > -1 && kitapOzet.textContent.indexOf('B Tesisi') > -1,
+    'çalışma kitabı özeti yetkili işyerlerini listeliyor');
   ok(govde().indexOf('sevk ve çalışma yasağı takibi') > -1, 'sayfa başlığı sevk + çalışma yasağını anlatıyor');
   const thead = belge.querySelector('#saglik-kayit-tablo thead');
   const theadHtml = thead ? thead.innerHTML : '';

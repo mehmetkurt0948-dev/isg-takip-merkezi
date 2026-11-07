@@ -142,13 +142,16 @@
     return D.saglikTakipKaydet(sifreli);
   }
 
-  /* Kapsam süzgeci: kaydın işyeri yetkili işyerlerinden biriyse görünür.
-     İşyeri kimliği boş/eski kayıtlarda personelin işyeri esas alınır; hiçbir
-     biçimde eşleştirilemeyen kayıt başka işyerine aitmiş gibi GÖSTERİLMEZ. */
+  /* Kapsam süzgeci: kaydın İŞYERİ yetkili işyerlerinden biriyse görünür.
+     Yalnızca işyeri kimliği BOŞ olan eski/bozuk kayıtta personelin işyerine
+     düşülür. Kayıt bir işyerine aitse personel sonradan başka işyerine
+     aktarılmış olsa bile kayıt O işyerinde kalır; aksi hâlde ASKI-2'nin kaydı
+     ASKI-1 yetkilisinin listesine düşerdi. Hiçbir biçimde eşleştirilemeyen
+     kayıt başka işyerine aitmiş gibi GÖSTERİLMEZ. */
   function kayitKapsamda(kayit, kapsam, kisiInd) {
     if (!kayit) { return false; }
     if (kapsam.tum) { return true; }
-    if (kayit.isyeriId && kapsam.sozluk[kayit.isyeriId]) { return true; }
+    if (kayit.isyeriId) { return kapsam.sozluk[kayit.isyeriId] === true; }
     var kisi = kisiInd && kisiInd[kayit.personelId];
     if (kisi && kisi.isyeriId && kapsam.sozluk[kisi.isyeriId]) { return true; }
     return false;

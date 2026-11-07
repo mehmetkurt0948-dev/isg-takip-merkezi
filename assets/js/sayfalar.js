@@ -663,12 +663,13 @@
       };
     });
     /* İkinci savunma hattı: sorgu katmanı kapsamı zaten süzüyor, ekranda da
-       seçili işyeri dışındaki kayıt (geç/bozuk yanıt) gösterilmez. İşyeri
-       kimliği boş eski kayıtlar, personelin bağlı olduğu işyeriyle eşleşiyorsa
-       görünür; hiçbir işyeriyle eşleşmeyen kayıt başkasına yazılmaz. */
+       seçili işyeri dışındaki kayıt (geç/bozuk yanıt) gösterilmez. Kayıt bir
+       işyerine aitse o işyeri belirleyicidir; personelin işyerine YALNIZCA
+       kaydın işyeri kimliği boşsa düşülür (aktarılan personelin eski kaydı
+       yeni işyerinde görünmez). */
     if (seciliIsyeri) {
       zengin = zengin.filter(function (z) {
-        if (z.k.isyeriId === seciliIsyeri) { return true; }
+        if (z.k.isyeriId) { return z.k.isyeriId === seciliIsyeri; }
         var kisi = kisiInd[z.k.personelId];
         return !!kisi && kisi.isyeriId === seciliIsyeri;
       });
@@ -811,7 +812,18 @@
       }
     }
 
-    var calismaKitabi = ISG.depo.saglikCalismaKitabi ? ISG.depo.saglikCalismaKitabi() : null;
+    /* ---------- İşyeri hekimi çalışma kitabı: İŞYERİ BAŞINA ----------
+       Kitap satırları bir işyerinin personelini, muayene tarihini ve tanı metnini
+       taşır. Tek ortak kayıt tutulduğunda ASKI-1'in satırları ASKI-2 görünümünde
+       okunuyordu. Bu yüzden kitap yalnızca SEÇİLİ İŞYERİ için açılır; işyeri
+       seçilmemişse hiçbir satır basılmaz, yalnızca hangi işyerinde kitap olduğunu
+       söyleyen özet gösterilir. İşyeri bağı olmayan eski tek-kitap kaydı hiçbir
+       görünüme taşınmaz (bkz. depo.saglikCalismaKitabiEski). */
+    var kitapOzeti = (ISG.saglikCalismaKitabi && typeof ISG.saglikCalismaKitabi.ozetListe === 'function')
+      ? ISG.saglikCalismaKitabi.ozetListe() : [];
+    var calismaKitabi = (seciliIsyeri && ISG.saglikCalismaKitabi && typeof ISG.saglikCalismaKitabi.kitap === 'function')
+      ? ISG.saglikCalismaKitabi.kitap(seciliIsyeri) : null;
+    var eskiKitap = (rol.yonetir && ISG.depo.saglikCalismaKitabiEski) ? ISG.depo.saglikCalismaKitabiEski() : null;
     var varsayilanSekmeler = ['TAM LİSTE', 'YÜKSEK RİSKLİ MESLEKLER', 'ÇALIŞMASI UYGUN DEĞİLDİR',
       'SAĞLIK TARAMALARI EKSİK OLANLAR', 'MALULİYETİ OLANLAR'];
     /* Sekmeler {ad, satirlar} nesneleridir. Etiket olarak nesne basılırsa ekranda
@@ -833,6 +845,25 @@
     if (calismaKitabi) {
       var basliklar = calismaSatirlari.length ? calismaSatirlari[0] : [];
       var veriSatirlari = calismaSatirlari.slice(1);
+      /* İkinci savunma hattı: dosyada "İşyeri" sütunu varsa satır, seçili
+         işyerinin adı/kimliğiyle eşleşmiyorsa GÖSTERİLMEZ. Dosya yanlış
+         işyerine bağlanmış olsa bile başka işyerinin satırı listeye girmez. */
+      var isyeriSutunu = -1;
+      basliklar.forEach(function (baslik, i) {
+        if (isyeriSutunu >= 0) { return; }
+        var ad = String(baslik || '').toLocaleLowerCase('tr-TR');
+        if (ad.indexOf('işyer') >= 0 || ad.indexOf('isyer') >= 0) { isyeriSutunu = i; }
+      });
+      if (isyeriSutunu >= 0) {
+        var seciliIsyeriAdi = (isyInd[seciliIsyeri] && isyInd[seciliIsyeri].ad) || '';
+        var hedefAd = String(seciliIsyeriAdi).toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+        veriSatirlari = veriSatirlari.filter(function (satir) {
+          var hucre = String((satir && satir[isyeriSutunu]) || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+          if (!hucre) { return true; }
+          if (!hedefAd) { return false; }
+          return hucre.indexOf(hedefAd) >= 0 || hedefAd.indexOf(hucre) >= 0;
+        });
+      }
       var aramaKitap = String(UI.saglikKitapArama || '').toLocaleLowerCase('tr-TR');
       if (aramaKitap) {
         veriSatirlari = veriSatirlari.filter(function (r) { return r.join(' ').toLocaleLowerCase('tr-TR').indexOf(aramaKitap) >= 0; });
@@ -865,12 +896,64 @@
       '<button type="button" class="dugme" data-islem="saglik-sablon">Şablon indir (.xlsx)</button>' +
       '<button type="button" class="dugme" data-islem="saglik-disa-aktar">Excel\'e aktar</button>' +
     '</div>' : '';
+
+    /* İşyeri seçilmeden yalnızca "hangi işyerinde kitap var" bilgisi basılır;
+       satır içeriği hiçbir koşulda bu görünüme taşınmaz. */
+    var kitapOzetTablosu = '';
+    if (!seciliIsyeri && (hesap.isyerleri || []).length) {
+      kitapOzetTablosu = '<div class="tablo-kap"><table class="tablo-kucuk" id="saglik-kitap-ozet"><thead><tr>' +
+          '<th>İşyeri</th><th>Dosya</th><th>Yükleme</th><th></th>' +
+        '</tr></thead><tbody>' + (hesap.isyerleri || []).map(function (isyeri) {
+          var kayit = kitapOzeti.filter(function (k) { return k.isyeriId === isyeri.id; })[0] || null;
+          return '<tr><td><b>' + kacis(isyeri.ad) + '</b></td>' +
+            '<td>' + (kayit ? kacis(kayit.dosyaAdi || '—') : '<span class="muted">Yüklenmedi</span>') + '</td>' +
+            '<td>' + (kayit && kayit.yuklemeTarihi ? B.tarih(String(kayit.yuklemeTarihi).slice(0, 10)) : '—') + '</td>' +
+            '<td><button type="button" class="dugme ince" data-islem="saglik-kitap-isyeri" data-id="' + kacis(isyeri.id) + '">' +
+              (kayit ? 'Görüntüle' : 'Bu işyerini seç') + '</button></td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<p class="muted">Çalışma kitabı işyeri başına ayrı saklanır; satırlar yalnızca bağlı olduğu işyerinde görünür.</p>';
+    }
+
+    var kitapIcerik;
+    if (calismaKitabi) {
+      kitapIcerik = '<div class="sekme-satir">' + sekmeAdlari.map(function (ad, i) {
+        return '<button type="button" class="sekme' + (i === seciliListeSekmesi ? ' aktif' : '') +
+          '" data-islem="saglik-liste-sekme" data-sekme="' + i + '">' + kacis(ad) +
+          (kitapSekmeleri[i] ? ' <b>' + B.sayi(sekmeSatirSayisi(kitapSekmeleri[i])) + '</b>' : '') + '</button>';
+      }).join('') + '</div>' + calismaTablo;
+    } else if (seciliIsyeri) {
+      kitapIcerik = '<div class="kart-ic">' + B.bosDurum('Bu işyeri için çalışma kitabı yok',
+        rol.yonetir
+          ? '“Excel listesini yükle” düğmesiyle seçili işyerinin dosyasını yükleyin. Dosya bu işyerine bağlanır ve başka işyerinin görünümünde okunmaz.'
+          : 'Yönetici bu işyeri için kitap yüklediğinde burada görünür.', 'i-saglik') + '</div>';
+    } else {
+      kitapIcerik = '<div class="kart-ic">' + B.bosDurum('İşyeri seçilmedi',
+        'Çalışma kitabı işyeri bazında saklanır. Satırları görmek için yukarıdaki işyeri seçicisinden bir işyeri seçin.',
+        'i-building') + '</div>' + kitapOzetTablosu;
+    }
+
+    /* Eski tek-kitap kaydı: işyeri bağı olmadığı için gösterilmez, varlığı
+       sahibine bildirilir. Karışık işyeri satırları başka görünüme sızmasın. */
+    var eskiKitapUyari = (eskiKitap && rol.yonetir)
+      ? '<div class="uyari-serit">' + B.ikon('i-alert') +
+        kacis('Bu cihazda işyerine bağlanmamış eski bir çalışma kitabı kaydı var. Birden çok işyerinin satırlarını içerdiği için gösterilmiyor. ' +
+          'İlgili işyerini seçip Excel dosyasını yeniden yükleyin; ardından eski kaydı silebilirsiniz.') +
+        '<button type="button" class="dugme ince" data-islem="saglik-kitap-eski-sil">Eski kaydı sil</button></div>'
+      : '';
+
+    var kitapBaslik = calismaKitabi
+      ? 'İşyeri: ' + kacis((isyInd[seciliIsyeri] && isyInd[seciliIsyeri].ad) || '—') +
+        ' · Kaynak: ' + kacis(calismaKitabi.dosyaAdi || '—') +
+        (calismaKitabi.yuklemeTarihi ? ' · ' + B.tarih(String(calismaKitabi.yuklemeTarihi).slice(0, 10)) : '')
+      : 'İşyeri hekimi listesi · işyeri başına ayrı kayıt · beş sekme';
     return '<section class="sayfa saglik-sayfa">' +
       sayfaBaslik('SAĞLIK TAKİBİ', 'Personel Sağlık Takibi',
         'Muayene kayıtları, sevk ve çalışma yasağı takibi.', kapsamSecici(hesap)) +
       talepKart +
       taramaOzeti +
-      '<div class="kart"><div class="kart-baslik"><div><h2>İşyeri hekimi çalışma kitabı</h2><p>' + (calismaKitabi ? 'Kaynak: ' + kacis(calismaKitabi.dosyaAdi || 'ASKI İş Yeri Hekimi Sağlık Takip 2026–2028') + ' · ' + B.tarih(String(calismaKitabi.yuklemeTarihi || '').slice(0, 10)) : 'ASKI İş Yeri Hekimi Sağlık Takip 2026–2028 · beş sekmeli liste') + '</p></div>' + kitapArac + '</div><div class="sekme-satir">' + sekmeAdlari.map(function (ad, i) { return '<button type="button" class="sekme' + (i === seciliListeSekmesi ? ' aktif' : '') + '" data-islem="saglik-liste-sekme" data-sekme="' + i + '">' + kacis(ad) + (kitapSekmeleri[i] ? ' <b>' + B.sayi(sekmeSatirSayisi(kitapSekmeleri[i])) + '</b>' : '') + '</button>'; }).join('') + '</div>' + (calismaKitabi ? calismaTablo : '<div class="kart-ic">' + B.bosDurum('Çalışma kitabı henüz yüklenmedi', rol.yonetir ? '“Excel listesini yükle” düğmesini seçin. Dosyanın beş sekmesi sağlık kasasına aktarılacak.' : 'Çalışma kitabı yönetici tarafından yüklendikten sonra burada görünür.', 'i-saglik') + '</div>') + (calismaKitabi && rol.yonetir ? '<p class="muted">Liste bu cihazın korumalı sağlık kasasında saklanır. Genel bulut eşitlemesine eklenmez.</p>' : '') + '</div>' +
+      eskiKitapUyari +
+      '<div class="kart" id="saglik-kitap-kart"><div class="kart-baslik"><div><h2>İşyeri hekimi çalışma kitabı</h2><p>' + kitapBaslik + '</p></div>' + kitapArac + '</div>' + kitapIcerik +
+        ((calismaKitabi || kitapOzetTablosu) && rol.yonetir ? '<p class="muted">Liste bu cihazın korumalı sağlık kasasında şifreli saklanır ve yalnızca bağlı olduğu işyerinde görünür. Genel bulut eşitlemesine eklenmez.</p>' : '') + '</div>' +
       /* Personel listesi: kaydı olmayanlar dâhil tüm kadro */
       '<div class="kart" id="saglik-kisi-kart">' +
         '<div class="kart-baslik"><div><h2>Personel listesi</h2><p>Kapsamdaki tüm personel ve son muayene durumu; kaydı olmayanlar da izlenir.</p></div>' +
