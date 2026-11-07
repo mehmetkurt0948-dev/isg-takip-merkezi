@@ -429,8 +429,41 @@
 
   /* ---------- Acil durum planı ---------- */
 
+  /* Tarih kutusu: üç tarih BAĞIMSIZ gösterilir; hiçbiri diğerinin yerine
+     yazılmaz. Boş alan "Girilmedi" der, biçimi bozuk alan "Geçersiz" olarak
+     işaretlenir — böylece geçersiz tarih geçerliymiş gibi okunmaz. */
+  function acilTarihKutusu(etiket, deger, gecersizMi) {
+    var metin = deger ? (gecersizMi ? 'Geçersiz: ' + deger : B.tarih(deger)) : 'Girilmedi';
+    return '<div class="mini-kutu"><span>' + kacis(etiket) + '</span><b>' + kacis(metin) + '</b></div>';
+  }
+
+  /* Plan durumu tek yerden: "kayıt yok", "tarih girilmedi", "sınıf yok",
+     "vadesi geçti" ve "geçerli" birbirine karışmaz. */
+  function acilPlanRozeti(ozet) {
+    if (!ozet || ozet.durum === 'kayitYok' || ozet.durum === 'tarihsiz') {
+      return B.rozet('Plan tarihi girilmedi', 'tehlike');
+    }
+    if (ozet.durum === 'sinifYok') { return B.rozet('Yenileme aralığı belirlenemedi', 'uyari'); }
+    if (ozet.durum === 'gecikti') { return B.rozet('Yenileme gecikti', 'tehlike'); }
+    return B.rozet('Plan geçerli', 'iyi');
+  }
+  SAYFALAR.acilPlanRozeti = acilPlanRozeti;
+
+  /* Kayıt diyaloğunda kartla AYNI hesabı gösteren şerit: kullanıcı kaydetmeden
+     önce hangi tarihin dayanak alındığını ve en geç yenilemeyi görür. Tatbikatın
+     yenileme yerine sayılmadığı burada da açıkça yazar. */
+  function acilPlanOzetSeridi(sonuc) {
+    var kontrol = sonuc || {};
+    if (!kontrol.enGec) { return ''; }
+    var dayanak = kontrol.esasAlani === 'hazirlanma' ? 'ilk hazırlanma' : 'son yenileme';
+    return '<div class="uyari-serit tamam">' + B.ikon('i-calendar') +
+      kacis('En geç yenileme: ' + B.tarih(kontrol.enGec) + ' · dayanak: ' + dayanak +
+        ' tarihi · tatbikat tarihi yenileme yerine sayılmaz.') + '</div>';
+  }
+  SAYFALAR.acilPlanOzetSeridi = acilPlanOzetSeridi;
+
   function acilKarti(isyeri, hesap) {
-    var kayit = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeri.id);
+    var kayit = ISG.acilPlanKaydi(hesap, isyeri.id);
     var ozet = ISG.acilPlanOzeti(isyeri, kayit);
     /* Tehlike sınıfı girilmemişse varsayılan sınıf UYDURULMAZ: kart "girilmedi"
        der, yenileme aralığı boş kalır (şartname §2.3 / §7.6). */
@@ -469,14 +502,19 @@
       '<div>' +
         '<div class="satir-arac" style="justify-content:space-between;margin-bottom:7px">' +
           '<p class="bolum-baslik">Acil durum planı</p>' +
-          (!ozet.son ? B.rozet('Plan tarihi girilmedi', 'tehlike') :
-            (ozet.kalan !== null && ozet.kalan < 0 ? B.rozet('Yenileme gecikti', 'tehlike') : B.rozet('Plan geçerli', 'iyi'))) +
+          acilPlanRozeti(ozet) +
         '</div>' +
         '<div class="mini-izgara">' +
-          '<div class="mini-kutu"><span>Hazırlanma / son yenileme</span><b>' + (ozet.son ? B.tarih(ozet.son) : 'Girilmedi') + '</b></div>' +
+          acilTarihKutusu('İlk hazırlanma', ozet.hazirlanma, ozet.gecersiz.hazirlanma) +
+          acilTarihKutusu('Son yenileme', ozet.sonYenileme, ozet.gecersiz.sonYenileme) +
+          acilTarihKutusu('Son tatbikat', ozet.tatbikat, ozet.gecersiz.tatbikat) +
           '<div class="mini-kutu"><span>En geç yenileme</span><b>' + (ozet.enGec ? B.tarih(ozet.enGec) : 'Girilmedi') + '</b></div>' +
           '<div class="mini-kutu"><span>Olağan üst sınır</span><b>' + (sinif.acilYenilemeYil ? sinif.acilYenilemeYil + ' yıl' : 'Sınıf girilmedi') + '</b></div>' +
         '</div>' +
+        '<p class="bolum-aciklama" style="margin-top:8px">' + (ozet.esas ?
+          kacis('En geç yenileme, ' + (ozet.esasAlani === 'hazirlanma' ? 'ilk hazırlanma' : 'son yenileme') +
+            ' tarihine (' + B.tarih(ozet.esas) + ') yenileme aralığı eklenerek hesaplanır; son tatbikat tarihi yenileme yerine sayılmaz.') :
+          'Üç tarih birbirinden bağımsızdır: ilk hazırlanma, son yenileme ve son tatbikat ayrı alanlardan okunur; boş alan "Girilmedi" kalır.') + '</p>' +
         (tarihSerit ? '<div style="margin-top:8px">' + tarihSerit + '</div>' : '') +
         '<p class="bolum-aciklama" style="margin-top:8px">' + (sinif.acilYenilemeYil ?
           kacis(sinifAdi) + ' sınıfında plan en geç ' + sinif.acilYenilemeYil +
@@ -537,7 +575,7 @@
     /* Sayfa özeti: kartları tek tek açmadan hangi işyerinde ne eksik, görünsün. */
     var toplam = { eksikKisi: 0, eksikEkip: 0, eksikIsyeri: 0, tarihHata: 0, tarihUyari: 0 };
     isyerleri.forEach(function (isyeri) {
-      var kayit = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeri.id);
+      var kayit = ISG.acilPlanKaydi(hesap, isyeri.id);
       var durum = ISG.acilEkipDurumu(isyeri, kayit, hesap);
       toplam.eksikKisi += durum.ozet.eksik;
       toplam.eksikEkip += durum.gorevEksik ? durum.ozet.eksikEkip : 0;

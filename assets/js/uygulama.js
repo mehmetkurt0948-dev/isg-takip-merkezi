@@ -1224,7 +1224,7 @@
   function acilPlanAc(isyeriId) {
     var form = el('acilPlanForm');
     var hesap = veri();
-    var kayit = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeriId);
+    var kayit = ISG.acilPlanKaydi(hesap, isyeriId);
     var isyeri = ISG.isyeriBul(hesap, isyeriId);
     form.reset();
     uyariGoster('acilUyari', '');
@@ -1272,11 +1272,16 @@
     if (kutu) { kutu.innerHTML = ''; }
   }
 
-  /* Denetim sonucunu ekrana yazar ve sonucu döndürür (kaydeden taraf kullanır). */
+  /* Denetim sonucunu ekrana yazar ve sonucu döndürür (kaydeden taraf kullanır).
+     Uyarı şeritlerinin altına, kartla aynı hesabı gösteren "en geç yenileme"
+     şeridi eklenir: kullanıcı kaydetmeden önce sonucu görür. */
   function acilPlanTarihCiz() {
     var sonuc = acilPlanTarihDenetle(el('acilPlanForm'));
     var kutu = acilPlanTarihKutu();
-    if (kutu) { kutu.innerHTML = ISG.sayfalar.uyariSeritleri(sonuc); }
+    if (kutu) {
+      kutu.innerHTML = ISG.sayfalar.uyariSeritleri(sonuc) +
+        (ISG.sayfalar.acilPlanOzetSeridi ? ISG.sayfalar.acilPlanOzetSeridi(sonuc) : '');
+    }
     return sonuc;
   }
 
@@ -1301,7 +1306,7 @@
   function acilPlanEkipDurumuAl(isyeriId) {
     var hesap = veri();
     return ISG.acilEkipDurumu(ISG.isyeriBul(hesap, isyeriId),
-      ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeriId), hesap);
+      ISG.acilPlanKaydi(hesap, isyeriId), hesap);
   }
 
   /* Kayıt engellenmez ama eksik bırakılan ekip mevcudu kayıt öncesinde tek cümleyle
@@ -1325,13 +1330,31 @@
     return parcalar.length ? 'Zorunlu ekip mevcudu eksik: ' + parcalar.join('; ') + '.' : '';
   }
 
-  /* Onaydan geçen plan kaydını yazar; hata durumunda depo kendi mesajını bildirir. */
+  /* Onaydan geçen plan kaydını yazar; hata durumunda depo kendi mesajını bildirir.
+     Yazımdan sonra kayıt GERİ OKUNUR: cihaz depolaması yazamadıysa ya da eski bir
+     kopya öne geçtiyse kullanıcı "kaydedildi" sanmasın, ekranda aynı tarihlerin
+     kaldığını görsün. */
   function acilPlanKaydetIsle(alanlar) {
     var plan = D.acilPlanKaydet(alanlar.isyeriId, {
       hazirlanma: alanlar.hazirlanma,
       sonYenileme: alanlar.sonYenileme,
       tatbikat: alanlar.tatbikat
     });
+    var onayaGitti = !!(plan && plan.bekliyor);
+    var geri = ISG.acilPlanKaydi(veri(), alanlar.isyeriId);
+    var metin = function (deger) { return String(deger || '').trim(); };
+    var ayni = onayaGitti || (!!geri &&
+      metin(geri.hazirlanma) === metin(alanlar.hazirlanma) &&
+      metin(geri.sonYenileme) === metin(alanlar.sonYenileme) &&
+      metin(geri.tatbikat) === metin(alanlar.tatbikat));
+    var kalici = typeof D.kaliciMi === 'function' ? D.kaliciMi() : true;
+    if (!ayni || !kalici) {
+      uyariGoster('acilUyari', 'Plan kaydı doğrulanamadı' +
+        (kalici ? '' : ' (cihaz depolaması yazılamıyor)') +
+        ': kaydedilen tarihler geri okunduğunda farklı. Tarayıcı depolama alanını ve açık diğer sekmeleri kontrol edip yeniden deneyin.');
+      if (typeof acilPlanTarihCiz === 'function') { acilPlanTarihCiz(); }
+      return;
+    }
     diyalogKapat(el('acilPlanDiyalog'));
     B.bildir(onayBildir('Acil durum planı', plan), plan && plan.bekliyor ? 'uyari' : 'basari');
     ciz();
@@ -1344,7 +1367,7 @@
     var kutu = el('acilPlanEkip');
     if (!kutu) { return; }
     var hesap = veri();
-    var kayit = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeriId);
+    var kayit = ISG.acilPlanKaydi(hesap, isyeriId);
     /* Mevcut tek yerden hesaplanır: satır detayları, ihtiyaç özeti ve kayıt öncesi
        onay sorusu aynı nesneyi okur, farklı sayılar ekrana düşmez. */
     var durum = acilPlanEkipDurumuAl(isyeriId);
@@ -1404,7 +1427,7 @@
     var hesap = veri();
     var liste;
     if (kaynak === 'acil') {
-      var plan = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeriId);
+      var plan = ISG.acilPlanKaydi(hesap, isyeriId);
       liste = ISG.depo.acilEkipUyeleri(plan, rol);
     } else {
       var kayit = ISG.ilgiliKayit(hesap, 'riskEkipleri', isyeriId);
@@ -1615,7 +1638,7 @@
     B.csv(tarihliAd('acil-durum-planlari'),
       ['İşyeri', 'Tehlike sınıfı', 'Çalışan sayısı', 'Hazırlanma', 'Son yenileme', 'En geç yenileme', 'Son tatbikat', 'Ekip'],
       hesap.isyerleri.filter(function (isyeri) { return !UI.kapsam || isyeri.id === UI.kapsam; }).map(function (isyeri) {
-        var kayit = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeri.id);
+        var kayit = ISG.acilPlanKaydi(hesap, isyeri.id);
         var ozet = ISG.acilPlanOzeti(isyeri, kayit);
         /* Çalışan sayısı ekip hesabıyla aynı kaynaktan yazılır (D1): kart ile
            aktif personel farklıysa rapor da aktif personeli gösterir. */

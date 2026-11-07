@@ -14,12 +14,20 @@
       String(tarih.getDate()).padStart(2, '0');
   }
 
-  /* ISO tarihe yıl ekler; öğlen saatine sabitleyerek saat/kayış ve 29 Şubat
-     taşmalarını önler. Belge geçerlilik süresi ve risk yenileme hesapları
+  /* ISO tarihe yıl ekler; öğlen saatine sabitleyerek saat dilimi kaymasını
+     önler. 29 Şubat hedef yılda yoksa tarih 28 Şubat'a çekilir: aksi hâlde
+     JavaScript tarihi 1 Mart'a taşır ve "2 yıl sonra" hesabı bir gün kayardı.
+     Belge geçerlilik süresi, risk ve acil durum planı yenileme hesapları
      (depo/uygulama) bu tek kaynağı kullanır. */
   function yilEkle(isoTarih, yil) {
-    var parca = String(isoTarih).split('-');
-    var d = new Date(Number(parca[0]) + yil, Number(parca[1]) - 1, Number(parca[2]), 12, 0, 0, 0);
+    var parca = String(isoTarih || '').split('-');
+    var yilDeger = Number(parca[0]);
+    var ayDeger = Number(parca[1]);
+    var gunDeger = Number(parca[2]);
+    if (!yilDeger || !ayDeger || !gunDeger) { return ''; }
+    var hedefYil = yilDeger + (Number(yil) || 0);
+    var ayGunu = new Date(hedefYil, ayDeger, 0).getDate();
+    var d = new Date(hedefYil, ayDeger - 1, Math.min(gunDeger, ayGunu), 12, 0, 0, 0);
     return iso(d);
   }
 

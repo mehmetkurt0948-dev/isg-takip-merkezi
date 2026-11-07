@@ -295,8 +295,9 @@ isg-takip-merkezi/
 │     ├─ giris.js             # giriş katmanı, davet kabulü, e-posta kodlu şifre sıfırlama
 │     └─ uygulama.js          # yönlendirme, formlar, filtreler, XLSX/CSV, yedekleme
 ├─ tools/
-│  ├─ kontrol.js              # jsdom duman testi (816 kontrol)
+│  ├─ kontrol.js              # jsdom duman testi (929 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (27 kontrol)
+│  ├─ acil-tarih-dogrula.js   # bütün işyerlerinde acil plan tarihi: depo ↔ diyalog ↔ kart ↔ bulut
 │  ├─ kontrol-listesi.js      # Word (.docx) / Excel (.xlsx) kontrol listesini hazır şablona çevirir
 │  ├─ kontrol-listesi-kaynaklari.json  # Excel dosya adı → işyeri kodu/ad eşleşmesi (toplu dönüşüm)
 │  ├─ kontrol-listeleri/      # dönüştürülmüş işyeri listeleri (ASKI-1.json, ASKI-2.json, …)
@@ -339,8 +340,8 @@ doğrudan `file://` veya herhangi bir statik sunucuda çalışır.
   olaylar:   [{ id, isyeriId, tur, tarih, yer, personelId, aciklama, kokNeden, durum,
                 kayipGun, vucutBolgesi, yaralanmaTuru, saglikKurulusu,
                 siddet, vardiya, hastaneSevk, istirahatBaslangic, istirahatBitis }],
-  riskEkipleri: [{ isyeriId, sonDegerlendirme, enGecYenileme, uyeler: { isveren, uzman, hekim, temsilci, destek, birim }, uyeIdleri }],
-  acilPlanlar:  [{ isyeriId, hazirlanma, sonYenileme, tatbikat, ekip: [{ rol, ad, personelId }] }],
+  riskEkipleri: [{ id: 're-<isyeriId>', isyeriId, sonDegerlendirme, enGecYenileme, uyeler: { isveren, uzman, hekim, temsilci, destek, birim }, uyeIdleri }],
+  acilPlanlar:  [{ id: 'ap-<isyeriId>', isyeriId, hazirlanma, sonYenileme, tatbikat, ekip: [{ rol, ad, personelId }] }],
   davetler:     [{ id, eposta, rol, isyerleri: [], tarih, durum }],
   talepler:     [{ id, tur, eylem: { ad, args }, isyeriId, kullaniciId, kullaniciAd, ozet, durum, tarih, karar, kararVeren, kararTarihi }],
   denetim:      [{ id, tur, islem, kullaniciId, kullaniciAd, isyeriId, ozet, tarih }],
@@ -367,6 +368,20 @@ hesap onay yetkilisi olmaz (`ISG.uzmanSinifiKodu`, `ISG.ONAY_ESIGI`).
 yardım) üyelerini `rol` + `personelId` ile taşır; ekip tablosunun gerekli /
 kayıtlı / onaylı sayıları bu diziden ve işyerinin çalışan sayısından türetilir,
 ayrı bir yerde saklanmaz.
+
+**Acil plan ve risk ekibi kayıtları işyeri başına TEKTİR ve kalıcı kimlik taşır**
+(`id: 'ap-<isyeriId>'` / `'re-<isyeriId>'`). Üç tarih (`hazirlanma`,
+`sonYenileme`, `tatbikat`) bağımsız alanlardır; biri diğerinin yerine yazılmaz,
+boş alan boş kalır. Okuma tek kapıdan yapılır: `ISG.acilPlanKaydi(veri, isyeriId)`.
+Geçerlilik hesabı da tek yerdedir (`ISG.acilPlanOzeti`): dayanak **son yenileme**,
+o yoksa **ilk hazırlanma**; tatbikat tarihi yenileme yerine sayılmaz. Kayıt
+ekranı, mevcut durum kartı, Excel çıktısı ve doğrulama araçları aynı kaydı ve aynı
+hesabı okur. Eski sürümlerde bu kayıtlar `id` üretmeden yazılıyordu; bulut
+birleşimi kimliksiz kaydı korumadığı için kaydedilen tarih eski kopyaya
+dönebiliyor, aynı işyerinde ikinci kopya birikebiliyordu. `veriTamamla()` içindeki
+v11 göçü kimliksiz kayıtları işyeri kimliğinden türetilen kalıcı kimlikle
+eşitler, aynı işyerine ait kopyaları tek kayda indirir ve ekip üyelerini
+mükerrer olmadan birleştirir.
 
 `senkron` alanı bulut eşitlemesinin temelidir:
 
@@ -853,6 +868,34 @@ node tools/yetki-envanter.js --yedek yedek.json
 node tools/yetki-envanter.js --json       # raporu JSON olarak
 ```
 
+## 6.8. Acil durum planı tarih doğrulaması: `tools/acil-tarih-dogrula.js`
+
+Kayıt ekranındaki tarihler ile mevcut durum kartındaki tarihlerin **bütün kurum
+ve işyerlerinde** aynı olduğunu kanıtlar. Demo verisi ya da bir JSON yedeği
+üzerinde çalışır; jsdom içinde kalır, **Supabase'e/üretim verisine yazmaz**:
+
+```powershell
+npm run test:acil                        # demo verisi (6 işyeri, 2 kurum)
+node tools/acil-tarih-dogrula.js --veri yedek.json
+node tools/acil-tarih-dogrula.js --sessiz   # yalnızca özet
+```
+
+Her işyeri için ayrı ayrı doğrulananlar:
+
+- Veri deposundaki üç tarih (ilk hazırlanma, son yenileme, son tatbikat) ile kayıt
+  diyaloğundaki alanlar ve mevcut durum kartındaki kutular birebir aynı mı?
+- Kart "En geç yenileme" değeri tek kuraldan mı geliyor (son yenileme; yoksa ilk
+  hazırlanma + tehlike sınıfı aralığı) ve tatbikat yenileme yerine sayılmıyor mu?
+- Bir işyerinin tarihleri başka işyerine taşınıyor mu? İşyeri başına kaç kayıt var,
+  kayıt kimlikleri benzersiz mi, sahipsiz kayıt var mı?
+- Kaydet → yeniden oku → sayfayı yeniden çiz → localStorage: değer korunuyor mu?
+- Eski bulut kopyası birleşime girdiğinde yeni tarihi eziyor mu? Göç öncesi
+  kimliksiz kopya ikinci kayda yol açıyor mu?
+- Takvimde olmayan tarih, ileri tarih ve ters sıra reddediliyor mu; 29 Şubat +
+  yıl hesabı bir gün kayıyor mu?
+
+Çıkış kodu başarısızlıkta `1`'dir; `npm test` bu aracı `--sessiz` kipte çalıştırır.
+
 ## 7. Yayınlama (GitHub Pages)
 
 Uygulama tamamen statiktir: sunucu tarafı, derleme adımı, veritabanı veya API
@@ -1019,6 +1062,47 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.22.1 — Acil durum planı tarihleri: kayıt ekranı ile mevcut durum artık aynı kaydı okuyor
+
+- **Kök neden 1 — kimliksiz kayıt.** `acilPlanlar` ve `riskEkipleri` kayıtları
+  `id` üretilmeden yazılıyordu. Kayıt bazlı bulut eşitlemesi kimliksiz kaydı
+  korumadığı için birleşimde **yerel yazı atılıp bulutun eski kopyası kalıyordu**
+  (kullanıcı kaydediyor, ekran yenilenince eski tarih geri geliyordu) ve iki cihaz
+  aynı işyerine yazdığında kayıtlar yan yana birikiyordu. `ISG.ilgiliKayit` hangi
+  kopyayı önce bulursa onu okuduğu için kayıt ekranı ile mevcut durum kartı farklı
+  tarih gösterebiliyordu.
+- **Kök neden 2 — tek kutuya sıkıştırılmış tarih.** Kart, üç bağımsız tarihi tek
+  "Hazırlanma / son yenileme" kutusunda `sonYenileme || hazirlanma` olarak
+  gösteriyor, son tatbikat tarihini hiç göstermiyordu. Kayıt ekranında 20.08.2024
+  (hazırlanma) ve 20.08.2026 (son yenileme) varken kart yalnız 20.08.2026 yazıyordu.
+- **Kalıcı kimlik ve göç (v11).** Kimlik işyeri kimliğinden türetilir
+  (`ap-<isyeriId>`, `re-<isyeriId>`): iki cihaz aynı kaydı bağımsız oluştursa bile
+  birleşimde tek kayda iner. `veriTamamla()` göçü kimliksiz kayıtları eşitler, aynı
+  işyerine ait kopyaları tek kayda indirir (en son güncellenen kopya esastır; eski
+  kopyadan tarih **geri getirilmez**), ekip üyelerini mükerrer olmadan birleştirir.
+  Göç idempotenttir. `ISG.ilgiliKayit` çok kopya durumunda liste sırasına değil
+  damga/doluluk/kimlik sırasına göre **deterministik** seçim yapar.
+- **Tek okuma kapısı ve tek hesap.** `ISG.acilPlanKaydi(veri, isyeriId)` kayıt
+  ekranı, kart, Excel ve doğrulama aracının ortak okumasıdır. `ISG.acilPlanOzeti`
+  artık üç tarihi **ayrı ayrı** döndürür (`hazirlanma`, `sonYenileme`, `tatbikat`),
+  geçersiz tarihi `gecersiz` ile işaretler, geçerlilik dayanağını (`esasAlani`) ve
+  durumu (`kayitYok` / `tarihsiz` / `sinifYok` / `gecikti` / `gecerli`) ayrı verir.
+- **Mevcut durum kartı.** "İlk hazırlanma", "Son yenileme", "Son tatbikat",
+  "En geç yenileme" ve "Olağan üst sınır" ayrı kutularda; boş alan "Girilmedi",
+  bozuk tarih "Geçersiz: …" yazar. Durum rozeti vadesi geçmiş planı tarih verisi
+  eksik plandan ayırır. Kayıt diyaloğunda kartla aynı hesabı gösteren
+  "En geç yenileme · dayanak" şeridi eklendi.
+- **Yazma doğrulaması.** Kaydetten sonra kayıt geri okunur; tarihler farklıysa ya da
+  cihaz depolaması yazamıyorsa diyalog kapanmaz, "Plan kaydı doğrulanamadı" uyarısı
+  çıkar (sessiz "kaydedildi" yok).
+- **Tarih kuralları.** Takvimde olmayan tarih, ileri tarih, `sonYenileme <
+  hazirlanma` reddedilir; tatbikat yenileme yerine sayılmaz; tehlike sınıfı yoksa
+  aralık uydurulmaz; tatbikatın ilk hazırlanmadan önce olması uyarı üretir.
+  `ISG.yilEkle` 29 Şubat'ı hedef yılda 28 Şubat'a çeker (bir günlük kayma bitti).
+- **Doğrulama.** `tools/acil-tarih-dogrula.js` eklendi: bütün kurum/işyerlerini
+  gezerek depo ↔ diyalog ↔ kart ↔ localStorage ↔ bulut birleşimini karşılaştırır
+  (**121 kontrol**); `npm test` ve `npm run test:acil` ile çalışır.
 
 ### 2.22.0 — Sistem Yöneticisi rolü ve sistem yönetim paneli
 

@@ -441,10 +441,44 @@
        karşılaştırma metne çevrilerek yapılır ki aynı işyerinin kaydı bulunamasın
        ve yanlış kayıt diğerinin yerine kullanılmasın. */
     var hedef = String(isyeriId === null || isyeriId === undefined ? '' : isyeriId);
-    var bulunan = liste.filter(function (k) {
+    var bulunanlar = liste.filter(function (k) {
       return String((k && k.isyeriId !== null && k.isyeriId !== undefined) ? k.isyeriId : '') === hedef;
-    })[0];
-    return bulunan || null;
+    });
+    if (!bulunanlar.length) { return null; }
+    if (bulunanlar.length === 1) { return bulunanlar[0]; }
+    /* Göç öncesi veride aynı işyerine ait ikinci kopya olabilir. Hangi kopyanın
+       okunacağı liste sırasına bırakılmaz: en son güncellenen kazanır; eşitlikte
+       dolu alan sayısı, sonra kimlik, en son kayıt metni belirler. Böylece kayıt
+       ekranı, kart ve rapor aynı kopyayı okur; bulut birleşiminden sonra tarih
+       yer değiştirmez. */
+    var doluluk = function (kayit) {
+      var sayi = 0;
+      Object.keys(kayit || {}).forEach(function (alan) {
+        var deger = kayit[alan];
+        if (typeof deger === 'string' ? !!deger.trim() : (Array.isArray(deger) ? deger.length > 0 : !!deger)) { sayi += 1; }
+      });
+      return sayi;
+    };
+    bulunanlar.sort(function (a, b) {
+      var za = String((a && (a.guncelleme || a.olusturma)) || '');
+      var zb = String((b && (b.guncelleme || b.olusturma)) || '');
+      if (za !== zb) { return za < zb ? 1 : -1; }
+      var da = doluluk(a), db = doluluk(b);
+      if (da !== db) { return db - da; }
+      var ia = String((a && a.id) || ''), ib = String((b && b.id) || '');
+      if (ia !== ib) { return ia < ib ? -1 : 1; }
+      var ja = JSON.stringify(a), jb = JSON.stringify(b);
+      return ja === jb ? 0 : (ja < jb ? -1 : 1);
+    });
+    return bulunanlar[0];
+  };
+
+  /* Acil durum planının TEK okuma kapısı: kayıt ekranı, mevcut durum kartı,
+     Excel çıktısı ve doğrulama araçları buradan okur. Farklı ekranların farklı
+     kopyayı okuması bu fonksiyonun dışına çıkılarak engellenir. */
+  ISG.acilPlanKaydi = function (veri, isyeriId) {
+    var hesap = veri || (ISG.depo && typeof ISG.depo.al === 'function' ? ISG.depo.al() : null);
+    return ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeriId);
   };
 
   /* Vade yalnızca zamana bakar: tarih geçmiş mi, bugün mü, yaklaşıyor mu?
@@ -522,18 +556,56 @@
     var sinifKodu = typeof ISG.tehlikeSinifiKodu === 'function'
       ? ISG.tehlikeSinifiKodu(isyeri && isyeri.tehlikeSinifi) : '';
     var sinif = sinifKodu ? (ISG.RISK_SINIFLARI[sinifKodu] || null) : null;
-    var son = kayit && (kayit.sonYenileme || kayit.hazirlanma);
-    var enGec = (son && sinif) ? ISG.yilEkle(son, sinif.acilYenilemeYil) : '';
+
+    /* Üç tarih BAĞIMSIZ alan olarak okunur: biri diğerinin yerine geçmez.
+       Biçimi geçersiz tarih gizlenmez; `gecersiz` işaretiyle ekrana taşınır ki
+       geçerliymiş gibi gösterilmesin. */
+    var tarihAlani = function (alan) {
+      var ham = String((kayit && kayit[alan]) || '').trim();
+      return { deger: ham, gecerli: !!ham && ISG.tarihGecerliMi(ham) };
+    };
+    var hazirlanma = tarihAlani('hazirlanma');
+    var sonYenileme = tarihAlani('sonYenileme');
+    var tatbikat = tarihAlani('tatbikat');
+
+    /* Geçerlilik hesabının dayanağı: son yenileme; yoksa ilk hazırlanma.
+       Tatbikat tarihi yenileme yerine SAYILMAZ (ayrı izlenen çalışmadır). */
+    var esasAlani = '';
+    var esas = '';
+    if (sonYenileme.gecerli) { esasAlani = 'sonYenileme'; esas = sonYenileme.deger; }
+    else if (hazirlanma.gecerli) { esasAlani = 'hazirlanma'; esas = hazirlanma.deger; }
+
+    var enGec = (esas && sinif) ? ISG.yilEkle(esas, sinif.acilYenilemeYil) : '';
     var kalan = ISG.gunFarki(enGec);
+    /* Dört durum ayrı ayrı adlandırılır: "kayıt yok" ile "tarih girilmedi" ve
+       "vadesi geçti" birbirine karıştırılmaz. */
+    var durum;
+    if (!kayit) { durum = 'kayitYok'; }
+    else if (!esas) { durum = 'tarihsiz'; }
+    else if (!sinif) { durum = 'sinifYok'; }
+    else { durum = (kalan !== null && kalan < 0) ? 'gecikti' : 'gecerli'; }
+
     /* Ekip üyeleri tek biçimde (rol adı + kimlik) okunur: eski kayıtlardaki
        rol kimliği ya da nesne biçimli ekip alanı görünümde kaybolmaz. */
     var ekip = kayit && ISG.depo && typeof ISG.depo.acilEkipUyeleri === 'function'
       ? ISG.depo.acilEkipUyeleri(kayit)
       : ((kayit && kayit.ekip) || []);
     return {
-      son: son || '',
+      hazirlanma: hazirlanma.deger,
+      sonYenileme: sonYenileme.deger,
+      tatbikat: tatbikat.deger,
+      gecersiz: {
+        hazirlanma: !!hazirlanma.deger && !hazirlanma.gecerli,
+        sonYenileme: !!sonYenileme.deger && !sonYenileme.gecerli,
+        tatbikat: !!tatbikat.deger && !tatbikat.gecerli
+      },
+      esas: esas,
+      esasAlani: esasAlani,
+      /* Geriye dönük alan adı: geçerlilik hesabına giren tarih. */
+      son: esas || '',
       enGec: enGec,
       kalan: kalan,
+      durum: durum,
       sinif: sinif,
       sinifKodu: sinifKodu,
       sinifAdi: sinif ? sinif.ad : '',
@@ -895,12 +967,13 @@
   };
 
 
-  /* Acil durum planı tarih denetimi: biçimi bozuk ya da takvimi olmayan tarih, ileri
-     tarih ve tutarsız sıra KAYDI ENGELLER. Yenileme vadesinin geçmiş olması ise tek
-     başına engel değildir (vade geciktiğini gösterir; geçmiş tarihi silmeye zorlamaz). */
+  /* Acil durum planı tarih denetimi: biçimi bozuk ya da takvimi olmayan tarih,
+     ileri tarih ve tutarsız sıra KAYDI ENGELLER. Yenileme vadesinin geçmiş olması
+     tek başına engel değildir (vade geciktiğini gösterir; geçmiş tarihi silmeye
+     zorlamaz). Tatbikat tarihi yenileme hesabına HİÇ girmez. */
   ISG.acilPlanTarihKontrol = function (alanlar, tehlikeSinifi) {
     var etiketler = { hazirlanma: 'Hazırlanma tarihi', sonYenileme: 'Son yenileme tarihi', tatbikat: 'Son tatbikat tarihi' };
-    var hatalar = [], uyarilar = [], degerler = {};
+    var hatalar = [], uyarilar = [], degerler = {}, gecersiz = {};
     Object.keys(etiketler).forEach(function (alan) {
       degerler[alan] = String((alanlar || {})[alan] || '').trim();
     });
@@ -908,6 +981,7 @@
       var deger = degerler[alan];
       if (!deger) { return; }
       if (!ISG.tarihGecerliMi(deger)) {
+        gecersiz[alan] = true;
         hatalar.push(etiketler[alan] + ' geçerli bir tarih değil («' + deger + '»). Takvimden YYYY-AA-GG biçiminde seçin.');
         return;
       }
@@ -921,21 +995,43 @@
     if (!degerler.hazirlanma && !degerler.sonYenileme) {
       hatalar.push('Hazırlanma ya da son yenileme tarihinden biri zorunlu; aksi hâlde en geç yenileme tarihi hesaplanamaz.');
     } else if (!degerler.sonYenileme) {
-      uyarilar.push('Son yenileme girilmedi; en geç yenileme tarihi hazırlanma tarihine (' + degerler.hazirlanma + ') göre hesaplanıyor.');
+      uyarilar.push('Son yenileme girilmedi; en geç yenileme tarihi ilk hazırlanma tarihine (' + degerler.hazirlanma + ') göre hesaplanıyor.');
     }
     if (!degerler.tatbikat) {
       uyarilar.push('Son tatbikat tarihi boş: tatbikat ayrı izlenen bir çalışma ve kayıt zorunluluğudur; plan yenilemesi tatbikat yerine geçmez.');
+    } else if (!gecersiz.tatbikat && !gecersiz.hazirlanma && degerler.hazirlanma && degerler.tatbikat < degerler.hazirlanma) {
+      /* Planın hazırlanmasından önce yapılmış bir tatbikat plana dayanamaz:
+         kaydı engellemez ama tarihlerin aynı plan dönemine ait olmadığını söyler. */
+      uyarilar.push('Son tatbikat tarihi (' + degerler.tatbikat + ') ilk hazırlanma tarihinden (' +
+        degerler.hazirlanma + ') önce; tatbikat plan hazırlandıktan sonra yapılır. Tarihleri doğrulayın.');
     }
     var sinif = ISG.RISK_SINIFLARI[ISG.tehlikeSinifiKodu(tehlikeSinifi)] || null;
-    var esas = degerler.sonYenileme || degerler.hazirlanma;
-    var enGec = (sinif && esas && ISG.tarihGecerliMi(esas)) ? ISG.yilEkle(esas, sinif.acilYenilemeYil) : '';
+    /* Geçerlilik hesabının dayanağı kart ve Excel ile aynı kuraldır:
+       son yenileme; yoksa ilk hazırlanma. Tatbikat hiçbir zaman dayanak değildir. */
+    var esasAlani = '';
+    if (degerler.sonYenileme && !gecersiz.sonYenileme) { esasAlani = 'sonYenileme'; }
+    else if (degerler.hazirlanma && !gecersiz.hazirlanma) { esasAlani = 'hazirlanma'; }
+    var esas = esasAlani ? degerler[esasAlani] : '';
+    var enGec = (sinif && esas) ? ISG.yilEkle(esas, sinif.acilYenilemeYil) : '';
+    var kalan = ISG.gunFarki(enGec);
+    var vadeDurumu = !esas ? 'tarihsiz' : (!sinif ? 'sinifYok' : (kalan !== null && kalan < 0 ? 'gecikti' : 'gecerli'));
     /* Tehlike sınıfı yoksa yenileme aralığı belirlenemez: varsayılan sınıf
        uydurmak yerine kayıt engellenir ve eksik alan adıyla söylenir. */
     if (!sinif) {
       hatalar.push('Tehlike sınıfı tanımlı olmadığı için acil durum planının yenileme aralığı belirlenemiyor; ' +
         'işyeri kaydında tehlike sınıfını (az / tehlikeli / çok tehlikeli) seçin.');
     }
-    return { hatalar: hatalar, uyarilar: uyarilar, enGec: enGec, gecerli: hatalar.length === 0 };
+    return {
+      hatalar: hatalar,
+      uyarilar: uyarilar,
+      gecersiz: gecersiz,
+      esas: esas,
+      esasAlani: esasAlani,
+      enGec: enGec,
+      kalan: kalan,
+      vadeDurumu: vadeDurumu,
+      gecerli: hatalar.length === 0
+    };
   };
 
   /* Ekip ve tarih denetimleri her zaman bir "alan nesnesi" üzerinden yapılır.
@@ -1234,11 +1330,157 @@
   /* Silinen kayıtların mezar taşları bu süre sonunda birleşimden düşer. */
   var MEZAR_OMRU_GUN = 120;
 
+  /* Kayıt kimliği: aynı milisaniyede üretilen toplu kayıtlarda çakışma
+     olmaması için zaman damgası + artan sayaç + rastgele eklenir. Çakışan
+     kimlikler bulut eşitlemesinde kayıtların birbirini yutmasına yol açar.
+     Tanım, veriTamamla() ilk kez çağrılmadan ÖNCE yapılır: göç sırasında da
+     kimlik gerekir. */
+  var idSayaci = 0;
+  ISG.yeniId = function (onek) {
+    idSayaci = (idSayaci + 1) % 46656;
+    var onlar = idSayaci.toString(36);
+    while (onlar.length < 3) { onlar = '0' + onlar; }
+    return String(onek || '') + Date.now().toString(36) + onlar +
+      Math.random().toString(36).slice(2, 6);
+  };
+
   function yayinla() {
     depoDurumu.dinleyiciler.forEach(function (fn) {
       try { fn(depoDurumu.veri); } catch (hata) { /* dinleyici hatasi uygulamayi durdurmaz */ }
     });
   }
+  /* ---------- İşyeri başına tek plan / ekip kaydı (v11) ----------
+     `acilPlanlar` ve `riskEkipleri` listelerinde işyeri başına TEK kayıt
+     bulunur. Ancak bu kayıtlar eski sürümlerde `id` üretilmeden yazılıyordu.
+     Kimliksiz kayıt kayıt bazlı bulut eşitlemesine girmediği için:
+       • birleşimde yerel kopya atılıp bulutun ESKİ kopyası kalıyordu
+         (kullanıcı kaydediyor, ekran yenilenince eski tarih geri geliyordu),
+       • iki cihaz aynı işyerine yazdığında kayıtlar yan yana birikiyor ve
+         ISG.ilgiliKayit hangi kopyayı önce bulursa onu okuyordu
+         (kayıt ekranı ile mevcut durum farklı tarih gösteriyordu).
+     Bu göç:
+       1) kopyaları işyeri kimliğine göre gruplar,
+       2) en son güncellenen kaydı sahip seçer; TARİHLERDE eski kopya geri
+          getirilmez (kullanıcı bir tarihi silmişse eski kopya onu diriltmez),
+          ekip üyeleri ise mükerrer olmadan birleştirilir,
+       3) sahip kayda KALICI kimlik verir. Kimlik işyeri kimliğinden türetilir
+          ('ap-<isyeriId>'): iki cihaz da aynı kaydı üretirse birleşimde tek
+          kayda iner, her birleşimde kimlik değişmez.
+     Göç idempotenttir: ikinci çalıştırmada değişiklik üretmez. */
+  var TEK_KAYIT_ONEKLERI = { acilPlanlar: 'ap', riskEkipleri: 're' };
+
+  function kayitZamanMetni(kayit) {
+    return String((kayit && (kayit.guncelleme || kayit.olusturma)) || '');
+  }
+
+  /* Üye karşılaştırması Türkçe küçük harfe duyarsızdır: "İşyeri hekimi" ile
+     "işyeri hekimi" aynı üyedir, iki satıra bölünmez. */
+  function uyeEsitMi(a, b) {
+    if (!a || !b) { return false; }
+    if (a.id && b.id) { return String(a.id) === String(b.id); }
+    var ad = function (uye) { return String(uye.ad || '').toLocaleLowerCase('tr').trim(); };
+    return String(a.rol || '') === String(b.rol || '') && ad(a) === ad(b);
+  }
+
+  function tekKayitYap(veri, anahtar, onek) {
+    var liste = Array.isArray(veri[anahtar]) ? veri[anahtar] : [];
+    var gruplar = {}, sira = [];
+    liste.forEach(function (kayit, indeks) {
+      if (!kayit || typeof kayit !== 'object') { return; }
+      var isyeriId = String(kayit.isyeriId === null || kayit.isyeriId === undefined ? '' : kayit.isyeriId);
+      /* İşyeri kimliği olmayan (sahipsiz) kayıtlar birleştirilmez: her biri
+         kendi grubunda kalır, böylece farklı işyerlerinin artıkları tek kayda
+         yapıştırılmaz. */
+      var anahtarDeger = isyeriId || ('sahipsiz:' + indeks);
+      if (!gruplar[anahtarDeger]) { gruplar[anahtarDeger] = []; sira.push(anahtarDeger); }
+      gruplar[anahtarDeger].push(kayit);
+    });
+
+    var sonuc = [];
+    sira.forEach(function (anahtarDeger) {
+      var grup = gruplar[anahtarDeger];
+      grup.sort(function (a, b) {
+        var za = kayitZamanMetni(a), zb = kayitZamanMetni(b);
+        if (za !== zb) { return za < zb ? 1 : -1; }
+        return String(a.id || '') < String(b.id || '') ? -1 : 1;
+      });
+      var sahip = grup[0];
+      var kopyalar = grup.slice(1);
+      /* Tarihlerde son güncellenen kopya esastır: eski kopyadan tarih geri
+         getirilmez (kullanıcı bir tarihi sildiyse dirilmez). Boş alan boş kalır,
+         tarih uydurulmaz. Ekip listeleri ise birleşimdir: eski kopyada kalan
+         üyeler kaybolmaz, aynı kişi iki kez yazılmaz. */
+      var tarihAlanlari = anahtar === 'acilPlanlar'
+        ? ['hazirlanma', 'sonYenileme', 'tatbikat']
+        : ['sonDegerlendirme', 'enGecYenileme'];
+      tarihAlanlari.forEach(function (alan) {
+        sahip[alan] = String(sahip[alan] || '').trim();
+      });
+
+      if (anahtar === 'acilPlanlar') {
+        var ekip = Array.isArray(sahip.ekip) ? sahip.ekip.slice() : [];
+        kopyalar.forEach(function (kopya) {
+          (Array.isArray(kopya.ekip) ? kopya.ekip : []).forEach(function (uye) {
+            if (!uye || typeof uye !== 'object') { return; }
+            if (!ekip.some(function (varOlan) { return uyeEsitMi(varOlan, uye); })) { ekip.push(uye); }
+          });
+        });
+        sahip.ekip = ekip;
+      } else {
+        ['uyeler', 'uyeIdleri'].forEach(function (alan) {
+          sahip[alan] = sahip[alan] && typeof sahip[alan] === 'object' ? sahip[alan] : {};
+          kopyalar.forEach(function (kopya) {
+            var kaynak = kopya[alan] && typeof kopya[alan] === 'object' ? kopya[alan] : {};
+            Object.keys(kaynak).forEach(function (rol) {
+              if (!sahip[alan][rol]) { sahip[alan][rol] = kaynak[rol]; }
+            });
+          });
+        });
+        sahip.uyeListe = sahip.uyeListe && typeof sahip.uyeListe === 'object' ? sahip.uyeListe : {};
+        kopyalar.forEach(function (kopya) {
+          var kaynak = kopya.uyeListe && typeof kopya.uyeListe === 'object' ? kopya.uyeListe : {};
+          Object.keys(kaynak).forEach(function (rol) {
+            var mevcut = Array.isArray(sahip.uyeListe[rol]) ? sahip.uyeListe[rol].slice() : [];
+            (Array.isArray(kaynak[rol]) ? kaynak[rol] : []).forEach(function (uye) {
+              if (!uye || typeof uye !== 'object') { return; }
+              if (!mevcut.some(function (varOlan) { return uyeEsitMi(varOlan, uye); })) { mevcut.push(uye); }
+            });
+            if (mevcut.length) { sahip.uyeListe[rol] = mevcut; }
+          });
+        });
+      }
+      sonuc.push(sahip);
+    });
+
+    /* Kalıcı kimlik: işyeri kimliğinden türetilir ki iki cihaz aynı kaydı
+       bağımsız oluştursa bile eşitlemede tek kayda insin. */
+    var gorulen = {};
+    sonuc.forEach(function (kayit) {
+      var isyeriId = String(kayit.isyeriId === null || kayit.isyeriId === undefined ? '' : kayit.isyeriId);
+      if (!kayit.id || gorulen[kayit.id]) {
+        kayit.id = isyeriId ? (onek + '-' + isyeriId) : ISG.yeniId(onek);
+        /* Türetilmiş kimlik de çakışırsa rastgele kimliğe düşülür. */
+        if (gorulen[kayit.id]) { kayit.id = ISG.yeniId(onek); }
+      }
+      gorulen[kayit.id] = true;
+    });
+    veri[anahtar] = sonuc;
+  }
+
+  /* İşyeri başına tek kaydın kimliği: işyeri kimliğinden türetilir. İki cihaz
+     aynı işyerine ilk kez yazdığında aynı kimliği üretir; bulut birleşimi
+     kayıtları yan yana eklemek yerine tek kayıtta birleştirir. */
+  function tekKayitId(onek, isyeriId) {
+    var metin = String(isyeriId === null || isyeriId === undefined ? '' : isyeriId).trim();
+    return metin ? (onek + '-' + metin) : ISG.yeniId(onek);
+  }
+
+  function tekKayitlariTamamla(veri) {
+    Object.keys(TEK_KAYIT_ONEKLERI).forEach(function (anahtar) {
+      tekKayitYap(veri, anahtar, TEK_KAYIT_ONEKLERI[anahtar]);
+    });
+  }
+
   /* Eski sürümden gelen ya da içe aktarılan veriyi güncel şemaya tamamlar. */
   function veriTamamla(veri) {
     if (!veri) { return veri; }
@@ -1349,6 +1591,10 @@
       }
       if (onceki && onceki !== plan.durum) { plan.durumGoc = SURUM; }
     });
+
+    /* v11: işyeri başına tek acil plan / risk ekibi kaydı ve kalıcı kimlik.
+       Kimliksiz kayıt bulut birleşiminde korunmuyordu; ayrıntı: tekKayitYap. */
+    tekKayitlariTamamla(veri);
 
     veri.surum = SURUM;
     return veri;
@@ -1709,18 +1955,6 @@
   if (tasindi) { depo.kaydet(); }
 
   /* ---------- Kayıt işlemleri ---------- */
-
-  /* Kayıt kimliği: aynı milisaniyede üretilen toplu kayıtlarda çakışma
-     olmaması için zaman damgası + artan sayaç + rastgele eklenir. Çakışan
-     kimlikler bulut eşitlemesinde kayıtların birbirini yutmasına yol açar. */
-  var idSayaci = 0;
-  ISG.yeniId = function (onek) {
-    idSayaci = (idSayaci + 1) % 46656;
-    var onlar = idSayaci.toString(36);
-    while (onlar.length < 3) { onlar = '0' + onlar; }
-    return String(onek || '') + Date.now().toString(36) + onlar +
-      Math.random().toString(36).slice(2, 6);
-  };
 
   function kaydetListede(liste, kayit, onek) {
     if (kayit.id) {
@@ -2456,7 +2690,7 @@
     var veri = depo.al();
     var kayit = ISG.ilgiliKayit(veri, 'riskEkipleri', isyeriId);
     if (!kayit) {
-      kayit = { isyeriId: isyeriId, sonDegerlendirme: '', enGecYenileme: '', uyeler: {}, uyeListe: {} };
+      kayit = { id: tekKayitId('re', isyeriId), isyeriId: isyeriId, sonDegerlendirme: '', enGecYenileme: '', uyeler: {}, uyeListe: {} };
       veri.riskEkipleri.push(kayit);
     }
     kayit.sonDegerlendirme = alanlar.sonDegerlendirme || '';
@@ -2482,14 +2716,17 @@
 
   ISG.depo.acilPlanKaydet = function (isyeriId, alanlar) {
     var veri = depo.al();
-    var kayit = ISG.ilgiliKayit(veri, 'acilPlanlar', isyeriId);
+    var kayit = ISG.acilPlanKaydi(veri, isyeriId);
     if (!kayit) {
-      kayit = { isyeriId: isyeriId, hazirlanma: '', sonYenileme: '', tatbikat: '', ekip: [] };
+      /* Kimlik işyeri kimliğinden türetilir: kayıt bulut eşitlemesine girer,
+         böylece yerel yazı bulutun eski kopyasıyla değiştirilmez. */
+      kayit = { id: tekKayitId('ap', isyeriId), isyeriId: isyeriId, hazirlanma: '', sonYenileme: '', tatbikat: '', ekip: [] };
       veri.acilPlanlar.push(kayit);
     }
-    kayit.hazirlanma = alanlar.hazirlanma || '';
-    kayit.sonYenileme = alanlar.sonYenileme || '';
-    kayit.tatbikat = alanlar.tatbikat || '';
+    /* Üç tarih bağımsız yazılır; boş alan boş kalır (otomatik tarih uydurulmaz). */
+    kayit.hazirlanma = String(alanlar.hazirlanma || '').trim();
+    kayit.sonYenileme = String(alanlar.sonYenileme || '').trim();
+    kayit.tatbikat = String(alanlar.tatbikat || '').trim();
     depo.kaydet();
     return kayit;
   };
@@ -2500,7 +2737,7 @@
     var veri = depo.al();
     var kayit = ISG.ilgiliKayit(veri, 'riskEkipleri', isyeriId);
     if (!kayit) {
-      kayit = { isyeriId: isyeriId, sonDegerlendirme: '', enGecYenileme: '', uyeler: {}, uyeIdleri: {}, uyeListe: {} };
+      kayit = { id: tekKayitId('re', isyeriId), isyeriId: isyeriId, sonDegerlendirme: '', enGecYenileme: '', uyeler: {}, uyeIdleri: {}, uyeListe: {} };
       veri.riskEkipleri.push(kayit);
     }
     var temiz = String(ad || '').trim();
@@ -2545,9 +2782,9 @@
   /* Acil durum planına üye ekler; aynı kişi aynı görevde tekrarlanmaz. */
   ISG.depo.acilEkipEkle = function (isyeriId, rol, ad, personelId, ek) {
     var veri = depo.al();
-    var kayit = ISG.ilgiliKayit(veri, 'acilPlanlar', isyeriId);
+    var kayit = ISG.acilPlanKaydi(veri, isyeriId);
     if (!kayit) {
-      kayit = { isyeriId: isyeriId, hazirlanma: '', sonYenileme: '', tatbikat: '', ekip: [] };
+      kayit = { id: tekKayitId('ap', isyeriId), isyeriId: isyeriId, hazirlanma: '', sonYenileme: '', tatbikat: '', ekip: [] };
       veri.acilPlanlar.push(kayit);
     }
     var ekip = acilEkipHazirla(kayit);
@@ -2580,7 +2817,7 @@
   /* secim verilirse yalnızca o üye, verilmezse rolün tüm üyeleri kaldırılır. */
   ISG.depo.acilEkipSil = function (isyeriId, rol, secim) {
     var veri = depo.al();
-    var kayit = ISG.ilgiliKayit(veri, 'acilPlanlar', isyeriId);
+    var kayit = ISG.acilPlanKaydi(veri, isyeriId);
     if (!kayit) { return null; }
     var ekip = acilEkipHazirla(kayit);
     var rolAdi = acilRolAdi(rol);
