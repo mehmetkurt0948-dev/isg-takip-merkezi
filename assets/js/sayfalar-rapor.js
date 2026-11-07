@@ -177,6 +177,7 @@
   function ihtiyacRozeti(satir) {
     if (!satir) { return ''; }
     if (satir.durum === 'hesaplanamadi') { return B.rozet('sayı hesaplanamadı', 'notr'); }
+    if (satir.durum === 'gerekYok') { return B.rozet('gerekli 0 · çalışan yok', 'notr'); }
     var metin = 'gerekli ' + satir.gerekli + ' · kayıtlı ' + satir.kisiSayisi;
     var sinif = 'uyari';
     if (satir.durum === 'tamam') { sinif = 'iyi'; }
@@ -184,6 +185,19 @@
     else if (satir.eksik > 0) { metin += ' · ' + satir.eksik + ' eksik'; }
     if (satir.onayli !== satir.kisiSayisi) { metin += ' · geçerli ' + satir.onayli; }
     return B.rozet(metin, sinif);
+  }
+
+  /* Tablo sütunlarındaki durum rozeti. Sınıf adları tablo satırı renkleriyle
+     (satir-tehlike / satir-uyari / satir-notr) aynı anlamı taşır. */
+  function ekipDurumRozeti(satir) {
+    if (!satir) { return ''; }
+    switch (satir.durum) {
+      case 'tamam': return B.rozet('Yeterli', 'iyi');
+      case 'eksik': return B.rozet(satir.eksik + ' kişi eksik', 'uyari');
+      case 'yok': return B.rozet('Ekip yok', 'tehlike');
+      case 'gerekYok': return B.rozet('Gerek yok', 'notr');
+      default: return B.rozet('Hesaplanamadı', 'notr');
+    }
   }
 
   /* Kişi bazlı belge notları: süresi dolan sayılmaz, tarihi işlenmemiş kişi uyarılır. */
@@ -203,8 +217,51 @@
     return notlar.length ? '<span class="ihtiyac-not">' + kacis(notlar.join(' · ')) + '</span>' : '';
   }
 
-  /* Otomatik hesaplanan zorunlu ekip mevcudu bloğu. Kart, diyalog ve CSV/CSV dışı
-     görünüm aynı nesneyi (ISG.acilEkipDurumu) okur; burada yalnızca yazıma çevrilir. */
+  /* Zorunlu ekip mevcudu tablosu — şartnamenin istediği beş sütun:
+     Ekip | Mevcut | Gerekli | Eksik | Durum. Ana ekranda ve düzenleme
+     diyaloğunda AYNI nesne (ISG.acilEkipDurumu) okunur, ikinci bir hesap yok. */
+  function ekipIhtiyacTablosu(durum) {
+    if (!durum) { return ''; }
+    var satirlar = durum.satirlar || [];
+    if (!satirlar.length) { return ''; }
+    var gecerli = !!durum.gecerli;
+    var govde = satirlar.map(function (satir) {
+      var sinif = satir.durum === 'tamam' ? 'satir-iyi' :
+        (satir.durum === 'hesaplanamadi' || satir.durum === 'gerekYok') ? 'satir-notr' :
+          (satir.durum === 'yok' ? 'satir-tehlike' : 'satir-uyari');
+      var mevcut = gecerli ? B.sayi(satir.onayli) : '—';
+      var mevcutAlt = (gecerli && satir.onayli !== satir.kisiSayisi)
+        ? '<span class="hucre-alt">kayıtlı ' + B.sayi(satir.kisiSayisi) + '</span>' : '';
+      var gerekli = gecerli ? B.sayi(satir.gerekli) : '—';
+      var eksik = gecerli ? (satir.eksik ? B.sayi(satir.eksik) : '—') : '—';
+      var oran = satir.oranEtiketi
+        ? '<span class="hucre-alt">oran ' + kacis(satir.oranEtiketi) + '</span>' : '';
+      return '<tr class="' + sinif + '">' +
+        '<td><span class="ihtiyac-ad">' + kacis(satir.ad) + '</span>' + oran +
+          belgeNotu(satir) + '</td>' +
+        '<td class="orta"><b>' + mevcut + '</b>' + mevcutAlt + '</td>' +
+        '<td class="orta"><b>' + gerekli + '</b></td>' +
+        '<td class="orta">' + eksik + '</td>' +
+        '<td>' + ekipDurumRozeti(satir) + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<div class="tablo-kap ekip-tablo-kap">' +
+      '<table class="ekip-tablo">' +
+        '<thead><tr>' +
+          '<th scope="col">Ekip</th>' +
+          '<th scope="col" class="orta">Mevcut</th>' +
+          '<th scope="col" class="orta">Gerekli</th>' +
+          '<th scope="col" class="orta">Eksik</th>' +
+          '<th scope="col">Durum</th>' +
+        '</tr></thead>' +
+        '<tbody>' + govde + '</tbody>' +
+      '</table>' +
+    '</div>';
+  }
+
+  /* Otomatik hesaplanan zorunlu ekip mevcudu bloğu. Kart, diyalog ve rapor aynı
+     nesneyi (ISG.acilEkipDurumu) okur; burada yalnızca yazıma çevrilir.
+     `kompakt` yalnızca dış boşluğu daraltır — tablo hiçbir yerde gizlenmez. */
   function ekipIhtiyacOzeti(durum, secenekler) {
     if (!durum) { return ''; }
     var sec = secenekler || {};
@@ -212,6 +269,7 @@
     var ozet = durum.ozet || {};
     var ust = '';
     if (!durum.gecerli) { ust = B.rozet('Hesaplanamadı', 'notr'); }
+    else if (g.sifir) { ust = B.rozet('Çalışan yok', 'notr'); }
     else if (durum.gorevEksik) { ust = B.rozet((ozet.eksikEkip || 0) + ' ekip hiç yok', 'tehlike'); }
     else if ((ozet.eksik || 0) > 0) { ust = B.rozet(ozet.eksik + ' kişi eksik', 'uyari'); }
     else { ust = B.rozet('Mevcut yeterli', 'iyi'); }
@@ -219,25 +277,22 @@
     (durum.satirlar || []).forEach(function (satir) {
       if (!satir.oranEtiketi) { return; }
       if (satir.id === 'ilkYardim') { oranlar.ilk = satir.oranEtiketi; }
-      else { oranlar.diger = satir.oranEtiketi; }
+      else if (!oranlar.diger) { oranlar.diger = satir.oranEtiketi; }
     });
-    var alt = [(durum.calisan && durum.calisan.calisanSayisi) ?
-      durum.calisan.calisanSayisi + ' çalışan (' + durum.calisan.kaynak + ')' : 'Çalışan sayısı girilmemiş'];
+    var calisan = durum.calisan || {};
+    var alt = [];
+    if (calisan.tip === 'veriYok') { alt.push('Çalışan sayısı girilmemiş'); }
+    else { alt.push(B.sayi(calisan.calisanSayisi) + ' çalışan (' + (calisan.kaynak || 'kaynak belirsiz') + ')'); }
+    if (calisan.pasifPersonel) { alt.push(B.sayi(calisan.pasifPersonel) + ' pasif kayıt sayılmadı'); }
     if (g.sinifAdi) { alt.push(g.sinifAdi + ' sınıfı'); }
+    else { alt.push('Tehlike sınıfı girilmedi'); }
     if (oranlar.diger) { alt.push('söndürme/kurtarma/koruma ' + oranlar.diger); }
     if (oranlar.ilk) { alt.push('ilk yardım ' + oranlar.ilk); }
-    alt.push('her ekip en az ' + (g.enaz || 0) + ' kişi');
-    var satirlar = sec.kompakt ? '' : '<div class="ihtiyac-liste">' + (durum.satirlar || []).map(function (satir) {
-      var sinif = satir.durum === 'tamam' ? 'tamam' :
-        (satir.durum === 'yok' ? 'tehlike' : (satir.durum === 'hesaplanamadi' ? 'notr' : 'uyari'));
-      return '<div class="ihtiyac-satir ' + sinif + '">' +
-        '<span class="ihtiyac-ad">' + kacis(satir.ad) + '</span>' +
-        ihtiyacRozeti(satir) +
-        belgeNotu(satir) +
-        '</div>';
-    }).join('') + '</div>';
     var uyarilar = (durum.uyarilar || []).map(function (metin) {
       return '<div class="uyari-serit">' + B.ikon('i-alert') + kacis(metin) + '</div>';
+    }).join('');
+    var bilgiler = (durum.bilgiler || []).map(function (metin) {
+      return '<div class="uyari-serit uyari">' + B.ikon('i-info') + kacis(metin) + '</div>';
     }).join('');
     var cakisma = (durum.cakismalar || []).map(function (kisi) {
       return '<div class="uyari-serit">' + B.ikon('i-alert') + kacis(kisi.ad) + ' aynı anda ' +
@@ -246,7 +301,8 @@
     return '<div class="ekip-ihtiyac' + (sec.kompakt ? ' kompakt' : '') + '">' +
       '<div class="ihtiyac-ust"><b>Zorunlu ekip mevcudu</b>' + ust + '</div>' +
       '<p class="kucuk muted">' + kacis(alt.join(' · ')) + '</p>' +
-      satirlar + cakisma + uyarilar +
+      ekipIhtiyacTablosu(durum) +
+      cakisma + uyarilar + bilgiler +
       '</div>';
   }
 
@@ -268,6 +324,8 @@
   /* Diyalog ve kartlar aynı listeyi üretir; tek kaynak korunur. */
   SAYFALAR.ekipListesi = ekipListesi;
   SAYFALAR.ekipIhtiyacOzeti = ekipIhtiyacOzeti;
+  SAYFALAR.ekipIhtiyacTablosu = ekipIhtiyacTablosu;
+  SAYFALAR.ekipDurumRozeti = ekipDurumRozeti;
   SAYFALAR.ihtiyacRozeti = ihtiyacRozeti;
 
   /* Tarih denetimi sonuçlarının (ISG.acilPlanTarihKontrol ve benzerleri) yazıma
@@ -374,7 +432,10 @@
   function acilKarti(isyeri, hesap) {
     var kayit = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeri.id);
     var ozet = ISG.acilPlanOzeti(isyeri, kayit);
-    var sinif = ISG.RISK_SINIFLARI[isyeri.tehlikeSinifi] || { ad: '', acilYenilemeYil: 4 };
+    /* Tehlike sınıfı girilmemişse varsayılan sınıf UYDURULMAZ: kart "girilmedi"
+       der, yenileme aralığı boş kalır (şartname §2.3 / §7.6). */
+    var sinif = ozet.sinif || { ad: '', acilYenilemeYil: 0 };
+    var sinifAdi = sinif.ad || 'Tehlike sınıfı girilmedi';
     var ekip = ozet.ekip || [];
     var ekipRolleri = ISG.ACIL_ROLLERI;
     /* Zorunlu ekip mevcudu otomatik hesaplanır (yönetici sayı girmeden). */
@@ -387,16 +448,24 @@
       (tarihKontrol.gecerli ? ' uyari' : '') + '">' +
       B.ikon(tarihKontrol.gecerli ? 'i-info' : 'i-alert') + kacis(tarihOzet) + '</div>';
     var ihtiyacRozet = !durum.gecerli ? B.rozet('Ekip sayısı hesaplanamadı', 'notr') :
-      (durum.gorevEksik ? B.rozet(durum.ozet.eksikEkip + ' ekip eksik', 'tehlike') :
-        (durum.ozet.eksik > 0 ? B.rozet(durum.ozet.eksik + ' kişi eksik', 'uyari') :
-          B.rozet('Mevcut yeterli', 'iyi')));
+      (durum.gereksinim.sifir ? B.rozet('Çalışan yok', 'notr') :
+        (durum.gorevEksik ? B.rozet(durum.ozet.eksikEkip + ' ekip eksik', 'tehlike') :
+          (durum.ozet.eksik > 0 ? B.rozet(durum.ozet.eksik + ' kişi eksik', 'uyari') :
+            B.rozet('Mevcut yeterli', 'iyi'))));
+    var calisanMetni = durum.calisan.tip === 'veriYok' ? 'Girilmedi'
+      : B.sayi(durum.calisan.calisanSayisi) + ' (' + durum.calisan.kaynak + ')';
 
-    return '<article class="risk-kart">' +
+    return '<article class="risk-kart" data-acil-kart data-id="' + kacis(isyeri.id) + '">' +
       '<div class="risk-kart-ust">' +
-        '<div><h3>' + kacis(isyeri.ad) + '</h3><p class="alt">' + kacis(sinif.ad) + '</p></div>' +
-        B.rozet(sinif.ad, isyeri.tehlikeSinifi === 'az' ? 'bilgi' : 'uyari') +
+        '<div><h3>' + kacis(isyeri.ad) + '</h3><p class="alt">' + kacis(sinifAdi) + '</p></div>' +
+        (sinif.ad ? B.rozet(sinif.ad, isyeri.tehlikeSinifi === 'az' ? 'bilgi' : 'uyari')
+          : B.rozet('Sınıf girilmedi', 'notr')) +
       '</div>' +
-      '<div class="mini-kutu"><span>Çalışan sayısı</span><b>' + B.sayi(isyeri.calisanSayisi) + '</b></div>' +
+      '<div class="mini-izgara">' +
+        '<div class="mini-kutu"><span>Ekipte esas çalışan</span><b>' + kacis(calisanMetni) + '</b></div>' +
+        '<div class="mini-kutu"><span>İşyeri kartındaki sayı</span><b>' + B.sayi(isyeri.calisanSayisi) + '</b></div>' +
+        '<div class="mini-kutu"><span>Zorunlu ekip mevcudu</span><b>' + B.sayi(durum.ozet.gerekli) + ' kişi</b></div>' +
+      '</div>' +
       '<div>' +
         '<div class="satir-arac" style="justify-content:space-between;margin-bottom:7px">' +
           '<p class="bolum-baslik">Acil durum planı</p>' +
@@ -406,11 +475,13 @@
         '<div class="mini-izgara">' +
           '<div class="mini-kutu"><span>Hazırlanma / son yenileme</span><b>' + (ozet.son ? B.tarih(ozet.son) : 'Girilmedi') + '</b></div>' +
           '<div class="mini-kutu"><span>En geç yenileme</span><b>' + (ozet.enGec ? B.tarih(ozet.enGec) : 'Girilmedi') + '</b></div>' +
-          '<div class="mini-kutu"><span>Olağan üst sınır</span><b>' + sinif.acilYenilemeYil + ' yıl</b></div>' +
+          '<div class="mini-kutu"><span>Olağan üst sınır</span><b>' + (sinif.acilYenilemeYil ? sinif.acilYenilemeYil + ' yıl' : 'Sınıf girilmedi') + '</b></div>' +
         '</div>' +
         (tarihSerit ? '<div style="margin-top:8px">' + tarihSerit + '</div>' : '') +
-        '<p class="bolum-aciklama" style="margin-top:8px">' + kacis(sinif.ad) + ' sınıfında plan en geç ' + sinif.acilYenilemeYil +
-          ' yılda bir yenilenir. İşyeri, çalışan sayısı veya ekip değişikliği planı daha önce gözden geçirmeyi gerektirebilir.</p>' +
+        '<p class="bolum-aciklama" style="margin-top:8px">' + (sinif.acilYenilemeYil ?
+          kacis(sinifAdi) + ' sınıfında plan en geç ' + sinif.acilYenilemeYil +
+            ' yılda bir yenilenir. İşyeri, çalışan sayısı veya ekip değişikliği planı daha önce gözden geçirmeyi gerektirebilir.'
+          : 'İşyeri kaydında tehlike sınıfı seçilmediği için plan yenileme aralığı hesaplanamıyor; işyeri kaydından sınıfı seçin.') + '</p>' +
       '</div>' +
       '<div class="ek-kutu">' +
         '<p class="bolum-baslik">Ekli belgeler</p>' +
@@ -431,15 +502,37 @@
         '<p style="margin-top:8px"><button type="button" class="dugme ince" data-islem="ekip-uye" ' +
           'data-kaynak="acil" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') +
           'Ekip üyesi ekle</button></p>' +
-        '<p class="bolum-aciklama" style="margin-top:8px">Plan hazırlanırken görev alan işveren/işveren vekili, iş güvenliği uzmanı ve diğer ilgili kişileri işyeri bazında kaydedin. Zorunlu dört ekibin mevcudu, yönetmelik ekindeki oranlara göre işyerinin çalışan sayısından otomatik hesaplanır.</p>' +
+        '<p class="bolum-aciklama" style="margin-top:8px">Plan hazırlanırken görev alan işveren/işveren vekili, iş güvenliği uzmanı ve diğer ilgili kişileri işyeri bazında kaydedin. Zorunlu dört ekibin mevcudu, ekip hesaplamasında esas alınan çalışan sayısı (aktif personel kayıtları; yoksa işyeri kartı) ve tehlike sınıfına göre yönetmelik ekindeki oranlarla otomatik karşılaştırılır.</p>' +
       '</div>' +
     '</article>';
   }
 
+  /* İşyeri arama: kullanıcı çok sayıda işyeri arasında kartı bulabilsin.
+     Ad, tehlike sınıfı etiketi ve sınıf kodu üzerinden eşleşir (Türkçe küçük harf). */
+  function acilAramaEslesir(isyeri, arama) {
+    if (!arama) { return true; }
+    var ozet = ISG.acilPlanOzeti(isyeri, null);
+    var metin = [isyeri.ad, isyeri.kisaAd, isyeri.tehlikeSinifi,
+      ozet.sinifAdi, ozet.sinif ? 'tehlike sinifi' : 'sinif girilmedi'].join(' ');
+    return metin.toLocaleLowerCase('tr').indexOf(arama) >= 0;
+  }
+
   SAYFALAR.acil = function () {
     var hesap = veri();
-    var isyerleri = (hesap.isyerleri || []).filter(function (isyeri) { return !UI.kapsam || isyeri.id === UI.kapsam; });
+    var arama = String(UI.acilArama || '').toLocaleLowerCase('tr').trim();
+    var tumIsyerleri = (hesap.isyerleri || []).filter(function (isyeri) { return !UI.kapsam || isyeri.id === UI.kapsam; });
+    var isyerleri = tumIsyerleri.filter(function (isyeri) { return acilAramaEslesir(isyeri, arama); });
     var kartlar = isyerleri.map(function (isyeri) { return acilKarti(isyeri, hesap); }).join('');
+
+    /* İşyeri arama: kart listesi uzadıkça aranan işyeri kaybolmasın. Ölçüt ad,
+       tehlike sınıfı etiketi ve sınıf kodudur; sonuç sayısı altında yazar. */
+    var aramaKutusu = '<div class="filtre-cubugu">' +
+      '<div class="arama">' + B.ikon('i-search') +
+        '<input type="search" data-ui="acilArama" value="' + kacis(UI.acilArama || '') +
+        '" placeholder="İşyeri adı veya tehlike sınıfı ara" aria-label="Acil durum planında işyeri ara">' +
+      '</div>' +
+      '<span class="filtre-etiket">' + B.sayi(isyerleri.length) + ' / ' + B.sayi(tumIsyerleri.length) + ' işyeri listeleniyor</span>' +
+      '</div>';
 
     /* Sayfa özeti: kartları tek tek açmadan hangi işyerinde ne eksik, görünsün. */
     var toplam = { eksikKisi: 0, eksikEkip: 0, eksikIsyeri: 0, tarihHata: 0, tarihUyari: 0 };
@@ -459,18 +552,23 @@
     if (toplam.tarihHata) { uyarilar.push(toplam.tarihHata + ' işyerinde plan tarihi hatalı'); }
     if (toplam.tarihUyari) { uyarilar.push(toplam.tarihUyari + ' işyerinde plan tarihi için gözden geçirme uyarısı'); }
     var uyariblok = uyarilar.length ?
-      '<div class="uyari-serit">' + kacis(uyarilar.join(' · ') + '. Zorunlu ekip mevcudu, işyerinin çalışan sayısı ve tehlike sınıfına göre otomatik hesaplanır.') + '</div>' :
+      '<div class="uyari-serit">' + kacis(uyarilar.join(' · ') + '. Zorunlu ekip mevcudu, aktif personel sayısı (personel kaydı yoksa işyeri kartı) ve tehlike sınıfına göre otomatik hesaplanır.') + '</div>' :
       (isyerleri.length ? '<div class="uyari-serit tamam">Zorunlu dört ekibin mevcudu yönetmelik ekindeki oranların üzerinde.</div>' : '');
+
+    var icerik = kartlar || (arama
+      ? B.bosDurum('Aramayla eşleşen işyeri yok', 'Arama ölçütünü değiştirin veya temizleyin.', 'i-search')
+      : '<p class="bolum-aciklama">İşyeri bulunmuyor.</p>');
 
     return P.sayfaBaslik('ACİL DURUM PLANI', 'Acil durum planı', 'İşyeri bazında kayıt ve durum takibi',
       '<button type="button" class="dugme" data-islem="acil-csv">' + B.ikon('i-download') + 'Excel indir</button>') +
       P.kapsamSecici(hesap) +
+      aramaKutusu +
       uyariblok +
 
       '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
         '<h2>Acil durum planı ve destek ekipleri</h2>' +
         '<p>Görevli kişileri, eğitim kayıtlarını ve planın gözden geçirilmesini işyeri bazında izleyin.</p></div>' +
-        '<div class="kart-ic"><div class="kart-izgara-3">' + (kartlar || '<p class="bolum-aciklama">İşyeri bulunmuyor.</p>') + '</div></div>' +
+        '<div class="kart-ic"><div class="kart-izgara-3">' + icerik + '</div></div>' +
       '</section>';
   };
 

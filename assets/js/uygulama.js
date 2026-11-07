@@ -1336,17 +1336,45 @@
   function acilPlanEkipCiz(isyeriId) {
     var kutu = el('acilPlanEkip');
     if (!kutu) { return; }
-    var kayit = ISG.ilgiliKayit(veri(), 'acilPlanlar', isyeriId);
+    var hesap = veri();
+    var kayit = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeriId);
     /* Mevcut tek yerden hesaplanır: satır detayları, ihtiyaç özeti ve kayıt öncesi
        onay sorusu aynı nesneyi okur, farklı sayılar ekrana düşmez. */
     var durum = acilPlanEkipDurumuAl(isyeriId);
+    acilPlanBilgiCiz(isyeriId, durum);
     kutu.innerHTML = ISG.sayfalar.ekipListesi('acil', isyeriId, ISG.ACIL_ROLLERI, function (rol) {
       return ISG.depo.acilEkipUyeleri(kayit, rol.ad);
     }, 'Kişi eklenmedi', function (rol) {
       return ISG.acilEkipSatiri(durum, rol.ad);
     });
     var ihtiyac = el('acilPlanIhtiyac');
+    /* Diyalogda da beş sütunlu tablo gösterilir (D3): kompakt yalnızca boşluğu
+       daraltır, tabloyu gizlemez. */
     if (ihtiyac) { ihtiyac.innerHTML = ISG.sayfalar.ekipIhtiyacOzeti(durum, { kompakt: true }); }
+  }
+
+  /* Diyalog üstünde "hangi işyeri, hangi tehlike sınıfı, kaç çalışan" açıkça
+     yazar: kullanıcı hangi veriyle hesaplandığını görmeden sayıyı okumaz. */
+  function acilPlanBilgiCiz(isyeriId, durum) {
+    var kutu = el('acilPlanBilgi');
+    if (!kutu) { return; }
+    var hesap = veri();
+    var isyeri = ISG.isyeriBul(hesap, isyeriId);
+    if (!isyeri) { kutu.innerHTML = ''; return; }
+    var sinifKodu = ISG.tehlikeSinifiKodu(isyeri.tehlikeSinifi);
+    var sinif = sinifKodu ? ISG.RISK_SINIFLARI[sinifKodu] : null;
+    var sayim = (durum && durum.calisan) || ISG.acilCalisanSayisi(isyeri, hesap);
+    var calisan = sayim.tip === 'veriYok'
+      ? '<b class="tehlike">Girilmedi</b>'
+      : '<b>' + B.sayi(sayim.calisanSayisi) + ' kişi</b> <span class="kucuk muted">(' +
+        B.kacis(sayim.kaynak || '') + (sayim.pasifPersonel ? ' · ' + B.sayi(sayim.pasifPersonel) + ' pasif sayılmadı' : '') + ')</span>';
+    kutu.innerHTML = '<div class="ekip-bilgi-izgara">' +
+      '<div><span>İşyeri</span><b>' + B.kacis(isyeri.ad) + '</b></div>' +
+      '<div><span>Tehlike sınıfı</span>' + (sinif
+        ? '<b>' + B.kacis(sinif.ad) + '</b>'
+        : '<b class="tehlike">Girilmedi</b> <span class="kucuk muted">hesap ve yenileme aralığı belirlenemiyor</span>') + '</div>' +
+      '<div><span>Hesaplamada esas çalışan</span>' + calisan + '</div>' +
+    '</div>';
   }
 
   /* Plan diyaloğu açıkken ekip değişikliği yapılırsa liste tazelenir. */
@@ -1582,7 +1610,10 @@
       hesap.isyerleri.filter(function (isyeri) { return !UI.kapsam || isyeri.id === UI.kapsam; }).map(function (isyeri) {
         var kayit = ISG.ilgiliKayit(hesap, 'acilPlanlar', isyeri.id);
         var ozet = ISG.acilPlanOzeti(isyeri, kayit);
-        return [isyeri.ad, (ISG.RISK_SINIFLARI[isyeri.tehlikeSinifi] || {}).ad, isyeri.calisanSayisi,
+        /* Çalışan sayısı ekip hesabıyla aynı kaynaktan yazılır (D1): kart ile
+           aktif personel farklıysa rapor da aktif personeli gösterir. */
+        var sayim = ISG.acilCalisanSayisi(isyeri, hesap);
+        return [isyeri.ad, (ISG.RISK_SINIFLARI[isyeri.tehlikeSinifi] || {}).ad, sayim.calisanSayisi,
           (kayit && kayit.hazirlanma) || '', (kayit && kayit.sonYenileme) || '', ozet.enGec,
           (kayit && kayit.tatbikat) || '', ozet.ekip.map(function (uye) { return uye.rol + ': ' + uye.ad; }).join(' | ')];
       }));
@@ -3774,6 +3805,12 @@
 
     formuBagla('acilPlanForm', function (form) {
       var alanlar = formVerisi(form);
+      /* 0) İşyeri bağı: form gizli alanı diyaloğun açıldığı işyerini taşır.
+            Boşsa hangi işyerine yazılacağı belirsizdir; kayıt denenmez. */
+      if (!alanlar.isyeriId) {
+        uyariGoster('acilUyari', 'Plan kaydedilmedi: işyeri seçilemedi. Diyaloğu kapatıp işyeri kartından yeniden açın.');
+        return;
+      }
       /* 1) Tarih koşulları: engelleyen hata varsa kayıt hiç denenmez. Sebep zaten
             alanların altındaki şeritlerde duruyor; odak da ilgili tarihe döner. */
       var tarih = acilPlanTarihCiz();

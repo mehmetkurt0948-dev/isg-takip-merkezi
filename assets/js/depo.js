@@ -515,9 +515,15 @@
   };
 
   ISG.acilPlanOzeti = function (isyeri, kayit) {
-    var sinif = ISG.RISK_SINIFLARI[isyeri.tehlikeSinifi] || ISG.RISK_SINIFLARI.tehlikeli;
+    /* Tehlike sınıfı okunamıyorsa sınıf UYDURULMAZ (şartname §2.3): yenileme
+       aralığı da hesaplanmaz, ekran "sınıf girilmedi" der. Varsayılan sınıf
+       atamak 6 yıllık az tehlikeli bir işyerini 2 yıllık çok tehlikeli gibi
+       göstereceği için sonuç sessizce yanlış olurdu. */
+    var sinifKodu = typeof ISG.tehlikeSinifiKodu === 'function'
+      ? ISG.tehlikeSinifiKodu(isyeri && isyeri.tehlikeSinifi) : '';
+    var sinif = sinifKodu ? (ISG.RISK_SINIFLARI[sinifKodu] || null) : null;
     var son = kayit && (kayit.sonYenileme || kayit.hazirlanma);
-    var enGec = son ? ISG.yilEkle(son, sinif.acilYenilemeYil) : '';
+    var enGec = (son && sinif) ? ISG.yilEkle(son, sinif.acilYenilemeYil) : '';
     var kalan = ISG.gunFarki(enGec);
     /* Ekip üyeleri tek biçimde (rol adı + kimlik) okunur: eski kayıtlardaki
        rol kimliği ya da nesne biçimli ekip alanı görünümde kaybolmaz. */
@@ -529,6 +535,9 @@
       enGec: enGec,
       kalan: kalan,
       sinif: sinif,
+      sinifKodu: sinifKodu,
+      sinifAdi: sinif ? sinif.ad : '',
+      yenilemeYil: sinif ? sinif.acilYenilemeYil : 0,
       ekip: ekip
     };
   };
@@ -539,18 +548,20 @@
      sınıfına göre oranlanmasıdır:
        • Söndürme / kurtarma / koruma: az tehlikeli 1/50, tehlikeli 1/40, çok tehlikeli 1/30
        • İlk yardım: az tehlikeli 1/20, tehlikeli 1/15, çok tehlikeli 1/10
-     Kesirli sonuç yukarı yuvarlanır; hiçbir zorunlu ekip 3 kişiden az olamaz. Oranlar
-     tek yerden değiştirilir. Çalışan sayısı ya da tehlike sınıfı eksikse sayı
-     UYDURULMAZ (0 gösterilip "gerek yok" izlenimi verilmez): hesap geçersiz sayılır ve
-     kullanıcı eksik alanı girmesi için uyarılır. */
+     Kesirli sonuç yukarı yuvarlanır. Yasal bir "en az 3 kişi" tabanı YOKTUR:
+     önceden uygulanan 3 kişilik yapay alt sınır kaldırıldı (1 kişilik az tehlikeli
+     işyerinde 1 kişi, 20 kişilik az tehlikeli işyerinde yine 1 kişi gerekir).
+     Oranlar tek yerden değiştirilir. Çalışan sayısı ya da tehlike sınıfı eksikse
+     sayı UYDURULMAZ (0 gösterilip "gerek yok" izlenimi verilmez): hesap geçersiz
+     sayılır ve kullanıcı eksik alanı girmesi için uyarılır. Personel kaydı olan
+     işyerinde gerçek 0 çalışan ise "veri eksik" değildir; bu durum çağıran tarafın
+     `sifirGecerli` seçeneğiyle bildirilir. */
   var ACIL_EQIP_ORANLARI = {
     az: { sondurme: 50, kurtarma: 50, koruma: 50, ilkYardim: 20 },
     tehlikeli: { sondurme: 40, kurtarma: 40, koruma: 40, ilkYardim: 15 },
     cokTehlikeli: { sondurme: 30, kurtarma: 30, koruma: 30, ilkYardim: 10 }
   };
-  var ACIL_EQIP_ENAZ = 3;
   ISG.ACIL_EQIP_ORANLARI = ACIL_EQIP_ORANLARI;
-  ISG.ACIL_EQIP_ENAZ = ACIL_EQIP_ENAZ;
 
   /* Zorunlu dört ekip. `rolAdlari` plan kaydındaki görev adlarıyla eşleşir; eski
      sürümlerde yazılan adlar `eskiRolAdlari` içinde tutulur ki eski kayıtlar yeniden
@@ -630,45 +641,84 @@
       tarih.getDate() === Number(parca[2]);
   };
 
-  /* Ekip sayısında esas alınan çalışan sayısı. İşyeri kartındaki sayı ile kayıtlı
-     personel listesi çeliştiğinde GERÇEK sayı (büyüğü) kullanılır; böylece listesi
-     kabarık bir işyeri az kişiyle hesaplanmaz. Kaynak ve uyarı döner ki ekranda
-     "hangi sayıya göre hesaplandı" görünsün. */
+  /* Ekip sayısında esas alınan çalışan sayısı.
+     Kural (D1): öncelik AKTİF personel kayıtlarıdır. Pasif (ayrılmış) personel
+     sayılmaz; personel kaydı hiç yoksa işyeri kartındaki çalışan sayısı yedek
+     kaynaktır. Kart ile aktif personel farklıysa aktif personel esas alınır ve
+     kullanıcıya veri tutarsızlığı uyarısı döner. "Gerçek sıfır" (personel var,
+     hepsi pasif) ile "veri eksik" (ne personel ne kart) ayrı işaretlenir: `tip`
+     alanı 'personel' / 'personelSifir' / 'kart' / 'veriYok' değerlerini alır. */
   ISG.acilCalisanSayisi = function (isyeri, veri) {
     var isyeriId = isyeri && isyeri.id !== null && isyeri.id !== undefined ? String(isyeri.id) : '';
     var kayitSayisi = tamsayiOku(isyeri && isyeri.calisanSayisi);
     var kayitliPersonel = 0;
+    var pasifPersonel = 0;
+    var personelVar = false;
     if (veri && isyeriId) {
-      kayitliPersonel = (veri.personel || []).filter(function (kisi) {
-        return String(kisi.isyeriId === null || kisi.isyeriId === undefined ? '' : kisi.isyeriId) === isyeriId;
-      }).length;
+      (veri.personel || []).forEach(function (kisi) {
+        if (!kisi) { return; }
+        if (String(kisi.isyeriId === null || kisi.isyeriId === undefined ? '' : kisi.isyeriId) !== isyeriId) { return; }
+        personelVar = true;
+        /* Yalnızca açıkça 'pasif' işaretli kayıt dışarıda kalır: durum alanı
+           olmayan eski aktarımlar aktif sayılır (bkz. ISG.ayAktifPersonel). */
+        if (String(kisi.durum || '') === 'pasif') { pasifPersonel += 1; }
+        else { kayitliPersonel += 1; }
+      });
     }
-    var sayi = Math.max(kayitSayisi, kayitliPersonel);
+    var sayi = personelVar ? kayitliPersonel : kayitSayisi;
+    var tip = personelVar ? (sayi > 0 ? 'personel' : 'personelSifir') : (kayitSayisi > 0 ? 'kart' : 'veriYok');
+    var uyari = '';
+    var bilgi = '';
+    if (personelVar && kayitSayisi && kayitliPersonel !== kayitSayisi) {
+      uyari = 'Personel listesinde ' + kayitliPersonel + ' aktif kişi var, işyeri kartında ' +
+        kayitSayisi + ' çalışan yazıyor. Ekip ihtiyacı aktif personel (' + kayitliPersonel +
+        ' kişi) üzerinden hesaplandı' +
+        (pasifPersonel ? '; ' + pasifPersonel + ' pasif kayıt sayılmadı' : '') +
+        '. İşyeri kartındaki çalışan sayısını güncelleyin.';
+    } else if (personelVar && !kayitSayisi) {
+      bilgi = 'İşyeri kartında çalışan sayısı girilmemiş; ekip ihtiyacı personel listesindeki ' +
+        kayitliPersonel + ' aktif kişi üzerinden hesaplandı.';
+    } else if (personelVar && sayi === 0) {
+      bilgi = 'Personel kayıtlarının tamamı pasif görünüyor (' + pasifPersonel +
+        ' kayıt); ekip ihtiyacı 0 çalışan üzerinden hesaplandı.';
+    }
+    /* "Personel kaydı yok, kart kullanıldı" bilgisi ayrı şerit olarak yazılmaz:
+       alt satırdaki kaynak etiketi ("İşyeri kartı") bunu zaten söyler. */
     return {
       isyeriId: isyeriId,
       calisanSayisi: sayi,
       isyeriSayisi: kayitSayisi,
       kayitliPersonel: kayitliPersonel,
-      kaynak: sayi ? (kayitliPersonel > kayitSayisi ? 'Kayıtlı personel' : 'İşyeri kaydı') : '',
-      eksik: sayi === 0,
-      uyari: (kayitSayisi && kayitliPersonel > kayitSayisi) ?
-        'Personel listesinde ' + kayitliPersonel + ' kişi var, işyeri kartında ' + kayitSayisi +
-        ' çalışan yazıyor. Hesap ' + kayitliPersonel + ' kişi üzerinden yapıldı; işyeri kartını güncelleyin.' : ''
+      pasifPersonel: pasifPersonel,
+      personelVar: personelVar,
+      tip: tip,
+      kaynak: personelVar ? 'Aktif personel kayıtları' : (kayitSayisi ? 'İşyeri kartı' : ''),
+      eksik: tip === 'veriYok',
+      sifir: sayi === 0,
+      uyari: uyari,
+      bilgi: bilgi
     };
   };
 
-  /* Oran tablosundan zorunlu mevcut. Dönüş: {gecerli, neden, satirlar:[…], gerekli}. */
-  ISG.acilEkipGereksinimi = function (tehlikeSinifi, calisanSayisi) {
+  /* Oran tablosundan zorunlu mevcut. Dönüş: {gecerli, neden, satirlar:[…], gerekli}.
+     `secenekler.sifirGecerli` çağıran taraf "0 çalışan doğrulanmış" diyorsa true
+     gelir (personel kaydı var, hepsi pasif): bu durumda hesap geçerlidir ve gerekli
+     ekip sayısı 0'dır. Aksi hâlde 0 çalışan "veri eksik" sayılır. */
+  ISG.acilEkipGereksinimi = function (tehlikeSinifi, calisanSayisi, secenekler) {
+    var sec = secenekler || {};
+    var sifirGecerli = !!sec.sifirGecerli;
     var sinifKodu = ISG.tehlikeSinifiKodu(tehlikeSinifi);
     var sayi = tamsayiOku(calisanSayisi);
     var neden = '';
     if (!sinifKodu) { neden = 'Tehlike sınıfı tanımlı değil (az / tehlikeli / çok tehlikeli).'; }
-    else if (!sayi) { neden = 'Çalışan sayısı girilmemiş ya da 0; zorunlu ekip sayısı hesaplanamıyor.'; }
+    else if (!sayi && !sifirGecerli) { neden = 'Çalışan sayısı girilmemiş ya da 0; zorunlu ekip sayısı hesaplanamıyor.'; }
     var oranlar = sinifKodu ? (ACIL_EQIP_ORANLARI[sinifKodu] || {}) : {};
+    var hesaplanabilir = !!sinifKodu && (sayi > 0 || sifirGecerli);
     var toplam = 0;
     var satirlar = ISG.ACIL_EQIP_TANIMLARI.map(function (tanim) {
       var oran = oranlar[tanim.id] ? Number(oranlar[tanim.id]) : 0;
-      var gerekli = (sinifKodu && sayi && oran) ? Math.max(ACIL_EQIP_ENAZ, Math.ceil(sayi / oran)) : 0;
+      /* Şartname formülü: gerekli = ceil(çalışan / oran). Yapay alt sınır YOK. */
+      var gerekli = (hesaplanabilir && oran) ? Math.ceil(sayi / oran) : 0;
       toplam += gerekli;
       return {
         id: tanim.id,
@@ -681,7 +731,7 @@
         oranEtiketi: oran ? '1/' + oran : '',
         calisan: sayi,
         gerekli: gerekli,
-        eksikHesap: !sinifKodu || !sayi
+        eksikHesap: !hesaplanabilir
       };
     });
     return {
@@ -690,7 +740,7 @@
       sinifKodu: sinifKodu,
       sinifAdi: (ISG.RISK_SINIFLARI[sinifKodu] || {}).ad || '',
       calisanSayisi: sayi,
-      enaz: ACIL_EQIP_ENAZ,
+      sifir: hesaplanabilir && sayi === 0,
       satirlar: satirlar,
       gerekli: toplam
     };
@@ -745,9 +795,12 @@
      okur; hesaplama burada, tek yerde yapılır. */
   ISG.acilEkipDurumu = function (isyeri, planKaydi, veri) {
     var sayim = ISG.acilCalisanSayisi(isyeri, veri);
-    var gereksinim = ISG.acilEkipGereksinimi(isyeri && isyeri.tehlikeSinifi, sayim.calisanSayisi);
+    var gereksinim = ISG.acilEkipGereksinimi(isyeri && isyeri.tehlikeSinifi, sayim.calisanSayisi,
+      { sifirGecerli: sayim.personelVar });
     var uyarilar = [];
+    var bilgiler = [];
     if (sayim.uyari) { uyarilar.push(sayim.uyari); }
+    if (sayim.bilgi) { bilgiler.push(sayim.bilgi); }
     if (!gereksinim.gecerli) { uyarilar.push(gereksinim.neden + ' Ekip ihtiyacı hesaplanamadı, eksik alanı doldurun.'); }
     var bugun = bugunIso();
     var uyeler = (planKaydi && ISG.depo && typeof ISG.depo.acilEkipUyeleri === 'function')
@@ -775,11 +828,17 @@
       if (mukerrer) { uyarilar.push(satir.ad + ' ekibinde ' + mukerrer + ' mükerrer kayıt var; aynı kişi bir kez sayıldı.'); }
       var kisiSayisi = Object.keys(kisiler).length;
       var eksik = gereksinim.gecerli ? Math.max(0, satir.gerekli - onayli) : 0;
+      var durum = 'hesaplanamadi';
+      if (gereksinim.gecerli) {
+        if (satir.gerekli === 0) { durum = 'gerekYok'; }
+        else if (kisiSayisi === 0) { durum = 'yok'; }
+        else { durum = eksik > 0 ? 'eksik' : 'tamam'; }
+      }
       return {
         id: satir.id, ad: satir.ad, gorev: satir.gorev, rolAdlari: satir.rolAdlari,
         oranEtiketi: satir.oranEtiketi, calisan: satir.calisan, gerekli: satir.gerekli,
         uyeSayisi: gruptakiler.length, kisiSayisi: kisiSayisi, onayli: onayli, eksik: eksik,
-        durum: !gereksinim.gecerli ? 'hesaplanamadi' : (kisiSayisi === 0 ? 'yok' : (eksik > 0 ? 'eksik' : 'tamam')),
+        durum: durum,
         kisiler: Object.keys(kisiler).map(function (anahtar) { return kisiler[anahtar]; }),
         tarihsiz: tarihsiz, suresiDolan: suresiDolan, mukerrer: mukerrer
       };
@@ -793,14 +852,19 @@
       uyarilar.push(cakisma.ad + ' birden fazla zorunlu ekipte görünüyor (' + cakisma.ekipler.join(', ') +
         '); zorunlu mevcut her ekip için ayrı kişi görevlendirin.');
     });
-    var ozet = { gerekli: gereksinim.gerekli, kisi: 0, onayli: 0, eksik: 0, eksikEkip: 0, tarihsiz: 0, suresiDoldu: 0 };
+    var ozet = {
+      gerekli: gereksinim.gerekli, kisi: 0, onayli: 0, eksik: 0, eksikEkip: 0,
+      tarihsiz: 0, suresiDoldu: 0
+    };
     satirlar.forEach(function (satir) {
       ozet.kisi += satir.kisiSayisi;
       ozet.onayli += satir.onayli;
       ozet.eksik += satir.eksik;
       ozet.tarihsiz += satir.tarihsiz.length;
       ozet.suresiDoldu += satir.suresiDolan.length;
-      if (gereksinim.gecerli && satir.kisiSayisi === 0) { ozet.eksikEkip += 1; }
+      /* "Ekip yok" yalnızca gerçekten kişi gerektiğinde sayılır: 0 çalışanlı
+         işyerinde zorunlu ekip mevcudu yoktur, eksik gibi gösterilmez. */
+      if (satir.gerekli > 0 && satir.kisiSayisi === 0) { ozet.eksikEkip += 1; }
     });
     return {
       isyeriId: sayim.isyeriId,
@@ -810,6 +874,7 @@
       satirlar: satirlar,
       cakismalar: cakismalar,
       uyarilar: uyarilar,
+      bilgiler: bilgiler,
       gorevEksik: gereksinim.gecerli && ozet.eksikEkip > 0,
       eksik: ozet.eksik,
       ozet: ozet
@@ -864,7 +929,12 @@
     var sinif = ISG.RISK_SINIFLARI[ISG.tehlikeSinifiKodu(tehlikeSinifi)] || null;
     var esas = degerler.sonYenileme || degerler.hazirlanma;
     var enGec = (sinif && esas && ISG.tarihGecerliMi(esas)) ? ISG.yilEkle(esas, sinif.acilYenilemeYil) : '';
-    if (!sinif) { uyarilar.push('Tehlike sınıfı okunamadığı için en geç yenileme tarihi hesaplanamadı.'); }
+    /* Tehlike sınıfı yoksa yenileme aralığı belirlenemez: varsayılan sınıf
+       uydurmak yerine kayıt engellenir ve eksik alan adıyla söylenir. */
+    if (!sinif) {
+      hatalar.push('Tehlike sınıfı tanımlı olmadığı için acil durum planının yenileme aralığı belirlenemiyor; ' +
+        'işyeri kaydında tehlike sınıfını (az / tehlikeli / çok tehlikeli) seçin.');
+    }
     return { hatalar: hatalar, uyarilar: uyarilar, enGec: enGec, gecerli: hatalar.length === 0 };
   };
 

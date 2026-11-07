@@ -816,6 +816,37 @@ button.kpi:focus-visible { outline: 2px solid rgba(20, 121, 108, .5); outline-of
 .ihtiyac-satir.tehlike { border-left-color: var(--red); background: var(--red-bg); }
 .ihtiyac-ad { font-weight: 600; overflow-wrap: anywhere; }
 .ihtiyac-not { flex: 1 1 100%; color: var(--ink-soft); font-size: 11.5px; }
+
+/* Beş sütunlu zorunlu ekip tablosu: Ekip | Mevcut | Gerekli | Eksik | Durum.
+   Ana ekranda ve düzenleme diyaloğunda aynı tablo kullanılır; dar ekranda
+   .tablo-kap yatay kaydırma verir, sütunlar sıkışıp okunmaz hâle gelmez. */
+.ekip-tablo-kap { margin-top: 4px; border: 1px solid var(--line); border-radius: 8px; }
+.ekip-tablo { font-size: 12.5px; }
+.ekip-tablo th {
+  padding: 7px 10px; font-size: 10.5px; letter-spacing: .04em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.ekip-tablo td { padding: 8px 10px; font-size: 12.5px; }
+.ekip-tablo td .hucre-alt { display: block; margin-top: 2px; }
+.ekip-tablo .ihtiyac-not { display: block; margin-top: 3px; }
+.ekip-tablo td.orta { text-align: center; white-space: nowrap; }
+.ekip-tablo td.orta b { font-size: 13.5px; font-variant-numeric: tabular-nums; }
+
+/* Plan diyaloğu üst bilgisi: işyeri, tehlike sınıfı ve esas çalışan sayısı. */
+.ekip-bilgi {
+  margin-bottom: 10px; padding: 9px 11px; border: 1px solid var(--line);
+  border-radius: 9px; background: #fafbfd;
+}
+.ekip-bilgi-izgara {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px;
+}
+.ekip-bilgi-izgara > div { min-width: 0; }
+.ekip-bilgi-izgara span { display: block; color: var(--ink-mute); font-size: 10px; line-height: 1.3; }
+.ekip-bilgi-izgara b { display: inline-block; margin-top: 3px; font-size: 12.5px; font-weight: 700; overflow-wrap: anywhere; }
+.ekip-bilgi-izgara b.tehlike { color: var(--red); }
+@media (max-width: 560px) {
+  .ekip-bilgi-izgara { grid-template-columns: 1fr; }
+}
 .uyari-serit.uyari { border-color: var(--amber-line); background: var(--amber-bg); color: var(--amber); }
 .uyari-serit.tamam { border-color: var(--green-line); background: var(--green-bg); color: var(--green); }
 .akis { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 0; color: var(--brand); font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; }

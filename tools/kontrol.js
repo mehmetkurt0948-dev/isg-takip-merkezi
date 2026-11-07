@@ -3098,6 +3098,292 @@ function bekle(ms) {
   kontrol('İşyeri tehlike sınıfı geri yüklendi',
     (ISG.depo.al().isyerleri.filter((i) => i.id === 'iy1')[0] || {}).tehlikeSinifi === ilkTehlike,
     (ISG.depo.al().isyerleri.filter((i) => i.id === 'iy1')[0] || {}).tehlikeSinifi);
+  console.log('\n27) Acil durum ekip ihtiyacı: oran, çalışan kaynağı, tarih ve gösterim');
+
+  /* 27a) Oran hesabı: gerekli = ceil(çalışan / oran). Yapay "en az 3 kişi"
+     tabanı kaldırıldı; tüm sayı × sınıf kombinasyonları şartname formülüyle
+     karşılaştırılır. */
+  const acilOranlar = ISG.ACIL_EQIP_ORANLARI;
+  const acilEkipIdleri = ['sondurme', 'kurtarma', 'koruma', 'ilkYardim'];
+  const acilSiniflar = ['az', 'tehlikeli', 'cokTehlikeli'];
+  const acilSayilar = [1, 10, 15, 20, 30, 31, 40, 50, 100, 1140];
+  const oranSapmalari = [];
+  acilSiniflar.forEach((sinif) => {
+    acilSayilar.forEach((n) => {
+      const hesap = ISG.acilEkipGereksinimi(sinif, n);
+      const beklenen = acilEkipIdleri.map((id) => Math.ceil(n / acilOranlar[sinif][id])).join('/');
+      const gercek = hesap.satirlar.map((satir) => satir.gerekli).join('/');
+      if (!hesap.gecerli || gercek !== beklenen) {
+        oranSapmalari.push(sinif + ' ' + n + ': ' + gercek + ' ≠ ' + beklenen);
+      }
+    });
+  });
+  kontrol('Üç tehlike sınıfında 10 çalışan sayısı için oran hesabı doğru',
+    oranSapmalari.length === 0, oranSapmalari.slice(0, 3).join(' | '));
+
+  const hesap1140 = ISG.acilEkipGereksinimi('cokTehlikeli', 1140);
+  kontrol('1140 çok tehlikeli çalışan → 38/38/38/114',
+    hesap1140.satirlar.map((s) => s.gerekli).join('/') === '38/38/38/114' && hesap1140.gerekli === 228,
+    hesap1140.satirlar.map((s) => s.gerekli).join('/') + ' / toplam ' + hesap1140.gerekli);
+  kontrol('1 çalışan az tehlikeli → 1/1/1/1 (3 kişilik taban kaldırıldı)',
+    ISG.acilEkipGereksinimi('az', 1).satirlar.map((s) => s.gerekli).join('/') === '1/1/1/1',
+    ISG.acilEkipGereksinimi('az', 1).satirlar.map((s) => s.gerekli).join('/'));
+  kontrol('20 çalışan az tehlikeli → 1/1/1/1',
+    ISG.acilEkipGereksinimi('az', 20).satirlar.map((s) => s.gerekli).join('/') === '1/1/1/1');
+  kontrol('31 çalışan az tehlikeli → 1/1/1/2 (yukarı yuvarlama)',
+    ISG.acilEkipGereksinimi('az', 31).satirlar.map((s) => s.gerekli).join('/') === '1/1/1/2',
+    ISG.acilEkipGereksinimi('az', 31).satirlar.map((s) => s.gerekli).join('/'));
+  kontrol('50 çalışan tehlikeli → 2/2/2/4',
+    ISG.acilEkipGereksinimi('tehlikeli', 50).satirlar.map((s) => s.gerekli).join('/') === '2/2/2/4');
+  kontrol('15 çalışan çok tehlikeli → 1/1/1/2',
+    ISG.acilEkipGereksinimi('cokTehlikeli', 15).satirlar.map((s) => s.gerekli).join('/') === '1/1/1/2');
+
+  const sifirGecersiz = ISG.acilEkipGereksinimi('az', 0);
+  kontrol('0 çalışan (veri eksik) hesabı geçersiz sayar, sayı uydurmaz',
+    !sifirGecersiz.gecerli && sifirGecersiz.gerekli === 0, sifirGecersiz.neden);
+  const sifirDogrulanmis = ISG.acilEkipGereksinimi('az', 0, { sifirGecerli: true });
+  kontrol('Doğrulanmış 0 çalışan geçerli ve gerekli 0',
+    sifirDogrulanmis.gecerli && sifirDogrulanmis.gerekli === 0 && sifirDogrulanmis.sifir === true);
+  const sinifsizGereksinim = ISG.acilEkipGereksinimi('', 50);
+  kontrol('Tehlike sınıfı yoksa hesap geçersiz ve gerekli 0',
+    !sinifsizGereksinim.gecerli && sinifsizGereksinim.gerekli === 0 &&
+    /Tehlike sınıfı/.test(sinifsizGereksinim.neden), sinifsizGereksinim.neden);
+
+  /* 27b) Çalışan kaynağı (D1): aktif personel öncelikli, kart yedek. */
+  const sentetikKisi = (id, isyeriId, durum) => ({ id: id, isyeriId: isyeriId, adSoyad: 'Kişi ' + id, durum: durum });
+  const sadeceKart = ISG.acilCalisanSayisi({ id: 'T1', calisanSayisi: 25 }, { personel: [] });
+  kontrol('Personel kaydı yoksa işyeri kartı kullanılır',
+    sadeceKart.calisanSayisi === 25 && sadeceKart.tip === 'kart' && sadeceKart.kaynak === 'İşyeri kartı',
+    sadeceKart.tip + '/' + sadeceKart.calisanSayisi);
+  const veriYokSayim = ISG.acilCalisanSayisi({ id: 'T2', calisanSayisi: '' }, { personel: [] });
+  kontrol('Ne personel ne kart varsa veri eksik işaretlenir',
+    veriYokSayim.tip === 'veriYok' && veriYokSayim.eksik === true && veriYokSayim.calisanSayisi === 0);
+  const personelOncelikli = ISG.acilCalisanSayisi({ id: 'T3', calisanSayisi: 0 },
+    { personel: [sentetikKisi('a', 'T3', 'aktif'), sentetikKisi('b', 'T3', 'aktif')] });
+  kontrol('Personel varken karttaki boş sayı hesabı bozmaz',
+    personelOncelikli.calisanSayisi === 2 && personelOncelikli.tip === 'personel' &&
+    /çalışan sayısı girilmemiş/i.test(personelOncelikli.bilgi), personelOncelikli.bilgi);
+
+  const karisikPersonel = [];
+  for (let i = 0; i < 80; i += 1) { karisikPersonel.push(sentetikKisi('a' + i, 'T4', 'aktif')); }
+  for (let i = 0; i < 40; i += 1) { karisikPersonel.push(sentetikKisi('p' + i, 'T4', 'pasif')); }
+  const pasifliSayim = ISG.acilCalisanSayisi({ id: 'T4', calisanSayisi: 120 }, { personel: karisikPersonel });
+  kontrol('Pasif personel sayılmaz (kart 120 / 80 aktif + 40 pasif → 80)',
+    pasifliSayim.calisanSayisi === 80 && pasifliSayim.pasifPersonel === 40,
+    pasifliSayim.calisanSayisi + ' aktif / ' + pasifliSayim.pasifPersonel + ' pasif');
+  kontrol('Kart ile aktif personel farkı kullanıcıya uyarı olarak döner',
+    /80 aktif kişi/.test(pasifliSayim.uyari) && /120/.test(pasifliSayim.uyari) &&
+    /40 pasif/.test(pasifliSayim.uyari), pasifliSayim.uyari);
+  const eskiDurumKaydi = ISG.acilCalisanSayisi({ id: 'T5', calisanSayisi: 5 },
+    { personel: [{ id: 'x', isyeriId: 'T5' }] });
+  kontrol('Durum alanı olmayan eski personel kaydı aktif sayılır',
+    eskiDurumKaydi.calisanSayisi === 1 && eskiDurumKaydi.tip === 'personel');
+  const hepsiPasif = ISG.acilCalisanSayisi({ id: 'T6', calisanSayisi: 10 },
+    { personel: [sentetikKisi('q', 'T6', 'pasif')] });
+  kontrol('Tümü pasifse gerçek sıfır (veri eksik değil)',
+    hepsiPasif.calisanSayisi === 0 && hepsiPasif.tip === 'personelSifir' &&
+    hepsiPasif.eksik === false && /pasif/i.test(hepsiPasif.uyari || hepsiPasif.bilgi),
+    hepsiPasif.uyari || hepsiPasif.bilgi);
+  const baskaIsyeriSayim = ISG.acilCalisanSayisi({ id: 'T7', calisanSayisi: 3 }, { personel: karisikPersonel });
+  kontrol('Başka işyerinin personeli sayıma karışmaz',
+    baskaIsyeriSayim.calisanSayisi === 3 && baskaIsyeriSayim.personelVar === false &&
+    baskaIsyeriSayim.kayitliPersonel === 0);
+
+  /* 27c) Ekip üyeleri: süresi dolmuş belge, mükerrer kişi, görev çakışması. */
+  const ekipTestVerisi = { personel: [], egitimler: [], isyerleri: [] };
+  for (let i = 0; i < 40; i += 1) { ekipTestVerisi.personel.push(sentetikKisi('e' + i, 'T8', 'aktif')); }
+  const ekipPlan = {
+    isyeriId: 'T8', hazirlanma: '', sonYenileme: '', tatbikat: '',
+    ekip: [
+      { rol: 'İlk yardım ekibi', ad: 'Süresi Dolmuş', gecerlilik: '2020-01-01' },
+      { rol: 'İlk yardım ekibi', ad: 'Geçerli Kişi', gecerlilik: '2099-12-31' },
+      { rol: 'İlk yardım ekibi', ad: 'Geçerli Kişi', gecerlilik: '2099-12-31' }
+    ]
+  };
+  const ekipIsyeri = { id: 'T8', ad: 'Ekip Testi', tehlikeSinifi: 'tehlikeli', calisanSayisi: 40 };
+  const ekipDurum = ISG.acilEkipDurumu(ekipIsyeri, ekipPlan, ekipTestVerisi);
+  const ilkYardimSatiri = ekipDurum.satirlar.filter((s) => s.id === 'ilkYardim')[0];
+  kontrol('Süresi dolmuş ilk yardım belgesi mevcuda sayılmaz',
+    ilkYardimSatiri.onayli === 1 && ilkYardimSatiri.suresiDolan.length === 1,
+    'onaylı ' + ilkYardimSatiri.onayli + ' / süresi dolan ' + ilkYardimSatiri.suresiDolan.length);
+  kontrol('Aynı kişi iki kez yazılsa bir kez sayılır',
+    ilkYardimSatiri.kisiSayisi === 2 && ilkYardimSatiri.mukerrer === 1,
+    'kişi ' + ilkYardimSatiri.kisiSayisi + ' / mükerrer ' + ilkYardimSatiri.mukerrer);
+  kontrol('Tehlikeli 40 çalışanda ilk yardım ihtiyacı 3 kişi',
+    ilkYardimSatiri.gerekli === 3 && ilkYardimSatiri.eksik === 2,
+    'gerekli ' + ilkYardimSatiri.gerekli + ' / eksik ' + ilkYardimSatiri.eksik);
+
+  ekipPlan.ekip.push({ rol: 'Söndürme ekibi', ad: 'Geçerli Kişi' });
+  const cakismaliDurum = ISG.acilEkipDurumu(ekipIsyeri, ekipPlan, ekipTestVerisi);
+  kontrol('Aynı kişi iki zorunlu ekipte görünürse çakışma uyarısı çıkar',
+    cakismaliDurum.cakismalar.length === 1 &&
+    cakismaliDurum.cakismalar[0].ekipler.length === 2 &&
+    cakismaliDurum.uyarilar.some((m) => /birden fazla zorunlu ekipte/.test(m)),
+    JSON.stringify(cakismaliDurum.cakismalar));
+
+
+
+  /* 27d) Plan tarihi: tehlike sınıfına göre 2/4/6 yıl, takvim doğrulaması. */
+  const tarihHazir = (sinif, enGec) => ISG.acilPlanTarihKontrol(
+    { hazirlanma: '2024-01-10', sonYenileme: '', tatbikat: '2024-02-01' }, sinif).enGec === enGec;
+  kontrol('Az tehlikeli plan 6 yılda yenilenir', tarihHazir('az', '2030-01-10'));
+  kontrol('Tehlikeli plan 4 yılda yenilenir', tarihHazir('tehlikeli', '2028-01-10'));
+  kontrol('Çok tehlikeli plan 2 yılda yenilenir', tarihHazir('cokTehlikeli', '2026-01-10'));
+
+  const takvimHatasi = ISG.acilPlanTarihKontrol({ hazirlanma: '2026-02-31' }, 'az');
+  kontrol('Takvimde olmayan tarih (2026-02-31) reddedilir',
+    !takvimHatasi.gecerli && /geçerli bir tarih değil/.test(takvimHatasi.hatalar.join(' ')));
+  const ileriTarih = ISG.acilPlanTarihKontrol({ hazirlanma: '2999-01-01' }, 'az');
+  kontrol('İleri tarih reddedilir', !ileriTarih.gecerli && /ileri bir tarih/.test(ileriTarih.hatalar.join(' ')));
+  const siraHatasi = ISG.acilPlanTarihKontrol(
+    { hazirlanma: '2025-01-01', sonYenileme: '2024-01-01', tatbikat: '2025-01-02' }, 'az');
+  kontrol('Son yenileme hazırlanmadan eski olamaz',
+    !siraHatasi.gecerli && /eski olamaz/.test(siraHatasi.hatalar.join(' ')));
+  const sinifsizTarih = ISG.acilPlanTarihKontrol({ hazirlanma: '2025-01-01' }, '');
+  kontrol('Tehlike sınıfı yoksa tarih denetimi belirsizliği hata olarak bildirir',
+    !sinifsizTarih.gecerli && sinifsizTarih.enGec === '' &&
+    /Tehlike sınıfı tanımlı olmadığı/.test(sinifsizTarih.hatalar.join(' ')),
+    sinifsizTarih.hatalar.join(' | '));
+  const tatbikatli = ISG.acilPlanTarihKontrol(
+    { hazirlanma: '2024-01-10', sonYenileme: '', tatbikat: '2024-03-01' }, 'tehlikeli');
+  kontrol('Tatbikat tarihi yenileme hesabını değiştirmez', tatbikatli.enGec === '2028-01-10');
+  const tatbikatsiz = ISG.acilPlanTarihKontrol({ hazirlanma: '2024-01-10' }, 'tehlikeli');
+  kontrol('Tatbikat girilmezse bilgilendirme uyarısı düşer, kayıt engellenmez',
+    tatbikatsiz.gecerli && /tatbikat/i.test(tatbikatsiz.uyarilar.join(' ')));
+  const vadeliGecmis = ISG.acilPlanTarihKontrol(
+    { hazirlanma: '2015-01-10', sonYenileme: '', tatbikat: '2015-02-01' }, 'tehlikeli');
+  kontrol('Vadesi geçmiş plan kaydı engellenmez, vade olarak gösterilir',
+    vadeliGecmis.gecerli && vadeliGecmis.enGec === '2019-01-10', vadeliGecmis.enGec);
+
+  const ozetVarsayilansiz = ISG.acilPlanOzeti(
+    { id: 'T9', tehlikeSinifi: '', calisanSayisi: 5 }, { sonYenileme: '2024-01-01' });
+  kontrol('Tehlike sınıfı yoksa varsayılan sınıf uydurulmaz',
+    ozetVarsayilansiz.sinif === null && ozetVarsayilansiz.enGec === '' &&
+    ozetVarsayilansiz.yenilemeYil === 0);
+  const ozetAz = ISG.acilPlanOzeti({ id: 'T10', tehlikeSinifi: 'az', calisanSayisi: 5 },
+    { sonYenileme: '2024-01-01' });
+  kontrol('Sınıf etiket metniyle de okunur (Az tehlikeli → 6 yıl)',
+    ozetAz.enGec === '2030-01-01' && ozetAz.yenilemeYil === 6, ozetAz.enGec);
+
+  /* 27e) İşyeri izolasyonu, otomatik hesap ve kalıcılık (gerçek depo). */
+  const acilTest1 = ISG.depo.isyeriKaydet({
+    ad: 'ACİL TEST 1140', tehlikeSinifi: 'cokTehlikeli', calisanSayisi: 1140, kurumId: ''
+  });
+  const acilTest2 = ISG.depo.isyeriKaydet({
+    ad: 'ACİL TEST 20', tehlikeSinifi: 'az', calisanSayisi: 20, kurumId: ''
+  });
+  const durumTest1 = ISG.acilEkipDurumu(acilTest1, null, ISG.depo.al());
+  kontrol('Yeni işyerinde ekip ihtiyacı kayıt olmadan hesaplanır',
+    durumTest1.gorevEksik === true && durumTest1.ozet.eksikEkip === 4,
+    'eksik ekip ' + durumTest1.ozet.eksikEkip);
+  kontrol('1140 çok tehlikeli işyerinde gerekli 38/38/38/114',
+    durumTest1.satirlar.map((s) => s.gerekli).join('/') === '38/38/38/114',
+    durumTest1.satirlar.map((s) => s.gerekli).join('/'));
+  const durumTest2 = ISG.acilEkipDurumu(acilTest2, null, ISG.depo.al());
+  kontrol('20 az tehlikeli işyerinde gerekli 1/1/1/1',
+    durumTest2.satirlar.map((s) => s.gerekli).join('/') === '1/1/1/1',
+    durumTest2.satirlar.map((s) => s.gerekli).join('/'));
+
+  ISG.depo.acilEkipEkle(acilTest1.id, 'İlk yardım ekibi', 'A Kişisi', '', { gecerlilik: '2099-12-31' });
+  const izole1 = ISG.acilEkipDurumu(acilTest1, ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', acilTest1.id), ISG.depo.al());
+  const izole2 = ISG.acilEkipDurumu(acilTest2, ISG.ilgiliKayit(ISG.depo.al(), 'acilPlanlar', acilTest2.id), ISG.depo.al());
+  const ilk1 = izole1.satirlar.filter((s) => s.id === 'ilkYardim')[0];
+  const ilk2 = izole2.satirlar.filter((s) => s.id === 'ilkYardim')[0];
+  kontrol('Ekip üyesi yalnızca kendi işyerinde sayılır',
+    ilk1.onayli === 1 && ilk2.kisiSayisi === 0,
+    'test1 ' + ilk1.onayli + ' / test2 ' + ilk2.kisiSayisi);
+
+  const test2Kisi = ISG.depo.personelKaydet({
+    id: '', isyeriId: acilTest2.id, adSoyad: 'İzolasyon Kişisi', sicil: 'A-1', durum: 'aktif'
+  });
+  const sayimTest2 = ISG.acilCalisanSayisi(acilTest2, ISG.depo.al());
+  const sayimTest1 = ISG.acilCalisanSayisi(acilTest1, ISG.depo.al());
+  kontrol('Personel kaydı yalnızca kendi işyerinin sayımına girer',
+    sayimTest2.calisanSayisi === 1 && sayimTest1.kayitliPersonel === 0,
+    'test2 ' + sayimTest2.calisanSayisi + ' / test1 ' + sayimTest1.kayitliPersonel);
+  kontrol('Personel varken kart sayısı yerine aktif personel esas alınır',
+    sayimTest2.tip === 'personel' && sayimTest2.calisanSayisi === 1 && /20/.test(sayimTest2.uyari),
+    sayimTest2.tip + ' ' + sayimTest2.calisanSayisi);
+  ISG.depo.personelSil(test2Kisi.id);
+
+  ISG.depo.acilPlanKaydet(acilTest2.id, { hazirlanma: '2024-05-01', sonYenileme: '', tatbikat: '' });
+  const kaliciPlan = (JSON.parse(window.localStorage.getItem('isgtakip.v4') || '{}').acilPlanlar || [])
+    .filter((k) => k.isyeriId === acilTest2.id)[0] || {};
+  kontrol('Plan tarihi diske yazılır',
+    kaliciPlan.hazirlanma === '2024-05-01', String(kaliciPlan.hazirlanma));
+  kontrol('Diske yazılan tarihten yenileme 6 yıl ötelenir',
+    ISG.acilPlanOzeti(acilTest2, kaliciPlan).enGec === '2030-05-01',
+    ISG.acilPlanOzeti(acilTest2, kaliciPlan).enGec);
+
+  /* 27f) Gösterim (D3): ana ekranda ve diyalogda beş sütunlu tablo + arama. */
+  await sayfaAc('#acil');
+  const acilTablolar = doc.querySelectorAll('#gorunum .ekip-tablo');
+  kontrol('#acil ekranında her işyeri kartında ekip tablosu var',
+    acilTablolar.length > 0 &&
+    acilTablolar.length === doc.querySelectorAll('#gorunum .risk-kart[data-acil-kart]').length,
+    acilTablolar.length + ' tablo / ' +
+      doc.querySelectorAll('#gorunum .risk-kart[data-acil-kart]').length + ' kart');
+  const ilkAcilTablo = acilTablolar[0];
+  kontrol('Tablo başlıkları Ekip / Mevcut / Gerekli / Eksik / Durum',
+    Array.from(ilkAcilTablo.querySelectorAll('thead th')).map((th) => th.textContent.trim()).join('|') ===
+      'Ekip|Mevcut|Gerekli|Eksik|Durum',
+    Array.from(ilkAcilTablo.querySelectorAll('thead th')).map((th) => th.textContent.trim()).join('|'));
+  kontrol('Her tabloda dört zorunlu ekip satırı var',
+    ilkAcilTablo.querySelectorAll('tbody tr').length === 4,
+    String(ilkAcilTablo.querySelectorAll('tbody tr').length));
+  kontrol('Tablo yatay kaydırma kabında (dar ekran)', !!ilkAcilTablo.closest('.tablo-kap'));
+
+  const acilAramaGirdi = doc.querySelector('[data-ui="acilArama"]');
+  kontrol('#acil ekranında işyeri arama alanı var', !!acilAramaGirdi);
+  if (acilAramaGirdi) {
+    /* Arama gerçek kullanıcı yolundan sınanır: data-ui bağlantısı değeri
+       yazar, 260 ms debounce sonrası sayfa yeniden çizilir. */
+    acilAramaGirdi.value = 'ACİL TEST 1140';
+    acilAramaGirdi.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await bekle(420);
+    kontrol('Arama kart listesini süzer',
+      doc.querySelectorAll('#gorunum .risk-kart[data-acil-kart]').length === 1,
+      String(doc.querySelectorAll('#gorunum .risk-kart[data-acil-kart]').length) + ' kart');
+    kontrol('Aranan işyeri kartı ekranda kalır', /ACİL TEST 1140/.test(metin('#gorunum')));
+    kontrol('Arama kutusu değeri korunur',
+      (doc.querySelector('[data-ui="acilArama"]') || {}).value === 'ACİL TEST 1140');
+    const aramaTemizle = doc.querySelector('[data-ui="acilArama"]');
+    aramaTemizle.value = '';
+    aramaTemizle.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await bekle(420);
+    kontrol('Arama temizlenince tüm kartlar geri gelir',
+      doc.querySelectorAll('#gorunum .risk-kart[data-acil-kart]').length > 1,
+      String(doc.querySelectorAll('#gorunum .risk-kart[data-acil-kart]').length) + ' kart');
+  }
+
+  const acilPlanDugme = doc.querySelector('[data-islem="acil-plan"][data-id="' + acilTest1.id + '"]');
+  kontrol('1140 kişilik işyerinin plan düğmesi bulundu', !!acilPlanDugme);
+  if (acilPlanDugme) {
+    acilPlanDugme.click();
+    await bekle(160);
+    kontrol('Plan diyaloğu açıldı', doc.getElementById('acilPlanDiyalog').open === true);
+    const diyalogTablo = doc.querySelector('#acilPlanIhtiyac .ekip-tablo');
+    kontrol('Diyalogda beş sütunlu ekip tablosu var',
+      !!diyalogTablo && diyalogTablo.querySelectorAll('tbody tr').length === 4,
+      diyalogTablo ? diyalogTablo.querySelectorAll('tbody tr').length + ' satır' : 'tablo yok');
+    kontrol('Diyalog tablosu 1140 için 38 gerekli gösterir',
+      !!diyalogTablo && /38/.test(diyalogTablo.querySelectorAll('tbody tr')[0].textContent),
+      diyalogTablo ? diyalogTablo.querySelectorAll('tbody tr')[0].textContent.slice(0, 60) : 'yok');
+    const diyalogBilgi = doc.getElementById('acilPlanBilgi');
+    kontrol('Diyalog işyeri, tehlike sınıfı ve esas çalışan sayısını gösterir',
+      /ACİL TEST 1140/.test(diyalogBilgi.textContent) &&
+      /Çok tehlikeli/.test(diyalogBilgi.textContent) &&
+      /1140/.test(diyalogBilgi.textContent),
+      diyalogBilgi.textContent.trim().slice(0, 120));
+    doc.getElementById('acilPlanDiyalog').removeAttribute('open');
+  }
+
+  /* Test verisi temizliği: geçici işyerleri ve bağlı acil plan kayıtları silinir. */
+  ISG.depo.isyeriSil(acilTest1.id);
+  ISG.depo.isyeriSil(acilTest2.id);
+  kontrol('Acil test işyerleri temizlendi',
+    ISG.depo.al().isyerleri.every((i) => i.id !== acilTest1.id && i.id !== acilTest2.id) &&
+    ISG.depo.al().acilPlanlar.every((k) => k.isyeriId !== acilTest1.id && k.isyeriId !== acilTest2.id));
 
   console.log('\nSonuç: ' + gecen + ' geçti, ' + hata + ' başarısız');
   dom.window.close();
