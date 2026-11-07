@@ -617,6 +617,7 @@
   SAYFALAR.ekip = function () {
     var oturum = ISG.yetki.oturum();
     var yonetici = !!(oturum && ISG.yetki.rolTanimi(oturum.rol).yonetir);
+    var atamasiz = typeof ISG.yetki.atamaYok === 'function' && ISG.yetki.atamaYok();
     var hesap = ISG.depo.al();
     var kullanicilar = (hesap.kullanicilar || []).slice().sort(function (a, b) {
       return String(a.adSoyad || '').localeCompare(String(b.adSoyad || ''), 'tr');
@@ -677,7 +678,25 @@
           }).join('') + '</div></section>'
       : '';
 
+    /* Ataması olmayan yönetici bu ekrandan kendine işyeri atayabilir: sistem
+       kendi kendini kilitlemesin diye uyarı, çözüm yolunu da yazar. */
+    var atamaUyarisi = atamasiz
+      ? '<section class="kart">' +
+          '<div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
+            '<h2>İşyeri atamanız bulunmuyor</h2>' +
+            '<p>Henüz işyeri atamanız bulunmuyor. Sisteme erişebilmek için yetkili ' +
+              'yönetici tarafından işyeri atamanız yapılmalıdır.</p>' +
+          '</div>' +
+          '<div class="kart-ic"><p class="bolum-aciklama">' +
+            (yonetici
+              ? 'Kendi satırınızda <strong>Düzenle</strong> ile işyerlerini işaretleyin; kayıt yayımlandığı anda erişim başlar.'
+              : 'Yetki verilmesi için kurumunuzun yetkili yöneticisine başvurun.') +
+          '</p></div>' +
+        '</section>'
+      : '';
+
     return P.sayfaBaslik('KULLANICILAR VE YETKİLER', 'Kullanıcılar ve yetkiler', 'Siteye giriş yapacak kişiler ve erişim kapsamları') +
+      atamaUyarisi +
       '<section class="kart ekip-kart">' +
         '<div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
           '<h2>Kullanıcılar</h2>' +

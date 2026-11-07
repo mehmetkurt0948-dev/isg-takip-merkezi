@@ -46,7 +46,9 @@ const ISG = pencere.ISG;
 const belge = pencere.document;
 
 /* Tohum: bir işyeri, üç personel, yönetici oturumu. Sağlık kasası boştur. */
+/* Kurulum hesabi kapsamsiz gelir (2.26.0); fikstur acik yetki verir. */
 const yonetici = ISG.YONETICI_HESAP()[0];
+yonetici.tumIsyerleri = true;
 const baslangic = ISG.BOS_VERI();
 baslangic.anaHat = 'saglik-toplu-test';
 baslangic.ayarlar.kurum = 'Test Kurumu';

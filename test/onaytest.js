@@ -51,8 +51,10 @@ function tohum() {
     aktivite: 'Üretim', tehlikeSinifi: 'Tehlikeli', calisan: 10,
     adres: '', telefon: '', 'e-posta': '', aktiv: true
   }];
+  /* Kurulum hesabi kapsamsiz gelir (2.26.0); fikstur acik yetki verir. */
   const yonetici = ISG.YONETICI_HESAP()[0];
-  veri.kullanicilar = ISG.YONETICI_HESAP().concat([{
+  yonetici.tumIsyerleri = true;
+  veri.kullanicilar = [yonetici].concat([{
     id: 'u-yetkili', adSoyad: 'Yetkili Kişi', eposta: 'yetkili@test.local',
     sifre: '1402', rol: 'yetkili', gorev: 'İSG Uzmanı',
     isyerleri: ['isyeri-A'], aktif: true, sonGiris: ''
@@ -85,6 +87,7 @@ function tohum() {
 }
 
 const yonetici = ISG.YONETICI_HESAP()[0];
+yonetici.tumIsyerleri = true;
 
 /* Aday eylemler: [ad, argumanlar, beklenen durum] */
 const SENARYOLAR = [

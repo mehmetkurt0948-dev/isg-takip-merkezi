@@ -145,6 +145,39 @@ function isyeriDurumu(ISG, isyeri, uzmanlar) {
   const talepDurum = {};
   (tam.talepler || []).forEach((t) => { talepDurum[t.durum || '?'] = (talepDurum[t.durum || '?'] || 0) + 1; });
 
+  /* Kullanıcı erişim denetimi (2.26.0 · rol ≠ kapsam). Her hesap için AÇIK
+     işyeri atamaları, "tüm işyerleri" yetkisi ve bu sürümdeki erişim sonucu
+     yazılır. Şifre, TC kimlik no ve sağlık verisi okunmaz/yazılmaz; yalnız
+     kimlik, rol, kurum, atama listesi ve durum raporlanır. */
+  function erisimOzeti(kullanici) {
+    const tanim = ISG.yetki.rolTanimi(kullanici.rol);
+    const acik = kullanici.tumIsyerleri === true;
+    const atamalar = (kullanici.isyerleri || []).filter(Boolean);
+    let erisim;
+    if (ISG.yetki.tumunuGorur({
+      kullaniciId: kullanici.id, rol: kullanici.rol,
+      isyerleri: atamalar, tumIsyerleri: acik
+    })) {
+      erisim = 'tüm işyerleri';
+    } else if (tanim.kurumKapsami) {
+      erisim = kullanici.kurumId ? 'kendi kurumu' : 'ERİŞİM YOK (kurum yok)';
+    } else {
+      erisim = atamalar.length ? atamalar.length + ' işyeri' : 'ERİŞİM YOK (atama yok)';
+    }
+    return {
+      id: kullanici.id,
+      ad: kullanici.adSoyad || '',
+      rol: tanim.id,
+      kurum: kullanici.kurumId || '',
+      isyerleri: atamalar,
+      tumIsyerleri: acik,
+      aktif: kullanici.aktif !== false,
+      erisim
+    };
+  }
+
+  const erisimSatirlari = kullanicilar.map(erisimOzeti);
+
   const rapor = {
     kaynak,
     kurum: (tam.ayarlar || {}).kurum || '',
@@ -156,6 +189,8 @@ function isyeriDurumu(ISG, isyeri, uzmanlar) {
     tehlikeDagilimi: dagilim,
     onayDurumuDagilimi: durumSayisi,
     talepDurumu: talepDurum,
+    atamasizHesapSayisi: erisimSatirlari.filter((u) => u.erisim.indexOf('ERİŞİM YOK') === 0).length,
+    kullanicilar: erisimSatirlari,
     isyerleri: satirlar
   };
 
@@ -188,6 +223,21 @@ function isyeriDurumu(ISG, isyeri, uzmanlar) {
       ' işyeri tek uzmanlı sayılıp doğrudan yazma kazanacak.');
     console.log('Uyarı: ' + (durumSayisi.yetkiliEksik || 0) +
       ' işyerinde tehlike sınıfına uygun uzman sınıfı yok; talepler "yetki eksik" kalır.');
+    console.log(cizgi);
+    console.log('KULLANICI ERİŞİMİ (2.26.0 · rol ≠ kapsam)');
+    erisimSatirlari.forEach((u) => {
+      console.log('- ' + u.id + (u.ad ? ' [' + u.ad + ']' : '') + ' · ' + u.rol +
+        (u.aktif ? '' : ' · PASİF') +
+        (u.kurum ? ' · kurum: ' + u.kurum : '') + ' → ' + u.erisim +
+        (u.tumIsyerleri ? '  (açık "tüm işyerleri" yetkisi)' : '') +
+        (u.isyerleri.length ? '  [' + u.isyerleri.join(', ') + ']' : ''));
+    });
+    if (rapor.atamasizHesapSayisi) {
+      console.log(cizgi);
+      console.log('Uyarı: ' + rapor.atamasizHesapSayisi +
+        ' hesabın işyeri ataması yok; bu hesaplar girişte "İşyeri atamanız bulunmuyor" uyarısı görür.');
+      console.log('       Atama, Kullanıcılar ve yetkiler ekranından yapılır (otomatik atama yapılmaz).');
+    }
   }
 
   if (ISG.bulut && typeof ISG.bulut.durdur === 'function') { ISG.bulut.durdur(); }

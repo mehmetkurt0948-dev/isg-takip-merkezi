@@ -34,11 +34,19 @@
   ISG.yilEkle = yilEkle;
 
   /* Tek gerçek hesap: site yöneticisi. Boş başlangıçta ve veri sıfırlandığında
-     bu hesap korunur, böylece giriş anahtarı hiçbir cihazda kaybolmaz. */
+     bu hesap korunur, böylece giriş anahtarı hiçbir cihazda kaybolmaz.
+
+     KAPSAM YOKTUR (2.26.0): yönetici rolü tek başına işyeri kapsamı sağlamaz ve
+     bu hesaba kurulumda `tumIsyerleri` ya da işyeri ataması YAZILMAZ. İlk
+     yönetici, işyerlerini kendisi tanımladıktan sonra Kullanıcılar ve yetkiler
+     ekranından kendi hesabına açıkça işyeri atar; bu iki yönetim ekranı atamasız
+     yöneticiye açıktır, dolayısıyla sistem kendini kilitlemez. Atama yapılana
+     kadar veri ekranlarında "İşyeri atamanız bulunmuyor" uyarısı görünür. */
   ISG.YONETICI_HESAP = function () {
     return [{
       id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmetkurt0948@gmail.com', sifre: '1234',
-      rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [], aktif: true, sonGiris: ''
+      rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [],
+      aktif: true, sonGiris: ''
     }];
   };
 

@@ -53,7 +53,9 @@ if (!ISG.saglikCalismaKitabi && fs.existsSync(path.join(KOK, 'assets/js/saglik-c
 }
 
 /* 2) Test tohumu: iki isyeri, uc personel, uc rol (yayindaki bos veri uzerine). */
+/* Kurulum hesabi kapsamsiz gelir (2.26.0); fikstur acik yetki verir. */
 const yonetici = ISG.YONETICI_HESAP()[0];
+yonetici.tumIsyerleri = true;
 const yetkili = {
   id: 'u-uzman', adSoyad: 'Uzman Deniz Yilmaz', eposta: 'uzman@site.local', sifre: '1234',
   gorev: 'İş güvenliği uzmanı', rol: 'yetkili', isyerleri: ['isyeri-A'], aktiv: true

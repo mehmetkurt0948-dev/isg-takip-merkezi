@@ -57,7 +57,9 @@ const belge = pencere.document;
 const D = ISG.depo;
 
 /* 2) Tohum veri: bir isyeri, iki hesap, bir plan, bir personel. */
+/* Kurulum hesabi kapsamsiz gelir (2.26.0); fikstur acik yetki verir. */
 const yonetici = ISG.YONETICI_HESAP()[0];
+yonetici.tumIsyerleri = true;
 const yetkili = {
   id: 'u-yetkili', adSoyad: 'Yetkili Kişi', eposta: 'yetkili@test.local', sifre: '1402',
   rol: 'yetkili', gorev: 'İSG Uzmanı', isyerleri: ['isyeri-A'], aktif: true, sonGiris: ''
@@ -71,7 +73,7 @@ function tohum() {
     aktivite: 'Üretim', tehlikeSinifi: 'Tehlikeli', calisan: 10,
     adres: '', telefon: '', 'e-posta': '', aktiv: true
   }];
-  veri.kullanicilar = ISG.YONETICI_HESAP().concat([yetkili]);
+  veri.kullanicilar = [yonetici].concat([yetkili]);
   veri.planlar = [{
     id: 'pl-ui-1', isyeriId: 'isyeri-A', tanim: 'Kulaklık dağıtımı',
     odak: 'İSG', kategori: 'Kişisel koruyucu', anaBaslik: 'İSG Faaliyetleri',

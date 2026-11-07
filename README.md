@@ -49,7 +49,7 @@ sıfırlama, rol bazlı yetki ve onay akışı.
 
 | Rol | Kapsam | Yazma | Onay kuyruğu |
 |---|---|---|---|
-| **Yönetici** | Tüm işyerleri; **ancak kullanıcıya açıkça işyeri atanmışsa yalnız atandığı işyerleri** (atama yoksa tümü) | Doğrudan yazar | Görür ve yönetir |
+| **Yönetici** | Yalnızca kullanıcı kaydında **açıkça atanmış işyerleri**; ataması yoksa **hiçbir işyeri** (açık "Tüm işyerleri" yetkisi verilirse tümü) | Doğrudan yazar | Görür ve yönetir |
 | **Sistem Yöneticisi** | Tüm işyerleri | Doğrudan yazar | Görür ve yönetir; **sistem yönetimi** paneliyle kurum, işyeri ve kullanıcı yönetimi |
 | **OSGB Müdürü** | Kendi **kurumu** (`kurumId`) | Yok — salt okunur | Görmez, karar vermez; **kurum denetim panosu**nu görür; **Sağlık Takibi**'ni yönetici onaylı görüntüleme izniyle okur |
 | **Yetkili** | Yalnızca atandığı işyerleri | Talebe dönüşür; **işyeri onay modeli** açıksa tek uzmanda doğrudan, çok uzmanda eşik sınıfındaki uzmanın onayıyla | Onay yetkilisiyse görür |
@@ -65,6 +65,23 @@ açabilir. Yetki kararı arayüzde buton gizlemekle değil, `ISG.yetki` rol
 tanımı (`yonetir` / `onaylar` / `saltOkunur`) ve depo sarmalayıcısı üzerinden
 verilir; normal **Yetkili** hesabı `kullaniciKaydet` gibi yönetim işlemlerinde
 "Bu işlem yalnızca yöneticilere açıktır" hatası alır.
+
+**Rol ≠ kapsam (2.26.0).** Yönetici (ya da varsayılan `u1` hesabı) olmak tek
+başına bütün işyerlerini görme hakkı vermez. `ISG.yetki.tumunuGorur()` yalnızca
+**açık "Tüm işyerleri" yetkisi** (`tumIsyerleri: true`) veya **Sistem Yöneticisi**
+kuralı üzerinden `true` döner; diğer herkes kullanıcı kaydındaki
+`isyerleri[]` listesiyle sınırlıdır. Ataması olmayan hesap veri ekranlarında
+**hiçbir işyeri görmez**: uygulama, sayfa yerine *"Henüz işyeri atamanız
+bulunmuyor. Sisteme erişebilmek için yetkili yönetici tarafından işyeri
+atamanız yapılmalıdır."* uyarısını gösterir (`ISG.yetki.atamaYok()`).
+Atamasız hesapta **Kullanıcılar ve yetkiler** ile **İşyerleri** ekranları açık
+kalır; çünkü atama yalnızca buradan yapılabilir (kullanıcı formundaki
+işyeri/kurum seçenekleri `atamaIsyerleri` / `atamaKurumlar` tam listesinden
+gelir, kayıt verisi ise kapsam süzgecinden okunur). Sağlık verisi için işyeri
+ataması **ve** görüntüleme yetkisi birlikte aranır; yönetim rolü tek başına
+sağlık verisi okuma hakkı vermez. Kapsam dışı hedefe yapılan doğrudan yazma
+(işyeri ya da kayıt kimliği bilinse bile) "Bu işyeri yetki kapsamınızda değil."
+hatasıyla reddedilir.
 
 **Kurum (OSGB) ve uzman sınıfı.** Her işyeri bir `kurumId` taşır; üst düzey
 `kurumlar` listesi kurum kayıtlarını tutar. Yetkili kullanıcıda **uzman sınıfı**
@@ -1116,6 +1133,65 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.26.0 — Rol ≠ kapsam: atamasız yönetici artık hiçbir işyerini görmüyor
+
+- **Kök neden — rol kapsam sanılıyordu.** `assets/js/yetki.js` içindeki
+  `tumunuGorur()` fonksiyonu `rol.id === 'yonetici'` ve **işyeri ataması yoksa**
+  `true` dönüyordu; `u1` (varsayılan yönetici hesabı) bu yüzden hiçbir atama
+  olmadan bütün işyerlerini görüyordu. Yönetici rolü tek başına süper kullanıcı
+  sayılıyordu.
+- **Yeni kural.** `tumunuGorur()` yalnızca iki açık kaynak üzerinden `true`
+  döner: **Sistem Yöneticisi** rolü ve kullanıcı kaydındaki **açık "Tüm
+  işyerleri" yetkisi** (`tumIsyerleri: true`). Yönetici dahil diğer herkes
+  yalnızca `isyerleri[]` listesindeki işyerlerini görür; **atama yoksa varsayılan
+  `false`**. Rol tanımındaki `tumIsyerleri` bayrağı yönetici için `false`'a
+  çekildi (rol tablosu artık "Atandığı işyerleri" yazar).
+- **Eski `u1` istisnası kaldırıldı.** Mevcut `u1` kaydı göç sırasında
+  **değiştirilmedi**: `isyerleri: []` ve `tumIsyerleri` yok → giriş yaptığında
+  veri yerine "Henüz işyeri atamanız bulunmuyor" uyarısını görür. Ataması olmayan
+  hiçbir hesaba otomatik işyeri atanmadı; kurum (`kurumId`) ve rol ilişkileri
+  korundu, kullanıcı kaydı silinmedi/yeniden oluşturulmadı.
+- **Atama yolu açık kaldı (kilitlenme yok).** Atamasız hesap **Kullanıcılar ve
+  yetkiler** ile **İşyerleri** ekranlarını açabilir; kullanıcı formundaki
+  işyeri/kurum seçenekleri `ISG.yetki.gorunum().atamaIsyerleri` /
+  `atamaKurumlar` (kapsam süzgecine sokulmayan **tam** liste, yalnız atama
+  arayüzü için) üzerinden gelir. Böylece yönetici kendi hesabına işyeri
+  atayabilir; kayıt verisi yine kapsam süzgecinden okunur.
+- **Uyarı ekranı.** `ISG.yetki.atamaYok()` tek karar noktasıdır;
+  `uygulama.js` veri sayfaları yerine sabit metni basar: *"Henüz işyeri atamanız
+  bulunmuyor. Sisteme erişebilmek için yetkili yönetici tarafından işyeri
+  atamanız yapılmalıdır."* Doğrudan `#saglik`, `#personel`, `#rapor` gibi
+  adresler de veri basmaz; menüde yalnız yönetim ekranları görünür.
+- **Sağlık verisi daha sıkı.** `saglikGoruntule()` artık `rol.yonetir` ile
+  birlikte **kapsamın boş olmamasını** da arar; atamasız yönetici sağlık
+  listesini okuyamaz (`Sağlık verilerine erişmek için yönetici onayı gerekir.`),
+  yazma denemesi erişim talebine dönüşür ve denetim izine yazılır. 2.24.0/2.25.0
+  işyeri izolasyonu (kayıt işyeri + personel eşleşmesi, `sg2:` şifreli çalışma
+  kitabı) aynen korunur.
+- **Yazma da kapsama bağlı.** Doğrudan yazan rol (Yönetici, Sistem Yöneticisi)
+  için depo sarmalayıcısı hedef işyerini çözer ve kapsam dışıysa
+  "Bu işyeri yetki kapsamınızda değil." hatası verir; işyeri/kayıt kimliği
+  bilinmesi yetmez.
+- **OSGB Müdürü ve Sistem Yöneticisi değişmedi.** OSGB Müdürü kurum kapsamıyla
+  (atama aranmaz) salt okunur kalır; Sistem Yöneticisi sistem yönetimi
+  işlevlerini korur, sağlık erişimi kapsam üzerinden ayrıca denetlenir.
+- **Kurulum varsayılanı açık yetki TAŞIMAZ.** Yeni kurulumun tek hesabı
+  (`ISG.YONETICI_HESAP`, `u1`) `isyerleri: []` ile gelir ve kaydına
+  `tumIsyerleri` **yazılmaz**. İlk yönetici işyerlerini tanımladıktan sonra
+  Kullanıcılar ve yetkiler ekranından kendi hesabına **açıkça** atama yapar;
+  veri sıfırlansa da hesap kapsamsız açılır, "tüm işyerleri" yetkisi yalnızca
+  elle verilebilir. Test fikstürleri (`test/*.js`, `tools/demo-veri.js`)
+  ihtiyaç duydukları tam erişimi kendi kullanıcı kayıtlarında açıkça tanımlar.
+- **Testler.** `test/yetkikapsam.js` 19. bölüm: atamasız yönetici (boş kapsam,
+  veri yok, uyarı ekranı, doğrudan adres/kayıt kimliği reddi, sağlık reddi),
+  `u1` istisnasının kaldırılması, açık "tüm işyerleri" yetkisi, A ve A+B
+  atamaları, atama ekleme/kaldırma, yeniden giriş, bulut içe aktarımı, OSGB
+  Müdürü salt okunurluğu, Sistem Yöneticisi işlevleri ve onay eşikleri.
+- **Sınır (değişmedi).** Supabase RLS yoktur; bütün yetki kararları istemci
+  tarafındadır. Cihaza erişebilen kişi `localStorage`'ı doğrudan okuyabilir —
+  bu sürüm yetki kararlarını tutarlı kılar, cihaz sahibine karşı bir gizlilik
+  garantisi vermez.
 
 ### 2.25.0 — Çalışma kitabı işyerine bağlandı; aktarılan personelin kaydı eski işyerinde kalır
 

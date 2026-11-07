@@ -56,8 +56,11 @@ ISG_SCRIPTLER.forEach((yol) => pencere.eval(dosyaOku(yol)));
 const ISG = pencere.ISG;
 const belge = pencere.document;
 const form = belge.getElementById('kullaniciForm');
-/* Kaynak: onceden tanimli yonetici hesabi (varsayilan-veri.js) */
+/* Kaynak: onceden tanimli yonetici hesabi (varsayilan-veri.js).
+   Kurulum hesabi kapsamsiz gelir (2.26.0); test fiksturu bu hesaba "tum
+   isyerleri" yetkisini ACIKCA verir. Yetki rolden turetilmez. */
 const yonetici = ISG.YONETICI_HESAP()[0];
+yonetici.tumIsyerleri = true;
 
 /* Test tohumi: yayindaki bos veri + iki isyeri (onceden tanimli yonetici dahil) */
 const baslangic = ISG.BOS_VERI();
@@ -67,7 +70,7 @@ baslangic.isyerleri = [
   { id: 'isyeri-A', ad: 'A Tesisi', kod: 'A', aktivite: 'Üretim', tehlikeSinifi: 'Tehlikeli', calisan: 10, adres: 'Test adresi', telefon: '', 'e-posta': '', aktiv: true },
   { id: 'isyeri-B', ad: 'B Tesisi', kod: 'B', aktivite: 'Depo', tehlikeSinifi: 'Az Tehlikeli', calisan: 5, adres: '', telefon: '', 'e-posta': '', aktiv: true }
 ];
-baslangic.kullanicilar = ISG.YONETICI_HESAP();
+baslangic.kullanicilar = [yonetici];
 baslangic.denetim = [];
 
 ISG.depo.geriYukle(baslangic);

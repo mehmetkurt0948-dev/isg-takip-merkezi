@@ -9,10 +9,15 @@
   var OTURUM_ANAHTAR = 'isgtakip.oturum';
 
   var ROLLER = {
+    /* Yönetici: yönetim yetkisi (kurum/işyeri/kullanıcı, onay kuyruğu, doğrudan
+       yazma) rolün parçasıdır; KAPSAM değildir. Rol tanımındaki `tumIsyerleri`
+       yalnızca "bu rol kural olarak bütün işyerlerini kapsar" bilgisini taşır ve
+       burada bilinçli olarak false'tur: erişim, kullanıcı kaydındaki açık
+       atamalardan ya da açık "Tüm işyerleri" yetkisinden gelir. */
     yonetici: {
       id: 'yonetici', ad: 'Yönetici', kisa: 'Yönetici',
-      aciklama: 'Tüm işyerleri; kayıtlar doğrudan uygulanır, onay kuyruğunu yönetir.',
-      tumIsyerleri: true, dogrudanYazar: true, onaylar: true, yonetir: true
+      aciklama: 'Atandığı işyerlerinde kayıtları doğrudan uygular, onay kuyruğunu yönetir. Ataması yoksa hiçbir işyerine erişemez.',
+      tumIsyerleri: false, dogrudanYazar: true, onaylar: true, yonetir: true
     },
     /* Sistem Yöneticisi: OSGB Müdüründen BAĞIMSIZ yönetim rolü. Kendi kurumu
        yoktur; kurum, işyeri ve kullanıcı yönetimini sistem genelinde yapar,
@@ -166,28 +171,33 @@
      `kapsam()`, `kapsamliVeri()`, `izin()` ve sağlık kapsamı aynı soruyu bu
      fonksiyonla yanıtlar, böylece kurallar birbirinden kopmaz.
 
-       Sistem Yöneticisi → sistem genelindeki tüm işyerleri.
-       OSGB Müdürü       → kendi kurumu (kurumKapsami); tüm işyerleri DEĞİL.
-       "Tüm işyerleri" işaretli kullanıcı → tüm işyerleri.
-       Yönetici          → açıkça işyeri atanmışsa YALNIZ atandığı işyerleri;
-                           hiç atama yoksa (varsayılan yönetici hesabı) tüm
-                           işyerleri. Yönetici rolü tek başına sınırsız erişim
-                           anlamına gelmez: atama varsa kapsam daralır.
-       Diğer roller      → yalnız atandığı işyerleri. */
+     Temel kural: ROL ≠ KAPSAM. Yönetici (ya da eski varsayılan hesap) olmak
+     tek başına bütün işyerlerini görme hakkı vermez. Erişim yalnızca şu iki
+     açık kaynaktan gelir:
+
+       Sistem Yöneticisi → sistem genelindeki tüm işyerleri (sistem yönetimi
+                           rolü; sağlık verisi ayrıca denetlenir).
+       "Tüm işyerleri" açıkça işaretli kullanıcı → tüm işyerleri.
+
+     Bunların dışındaki herkes (Yönetici dahil) yalnızca kullanıcı kaydında
+     AÇIKÇA atanmış işyerlerini görür; ataması yoksa kapsamı boştur.
+     OSGB Müdürü kurumKapsami ile kendi kurumuna sınırlıdır (tüm işyerleri
+     DEĞİL). Atamasız bir hesaba "eski davranış" olarak geniş erişim verilmez;
+     2.26.0 ile eski `u1` istisnası kaldırılmıştır. */
   function tumunuGorur(o, rol) {
     if (!o) { return false; }
     rol = rol || rolTanimi(o.rol);
     if (rol.id === 'sistemYoneticisi' || rol.sistem === true) { return true; }
     if (rol.kurumKapsami) { return false; }
     if (o.tumIsyerleri === true) { return true; }
-    if (rol.id === 'yonetici') { return !(o.isyerleri || []).filter(Boolean).length; }
     return false;
   }
 
   /* Oturum sahibinin erişebildiği işyeri kimlikleri.
-     Yönetici → tüm işyerleri (atama yoksa) ya da atandığı işyerleri;
-     OSGB Müdürü → yalnız KENDİ KURUMUNDAKİ işyerleri; diğerleri → atandığı
-     işyerleri. Kurum dışına çıkış yolu yoktur. */
+     Açık "Tüm işyerleri" yetkisi / Sistem Yöneticisi → bütün işyerleri;
+     OSGB Müdürü → yalnız KENDİ KURUMUNDAKİ işyerleri; diğerleri (Yönetici
+     dahil) → yalnız açıkça atandığı işyerleri. Atama yoksa liste boştur.
+     Kurum dışına çıkış yolu yoktur. */
   function kapsam() {
     var o = oturum();
     if (!o) { return []; }
@@ -211,6 +221,22 @@
   function kapsamda(isyeriId) {
     if (!isyeriId) { return false; }
     return kapsam().indexOf(isyeriId) > -1;
+  }
+
+  /* Oturum sahibinin hiçbir işyeri ataması yok mu? Yönetici rolü tek başına
+     erişim sağlamadığı için atamasız hesap (rolü ne olursa olsun) boş bir
+     kapsam görür. Arayüz bu soruyu tek yerden sorar: veri ekranları yerine
+     "Henüz işyeri atamanız bulunmuyor" uyarısı gösterilir. */
+  function atamaYok() {
+    var o = oturum();
+    if (!o) { return false; }
+    var rol = rolTanimi(o.rol);
+    if (tumunuGorur(o, rol)) { return false; }
+    /* Kurum kapsamlı rol (OSGB Müdürü) ve sistem yönetimi kapsamı atamaya değil
+       role/kuruma bağlıdır; kurumda henüz işyeri yoksa bu bir "atama eksikliği"
+       değildir, boş liste normaldir. */
+    if (rol.kurumKapsami || rol.sistem === true) { return false; }
+    return kapsam().length === 0;
   }
 
   function diziSuz(liste, izinli, alan) {
@@ -260,6 +286,14 @@
     var rol = rolTanimi(o.rol);
     var kurumGorunumu = !!rol.kurumKapsami;
     if (tumunuGorur(o, rol)) { return veri; }
+
+    /* Kullanıcı/işyeri ataması yapan roller için TAM listeler. Yalnızca atama
+       arayüzü (kullanıcı formundaki işyeri/kurum seçenekleri) kullanır; kayıt
+       verisi (personel, sağlık, dosya, rapor...) bu alanlardan beslenmez.
+       Ataması olmayan yönetici kendisine/kullanıcılara işyeri atayabilsin diye
+       gereklidir; aksi hâlde sistem kendi kendini kilitleyebilirdi. */
+    var atamaIsyerleri = rol.yonetir ? (veri.isyerleri || []).slice() : null;
+    var atamaKurumlar = rol.yonetir ? (veri.kurumlar || []).slice() : null;
 
     var izinli = kapsam();
     var kurumIdleri = {};
@@ -322,7 +356,10 @@
         if (kurumGorunumu) { return izinli.indexOf(kayit.isyeriId) >= 0; }
         return kayit.kullaniciId === o.kullaniciId;
       }),
-      mevzuat: veri.mevzuat || []
+      mevzuat: veri.mevzuat || [],
+      /* Yalnızca atama arayüzü için: kapsam süzgecinden geçmemiş tam listeler. */
+      atamaIsyerleri: atamaIsyerleri,
+      atamaKurumlar: atamaKurumlar
     };
   }
 
@@ -642,7 +679,10 @@
     var o = oturum();
     if (!o) { return false; }
     var rol = rolTanimi(o.rol);
-    if (rol.yonetir) { return true; }
+    /* Yönetim rolü tek başına sağlık verisi okuma hakkı vermez: kapsamı boş
+       olan (ataması bulunmayan) hesap sağlık verisi göremez. Sağlık verisi
+       için işyeri ataması + görüntüleme yetkisi birlikte aranır. */
+    if (rol.yonetir) { return kapsam().length > 0; }
     return !!D.saglikYetkiliMi(o.kullaniciId);
   }
 
@@ -1059,6 +1099,14 @@
       if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
       var rol = rolTanimi(o.rol);
       if (rol.dogrudanYazar) {
+        /* Doğrudan yazan rol (Yönetici, Sistem Yöneticisi) de atama sınırının
+           dışına yazamaz: hedef işyeri çözülebiliyorsa kapsam yeniden sınanır.
+           Böylece kayıt kimliği/işyeri kimliği bilinerek yapılan doğrudan
+           yazma denemesi kapsam dışında reddedilir. */
+        var hedefKapsam = hedefIsyeri(ad, args);
+        if (hedefKapsam && !tumunuGorur(o, rol) && kapsam().indexOf(hedefKapsam) < 0) {
+          throw new Error('Bu işyeri yetki kapsamınızda değil.');
+        }
         var sonuc = asil.apply(D, args);
         denetimYaz(ad, args, o);
         return sonuc;
@@ -1137,6 +1185,7 @@
     oturumKapat: oturumKapat,
     kapsam: kapsam,
     kapsamda: kapsamda,
+    atamaYok: atamaYok,
     tumunuGorur: tumunuGorur,
     kapsamliVeri: kapsamliVeri,
     gorunum: function () { return kapsamliVeri(D.al()); },

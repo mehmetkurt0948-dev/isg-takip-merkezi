@@ -31,6 +31,11 @@
      olduğu için bu sayfayı görmez, doğrudan URL ile de açamaz. */
   var YONETICI_SAYFALARI = { isyerleri: 1, ekip: 1, sistem: 1 };
 
+  /* Ataması olmayan hesap için açık kalan ekranlar. Veri ekranları kapalıdır;
+     işyeri ve kullanıcı ekranları açık kalır çünkü atama ancak buradan
+     yapılabilir (ataması olmayan yönetici kendi kapsamını buradan alır). */
+  var ATAMASIZ_SAYFALAR = { ekip: 1, isyerleri: 1 };
+
   var bekleyenOnay = null;
   var cizZamanlayici = null;
   var odakBilgi = null;
@@ -183,7 +188,35 @@
     if (sayfa === 'onaylar' && !(rol.onaylar || rol.id === 'yetkili')) { return false; }
     /* Kurum panosu yalnız yönetici ve kurum kapsamlı (OSGB Müdürü) rolde görünür. */
     if (sayfa === 'kurum' && !(rol.yonetir || rol.kurumKapsami)) { return false; }
+    /* Ataması olmayan hesap veri ekranı açamaz: rol değil, atama belirler. */
+    if (atamaEngeli() && !ATAMASIZ_SAYFALAR[sayfa]) { return false; }
     return true;
+  }
+
+  /* Oturum sahibinin işyeri ataması yok mu? (tek karar noktası: yetki.js) */
+  function atamaEngeli() {
+    return !!(ISG.yetki && typeof ISG.yetki.atamaYok === 'function' && ISG.yetki.atamaYok());
+  }
+
+  /* Ataması olmayan hesaba veri yerine gösterilen uyarı ekranı. Metin sabittir:
+     kullanıcı ne yapacağını buradan öğrenir. */
+  function atamasizEkrani(rol) {
+    var yonetici = !!(rol && rol.yonetir);
+    return '<section class="kart">' +
+      '<div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
+        '<h2>İşyeri atamanız bulunmuyor</h2>' +
+        '<p>Henüz işyeri atamanız bulunmuyor. Sisteme erişebilmek için yetkili ' +
+          'yönetici tarafından işyeri atamanız yapılmalıdır.</p>' +
+      '</div>' +
+      '<div class="kart-ic">' +
+        (yonetici
+          ? '<p class="bolum-aciklama">Kendi hesabınızı <strong>Kullanıcılar ve yetkiler</strong> ' +
+            'ekranında <strong>Düzenle</strong> ile açıp işyerlerini işaretleyebilirsiniz. ' +
+            'Kayıt yayımlandığı anda erişim başlar.</p>' +
+            '<p style="margin-top:12px"><a class="dugme birincil" href="#ekip">Kullanıcılar ve yetkiler</a></p>'
+          : '<p class="bolum-aciklama">Atama için kurumunuzun yetkili yöneticisine başvurun.</p>') +
+      '</div>' +
+    '</section>';
   }
 
   function onayRozeti() {
@@ -273,11 +306,18 @@
     var sayfa = aktifSayfa();
     var hesap = veri();
     var gorunum = el('gorunum');
-    if (gorunum) { gorunum.innerHTML = ISG.sayfalar[sayfa](hesap); }
+    var bilgi = aktifRol();
+    /* Ataması olmayan hesap veri ekranı göremez: adres çubuğuna doğrudan
+       #saglik / #personel / #rapor yazılsa da veri basılmaz, uyarı gösterilir. */
+    var engel = atamaEngeli() && !(bilgi && sayfaIzinli(sayfa, bilgi.rol));
+    if (gorunum) {
+      gorunum.innerHTML = engel ? atamasizEkrani(bilgi && bilgi.rol) : ISG.sayfalar[sayfa](hesap);
+    }
+    var baslik = engel ? 'İşyeri ataması gerekli' : SAYFA_BILGI[sayfa];
 
     var kirinti = el('kirintiSayfa');
-    if (kirinti) { kirinti.textContent = SAYFA_BILGI[sayfa]; }
-    document.title = SAYFA_BILGI[sayfa] + ' • İSG Takip';
+    if (kirinti) { kirinti.textContent = baslik; }
+    document.title = baslik + ' • İSG Takip';
 
     Array.prototype.forEach.call(document.querySelectorAll('.menu-oge[data-sayfa]'), function (dugme) {
       var aktif = dugme.getAttribute('data-sayfa') === sayfa;
@@ -3185,7 +3225,8 @@
   /* Kurum seçenekleri: kurum kaydı yoksa alan boş kalır ve işyeri/kullanıcı
      kurumsuz (serbest metin ayarına bağlı) çalışmaya devam eder. */
   function kurumSecenekleri(secili) {
-    var kurumlar = veri().kurumlar || [];
+    /* Kullanıcı formunda kurum listesi de atama amaçlı tam listeden gelir. */
+    var kurumlar = veri().atamaKurumlar || veri().kurumlar || [];
     var liste = ['<option value="">Kurum seçilmedi</option>'];
     kurumlar.forEach(function (kurum) {
       liste.push('<option value="' + B.kacis(kurum.id) + '"' +
@@ -3195,7 +3236,10 @@
   }
 
   function isyeriKutulari(seciliIds, tumuMu) {
-    var isyerleri = veri().isyerleri || [];
+    /* Atama listesi kapsam süzgecinden geçmez: atanacak işyerini seçebilmek
+       için bütün işyerleri görünmelidir (yetki.js: atamaIsyerleri). Kayıt
+       verisi yine kapsam süzgecinden okunur. */
+    var isyerleri = veri().atamaIsyerleri || veri().isyerleri || [];
     var liste = ['<label><input type="checkbox" class="kullanici-isyeri" value="__tumu"' +
       (tumuMu ? ' checked' : '') + '><span><strong>Tüm işyerleri</strong><small>Yeni açılan işyerleri de kapsar</small></span></label>'];
     isyerleri.forEach(function (isyeri) {
@@ -3283,8 +3327,12 @@
     });
     var tumu = kullaniciSifreModu ? !!mevcut.tumIsyerleri : secimler.indexOf('__tumu') >= 0;
     var isyerleri = kullaniciSifreModu ? (mevcut.isyerleri || []) : (tumu ? [] : secimler);
-    if (!tumu && !isyerleri.length) {
-      uyariGoster('kullaniciUyari', 'En az bir işyeri seçin veya "Tüm işyerleri"ni işaretleyin.');
+    /* Atamasız kayıt kaydedilebilir: yetkinin kaldırılması bilinçli bir işlemdir
+       ve kullanıcı giriş yaptığında "İşyeri atamanız bulunmuyor" ekranını görür
+       (rol değil, atama belirler). Yeni hesapta boş atama neredeyse her zaman
+       eksik işaretlemedir; orada kayıt engellenir. */
+    if (!tumu && !isyerleri.length && !mevcut) {
+      uyariGoster('kullaniciUyari', 'Yeni kullanıcıya en az bir işyeri seçin veya "Tüm işyerleri"ni işaretleyin.');
       return;
     }
 
@@ -3329,6 +3377,9 @@
       var kullanici = D.kullaniciKaydet(kayit);
       diyalogKapat(el('kullaniciDiyalog'));
       B.bildir(mevcut ? kullanici.adSoyad + ' güncellendi.' : kullanici.adSoyad + ' eklendi; giriş yapabilir.', 'basari');
+      if (!kayit.tumIsyerleri && !(kayit.isyerleri || []).length) {
+        B.bildir(kullanici.adSoyad + ' için işyeri ataması yok; girişte erişim reddedilecek.', 'hata');
+      }
       hesapBulutaGonder(mevcut ? 'Hesap güncellemesi' : 'Yeni hesap');
       ciz();
     } catch (hata) {

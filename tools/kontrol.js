@@ -123,6 +123,14 @@ function bekle(ms) {
     metin('#girisUyari'));
   kontrol('Kayıtsız e-postada oturum açılmaz', !ISG.yetki.oturum());
 
+  /* 2.26.0: kurulum hesabı kapsamsız gelir (rol ≠ kapsam). Bu kontrol dosyası
+     boş veriyle bütün ekranları dolaştığı için yöneticiye "tüm işyerleri"
+     yetkisini AÇIKÇA verir; atamasız hesabın veri ekranlarından çevrilmesi
+     test/yetkikapsam.js bölüm 19'da sınanır. */
+  const acilisYonetici = (ISG.depo.al().kullanicilar || [])
+    .filter((k) => k.eposta === 'mehmetkurt0948@gmail.com')[0];
+  if (acilisYonetici) { acilisYonetici.tumIsyerleri = true; ISG.depo.kaydet(); }
+
   await girisYap('mehmetkurt0948@gmail.com', '1234');
   kontrol('Yönetici oturumu açıldı', !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yonetici');
   kontrol('Giriş katmanı kapandı', doc.getElementById('girisKatman').hidden === true);

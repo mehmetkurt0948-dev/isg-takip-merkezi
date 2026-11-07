@@ -27,11 +27,13 @@
   }
 
   /* Demo kümesinin kendi yönetici hesabı — ISG.YONETICI_HESAP ile aynıdır;
-     fixture tek başına da koşabilsin diye burada yinelenir. */
+     fixture tek başına da koşabilsin diye burada yinelenir. `tumIsyerleri`
+     açık yetkidir: yönetici rolü tek başına kapsam sağlamaz (2.26.0). */
   function yoneticiHesap() {
     return [{
       id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmetkurt0948@gmail.com', sifre: '1234',
-      rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [], aktif: true, sonGiris: ''
+      rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [], tumIsyerleri: true,
+      aktif: true, sonGiris: ''
     }];
   }
 
