@@ -22,11 +22,14 @@
     ekip: 'Kullanıcılar ve yetkiler',
     onaylar: 'Onay kuyruğu',
     kurum: 'Kurum denetim panosu',
+    sistem: 'Sistem yönetimi',
     mevzuat: 'Mevzuat ve kapsam'
   };
 
-  /* Yalnızca yöneticiye açık sayfalar */
-  var YONETICI_SAYFALARI = { isyerleri: 1, ekip: 1 };
+  /* Yalnızca yönetim yetkisi olan rollere açık sayfalar. `sistem` sayfası
+     Sistem Yöneticisi (ve mevcut Yönetici) içindir; OSGB Müdürü salt okunur
+     olduğu için bu sayfayı görmez, doğrudan URL ile de açamaz. */
+  var YONETICI_SAYFALARI = { isyerleri: 1, ekip: 1, sistem: 1 };
 
   var bekleyenOnay = null;
   var cizZamanlayici = null;
@@ -100,7 +103,11 @@
 
   function saglikGorunumYetkili() {
     var o = ISG.yetki.oturum();
-    return !!(o && (ISG.yetki.rolTanimi(o.rol).id === 'yonetici' || D.saglikYetkiliMi(o.kullaniciId)));
+    if (!o) { return false; }
+    /* Sağlık verisi ayrı yetki mekanizmasında kalır: açık erişim talebi
+       onaylanmış hesaplar ya da yönetim yetkisi olan roller (Yönetici,
+       Sistem Yöneticisi). */
+    return ISG.yetki.rolTanimi(o.rol).yonetir || D.saglikYetkiliMi(o.kullaniciId);
   }
 
   function git(sayfa, kapsam) {
@@ -2601,6 +2608,66 @@
           }, 'Verileri sil');
         break;
 
+      /* Sistem yönetimi — kurum (OSGB) kayıtları.
+         Kayıt oluşturma/güncelleme/silme mevcut depo katmanından geçer; bu
+         eylemler yalnızca formu ve odak durumunu yönetir. Yetki denetimi
+         depo sarmalayıcısında (yalnızca `yonetir` rolleri) yapılır. */
+      case 'sistem-kurum-yeni':
+        UI.sistemKurumId = '';
+        ciz();
+        var yeniKurumKutu = el('sistemKurumAd');
+        if (yeniKurumKutu) { yeniKurumKutu.focus(); }
+        break;
+      case 'sistem-kurum-duzenle':
+        UI.sistemKurumId = id;
+        ciz();
+        var duzenlenenKurumKutu = el('sistemKurumAd');
+        if (duzenlenenKurumKutu) { duzenlenenKurumKutu.focus(); }
+        break;
+      case 'sistem-kurum-kaydet': {
+        var kurumAdKutusu = el('sistemKurumAd');
+        var yeniKurumAdi = kurumAdKutusu ? String(kurumAdKutusu.value || '').trim() : '';
+        if (!yeniKurumAdi) {
+          B.bildir('Kurum adı zorunlu.', 'hata');
+          break;
+        }
+        var mevcutKurum = (D.al().kurumlar || []).filter(function (kurum) {
+          return kurum.id === UI.sistemKurumId;
+        })[0];
+        try {
+          D.kurumKaydet(mevcutKurum
+            ? Object.assign({}, mevcutKurum, { ad: yeniKurumAdi })
+            : { ad: yeniKurumAdi });
+          B.bildir(mevcutKurum ? 'Kurum güncellendi.' : 'Kurum oluşturuldu.', 'basari');
+          UI.sistemKurumId = '';
+          hesapBulutaGonder(mevcutKurum ? 'Kurum güncellemesi' : 'Yeni kurum');
+          ciz();
+        } catch (hata) {
+          B.bildir(hata.message, 'hata');
+        }
+        break;
+      }
+      case 'sistem-kurum-sil': {
+        var silinecekKurum = (D.al().kurumlar || []).filter(function (kurum) {
+          return kurum.id === id;
+        })[0];
+        if (!silinecekKurum) { break; }
+        onayIste(silinecekKurum.ad + ' kurumu silinsin mi?',
+          'İşyeri ve kullanıcı kayıtları silinmez; yalnızca bu kuruma bağlı kayıtların kurum bağı boşaltılır.',
+          function () {
+            try {
+              D.kurumSil(id);
+              B.bildir('Kurum silindi; işyeri ve kullanıcı bağları boşaltıldı.', 'basari');
+              if (UI.sistemKurumId === id) { UI.sistemKurumId = ''; }
+              hesapBulutaGonder('Kurum silme');
+              ciz();
+            } catch (hata) {
+              B.bildir(hata.message, 'hata');
+            }
+          }, 'Kurumu sil');
+        break;
+      }
+
       /* Personel */
       case 'personel-yeni':
         personelAc('', isyeriId);
@@ -2669,7 +2736,7 @@
         break;
       }
       case 'saglik-duzenle': {
-        if (ISG.yetki.rolTanimi(ISG.yetki.oturum().rol).id !== 'yonetici') { B.bildir('Sağlık kayıtlarını yalnızca yönetici düzenleyebilir.', 'hata'); break; }
+        if (!ISG.yetki.rolTanimi(ISG.yetki.oturum().rol).yonetir) { B.bildir('Sağlık kayıtlarını yalnızca yönetici düzenleyebilir.', 'hata'); break; }
         var kayit = ISG.saglikTakip.listele('', '').filter(function (k) { return k.id === id; })[0];
         if (kayit) { UI.acikSaglik = id; UI.duzenleSaglik = id; UI.saglikFormuAc = true; UI.saglikKisi = ''; ciz(); }
         break;
@@ -3925,7 +3992,7 @@
     var durum = UI.saglikToplu;
     if (!durum || !durum.analiz) { return; }
     var o = ISG.yetki.oturum();
-    if (!o || ISG.yetki.rolTanimi(o.rol).id !== 'yonetici') {
+    if (!o || !ISG.yetki.rolTanimi(o.rol).yonetir) {
       uyariGoster('saglikTopluUyari', 'Sağlık kayıtlarını yalnızca yönetici içe aktarabilir.');
       return;
     }

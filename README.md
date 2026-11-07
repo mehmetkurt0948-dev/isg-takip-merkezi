@@ -35,6 +35,7 @@ kayıt tabloları.
 | **Mevzuat ve kapsam** | 20 başlıklı katalog (kanun/yönetmelik/tebliğ/rehber/standart), kategori ve konu araması, teyit durumu, seçili işyeri kapsam özeti, Mevzuat Bilgi Sistemi bağlantısı |
 | **Onay kuyruğu** | Yetkili kullanıcıların yazma işlemlerinden doğan talepler: işlem özeti, işyeri, talep sahibi, **dağıtık onay yetkilisi** bilgisi, onayla / reddet, bekleyen sayısı rozeti, denetim izi |
 | **Kurum denetim panosu** | Yalnızca **OSGB Müdürü** görür (salt okunur): kurumun işyeri sayısı, kullanıcı sayısı, **onay yetkilisi eksik işyeri** sayacı, bekleyen talep sayacı, işyeri başına uzman sayısı + onay durumu (tek uzman / onay zorunlu / yetkili eksik / uzman yok) + eşik sınıfı, son 20 talep ve kurum ekibi listesi |
+| **Sistem yönetimi** | Yalnızca **Sistem Yöneticisi** (ve mevcut Yönetici) görür: kurum (OSGB) oluşturma/düzenleme, işyeri listesi (kurum, tehlike sınıfı, çalışan, personel, onay durumu) ve düzenleme, kullanıcı/rol/uzman sınıfı/atama yönetimi, rol yetki özeti tablosu, **sistem uyarı ve hata listesi** (onay yetkilisi eksiği, bekleyen talep, vadesi geçen kayıt, eşitleme hatası), bekleyen talepleri onaylama/reddetme, onay yetkilisi eksik işyerleri ve rapor bağlantıları |
 
 Ek yetenekler: `localStorage` kalıcılığı, **isteğe bağlı Supabase bulut
 eşitlemesi** (cihazlar arası ortak kayıt), JSON yedek al / geri yükle, işyeri
@@ -49,9 +50,21 @@ sıfırlama, rol bazlı yetki ve onay akışı.
 | Rol | Kapsam | Yazma | Onay kuyruğu |
 |---|---|---|---|
 | **Yönetici** | Tüm işyerleri | Doğrudan yazar | Görür ve yönetir |
+| **Sistem Yöneticisi** | Tüm işyerleri | Doğrudan yazar | Görür ve yönetir; **sistem yönetimi** paneliyle kurum, işyeri ve kullanıcı yönetimi |
 | **OSGB Müdürü** | Kendi **kurumu** (`kurumId`) | Yok — salt okunur | Görmez, karar vermez; **kurum denetim panosu**nu görür |
 | **Yetkili** | Yalnızca atandığı işyerleri | Talebe dönüşür; **işyeri onay modeli** açıksa tek uzmanda doğrudan, çok uzmanda eşik sınıfındaki uzmanın onayıyla | Onay yetkilisiyse görür |
 | **Görüntüleyici** | Yalnızca atandığı işyerleri | Yok (`salt-okunur` gövde sınıfı) | Görmez |
+
+**Sistem Yöneticisi ile OSGB Müdürü bağımsızdır.** Sistem Yöneticisi
+(`sistemYoneticisi`) kurum, işyeri ve kullanıcı yönetimini sistem genelinde
+yapar ve onay kuyruğuna karar verir; kendi kurumuna bağlı değildir. OSGB
+Müdürü (`osgbMuduru`) ise yalnız kendi kurumunu **salt okunur** izler: kayıt
+oluşturamaz/değiştiremez/silemez, onay veremez, kullanıcı-rol yönetemez ve
+sistem yönetimi panelini ne menüde görür ne de doğrudan `#sistem` adresiyle
+açabilir. Yetki kararı arayüzde buton gizlemekle değil, `ISG.yetki` rol
+tanımı (`yonetir` / `onaylar` / `saltOkunur`) ve depo sarmalayıcısı üzerinden
+verilir; normal **Yetkili** hesabı `kullaniciKaydet` gibi yönetim işlemlerinde
+"Bu işlem yalnızca yöneticilere açıktır" hatası alır.
 
 **Kurum (OSGB) ve uzman sınıfı.** Her işyeri bir `kurumId` taşır; üst düzey
 `kurumlar` listesi kurum kayıtlarını tutar. Yetkili kullanıcıda **uzman sınıfı**
@@ -267,7 +280,7 @@ isg-takip-merkezi/
 │     ├─ kontrol-listeleri.js # ÜRETİLMİŞ: işyeri bazlı hazır dosya kontrol listeleri (Word/Excel çıktısı)
 │     ├─ depo.js              # alan kuralları, localStorage, CRUD, görev motoru, uzman sınıfı, acil ekip
 │     ├─ bicim.js             # tarih/rozet/CSV/sayfalama yardımcıları
-│     ├─ yetki.js             # oturum, roller (OSGB müdürü), kurum kapsamı, onay eşiği/modeli, onay kuyruğu
+│     ├─ yetki.js             # oturum, roller (Sistem Yöneticisi, OSGB müdürü), kurum kapsamı, onay eşiği/modeli, onay kuyruğu
 │     ├─ excel.js             # bağımlılıksız XLSX yazıcı/okuyucu (ZIP + OpenXML)
 │     ├─ personel-toplu.js    # personel Excel/CSV şablonu, ayrıştırma, toplu kayıt
 │     ├─ plan-toplu.js        # yıllık çalışma planı: şablon üretimi, Excel/CSV ayrıştırma, toplu kayıt/silme, XLSX çıktısı
@@ -959,6 +972,12 @@ Notlar:
   tutulur. Gerçek kimlik doğrulama (OTP, SSO, parola özeti, sunucu tarafı
   oturum) için bir arka uç gerekir; bu yüzden yetki katmanı **arayüz ve iş
   kuralı** düzeyinde koruma sağlar, güvenlik sınırı değildir.
+- **Sistem Yöneticisi yetkisi de istemci tarafındadır.** Rol kontrolü
+  (`ISG.yetki`) tarayıcıda çalışır; geliştirici araçlarıyla `localStorage`
+  içindeki kullanıcı kaydı değiştirilebilirse rol yükseltmesi mümkündür. Bu
+  nedenle Sistem Yöneticisi / OSGB Müdürü ayrımı **arayüz ve iş kuralı**
+  düzeyinde korumadır, güvenlik sınırı değildir. Sunucu tarafı doğrulama
+  (Supabase Auth + RLS) eklendiğinde rol kontrolü orada yinelenmelidir.
 - Şifre sıfırlama kodu istemci tarafında üretilir ve `localStorage` içinde
   tutulur; kodun e-postaya gitmesi için EmailJS gibi bir tarayıcı servisi
   gerekir. Servis tanımlı değilse kod ekranda gösterilir ve bu durum açıkça
@@ -1000,6 +1019,32 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.22.0 — Sistem Yöneticisi rolü ve sistem yönetim paneli
+
+- **Bağımsız Sistem Yöneticisi rolü.** `ISG.yetki.ROLLER.sistemYoneticisi`
+  eklendi (`yonetir`, `onaylar`, `tumIsyerleri`, `sistem`). Türkçe/bitişik
+  yazımlar `ROL_ESLEME` ile normalize edilir (`Sistem Yöneticisi`,
+  `sistem yoneticisi`, `sysadmin`). OSGB Müdürü salt okunur kalır; iki rol
+  birbirine bağımlı değildir.
+- **Sistem yönetimi ekranı (`#sistem`).** Kurum (OSGB) oluşturma/düzenleme,
+  işyeri listesi + tehlike sınıfı düzenleme, kullanıcı/rol/uzman sınıfı/atama
+  yönetimi, rol yetki özeti, sistem uyarı ve hata listesi, bekleyen talepleri
+  onaylama/reddetme, onay yetkilisi eksik işyerleri ve rapor bağlantıları.
+  Yeni altyapı kurulmadı: mevcut `kullanici-*`, `isyeri-*`, `talep-onayla`,
+  `talep-reddet` eylemleri ve mevcut depo işlemleri kullanıldı.
+- **Gerçek rol kontrolü.** Panel menüsü yalnız menüde gizlenmez: `#sistem`
+  doğrudan açıldığında sayfa `Erişim yok` döner; `kurumKaydet/kurumSil,
+  kullaniciKaydet/kullaniciSil, isyeriKaydet/isyeriSil, ayarKaydet, sifirla`
+  yalnız `yonetir` rollerine açıktır. Normal uzman rol yükseltemez; OSGB
+  Müdürü yönetim işlemi yapamaz.
+- **Sağlık verisi ayrı yetki.** Sağlık modülünün yönetici kontrolü rol
+  kimliği yerine `yonetir` üzerinden yapılır; erişim talep/onay mekanizması
+  aynen korunur (yönetici onayı olmayan yetkili/görüntüleyici sağlık
+  verisini göremez).
+- **Testler.** `tools/kontrol.js` içine 56 yeni kontrol eklendi (rol tanımı,
+  atama, panel görünümü, kurum/işyeri/kullanıcı yönetimi, onay-ret akışı,
+  yetki yükseltme ve doğrudan URL denemeleri, temizlik): **929 kontrol**.
 
 ### 2.21.0 — Kurum (OSGB) desteği, uzman sınıfına göre onay eşiği, zorunlu acil ekipler
 

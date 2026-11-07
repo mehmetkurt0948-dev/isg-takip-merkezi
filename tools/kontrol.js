@@ -2106,7 +2106,7 @@ function bekle(ms) {
 
   console.log('\n16) Menü, rozetler ve yapı');
   await sayfaAc('#panel');
-  kontrol('Menüde 15 sayfa var', doc.querySelectorAll('.menu-oge[data-sayfa]').length === 15, String(doc.querySelectorAll('.menu-oge[data-sayfa]').length));
+  kontrol('Menüde 16 sayfa var', doc.querySelectorAll('.menu-oge[data-sayfa]').length === 16, String(doc.querySelectorAll('.menu-oge[data-sayfa]').length));
   kontrol('Sağlık takibi menüde', doc.querySelectorAll('.menu-oge[data-sayfa="saglik"]').length === 1);
   kontrol('İstatistik menüde', doc.querySelectorAll('.menu-oge[data-sayfa="istatistik"]').length === 1);
   kontrol('Onay kuyruğu menüde', doc.querySelectorAll('.menu-oge[data-sayfa="onaylar"]').length === 1);
@@ -3030,9 +3030,272 @@ function bekle(ms) {
   await bekle(100);
   kontrol('İşyeri kartı kurum adını gösterir', /Bağlı kurum/.test(metin('#gorunum')));
 
-  console.log('\n20) İşyeri onay modeli (deneysel anahtar)');
+  console.log('\n19b) Sistem Yöneticisi rolü, yönetim paneli ve yetki sınırları');
+  /* Sistem Yöneticisi OSGB Müdüründen bağımsız bir yönetim rolüdür. Test kendi
+     hesabını/işyerini/kurumunu kurar, paneli gerçek arayüzden açar, yetkileri
+     hem depo hem arayüz üzerinden dener ve sonunda kurduğu her şeyi temizler. */
+  const sistemRol = ISG.yetki.ROLLER.sistemYoneticisi;
+  kontrol('Sistem Yöneticisi rolü tanımlı', !!sistemRol && sistemRol.ad === 'Sistem Yöneticisi',
+    sistemRol ? sistemRol.ad : 'rol yok');
+  kontrol('Sistem Yöneticisi yönetim yetkilerini taşır',
+    !!sistemRol && sistemRol.yonetir === true && sistemRol.onaylar === true &&
+    sistemRol.tumIsyerleri === true && sistemRol.sistem === true);
+  kontrol('Sistem Yöneticisi OSGB Müdüründen ayrı rol',
+    !!sistemRol && sistemRol.id === 'sistemYoneticisi' && sistemRol.id !== 'osgbMuduru' &&
+    ISG.yetki.ROLLER.osgbMuduru.saltOkunur === true && sistemRol.saltOkunur !== true);
+  kontrol('Rol çözümlemesi Sistem Yöneticisi yazımlarını tanır',
+    ISG.yetki.rolCoz('sistemYoneticisi') === 'sistemYoneticisi' &&
+    ISG.yetki.rolCoz('Sistem Yöneticisi') === 'sistemYoneticisi' &&
+    ISG.yetki.rolCoz('sistem yoneticisi') === 'sistemYoneticisi' &&
+    ISG.yetki.rolCoz('sysadmin') === 'sistemYoneticisi',
+    [ISG.yetki.rolCoz('sistemYoneticisi'), ISG.yetki.rolCoz('Sistem Yöneticisi')].join(','));
+
+  const sistemDeneme = ISG.depo.kullaniciKaydet({
+    id: '', adSoyad: 'Deneme Sistem Yöneticisi', eposta: 'sistem@deneme.local', sifre: '1234',
+    rol: 'sistemYoneticisi', kurumId: '', isyerleri: [], tumIsyerleri: false, aktif: true
+  });
+  kontrol('Sistem Yöneticisi rolü kullanıcıya atanabildi',
+    ISG.yetki.rolCoz((ISG.depo.al().kullanicilar.filter((k) => k.id === sistemDeneme.id)[0] || {}).rol) ===
+      'sistemYoneticisi');
+
+  await sayfaAc('#ekip');
+  doc.querySelector('[data-islem="kullanici-yeni"]').click();
+  await bekle(140);
+  const rolSecenekleri = Array.prototype.map.call(
+    doc.getElementById('kullaniciForm').elements.rol.options, (secenek) => secenek.value);
+  kontrol('Kullanıcı formunda Sistem Yöneticisi rolü seçilebilir',
+    rolSecenekleri.indexOf('sistemYoneticisi') > -1, rolSecenekleri.join(','));
+  kontrol('Kullanıcı formunda OSGB Müdürü rolü ayrı seçenek',
+    rolSecenekleri.indexOf('osgbMuduru') > -1 && rolSecenekleri.indexOf('sistemYoneticisi') > -1);
+  doc.querySelector('#kullaniciDiyalog [data-kapat]').click();
+  await bekle(90);
+
+  ISG.yetki.oturumKapat();
+  await girisYap('sistem@deneme.local', '1234');
+  kontrol('Sistem Yöneticisi oturumu açıldı',
+    !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'sistemYoneticisi');
+  kontrol('Sistem Yöneticisi tüm işyerlerini kapsar',
+    ISG.yetki.kapsam().length === ISG.depo.al().isyerleri.length && ISG.yetki.kapsam().length > 1,
+    String(ISG.yetki.kapsam().length));
+  kontrol('Sistem Yöneticisi doğrudan yazar', ISG.yetki.yazmaModu(ISG.yetki.kapsam()[0]) === 'dogrudan',
+    ISG.yetki.yazmaModu(ISG.yetki.kapsam()[0]));
+  kontrol('Sistem Yöneticisi bekleyen taleplere karar verebilir',
+    ISG.yetki.onayYetkisi({ isyeriId: ISG.yetki.kapsam()[0], kullaniciId: 'baska-kullanici' }) === true);
+  kontrol('Sistem Yöneticisi denetim izinin tamamını görür',
+    ISG.yetki.denetimListe().length === (ISG.depo.al().denetim || []).length,
+    String(ISG.yetki.denetimListe().length));
+
+  await sayfaAc('#sistem');
+  kontrol('Sistem yönetimi menüsü görünür', doc.getElementById('menuSistem').hidden === false);
+  kontrol('Sistem yönetimi paneli açılır', /Sistem uyarıları ve hata durumları/.test(metin('#gorunum')),
+    metin('#gorunum').slice(0, 90));
+  kontrol('Panel kurum yönetimini gösterir', /Kurum \(OSGB\) yönetimi/.test(metin('#gorunum')));
+  kontrol('Panel işyeri yönetimini gösterir', /İşyeri yönetimi/.test(metin('#gorunum')));
+  kontrol('Panel kullanıcı ve rol yönetimini gösterir', /Kullanıcı, rol ve atama yönetimi/.test(metin('#gorunum')));
+  kontrol('Panel onay yetkilisi eksik listesini taşır', /Onay yetkilisi eksik işyerleri/.test(metin('#gorunum')));
+  kontrol('Panel bekleyen onay taleplerini taşır', /Bekleyen onay talepleri/.test(metin('#gorunum')));
+  kontrol('Panel genel rapor bağlantılarını taşır',
+    !!doc.querySelector('#gorunum a[href="#rapor"]') && !!doc.querySelector('#gorunum a[href="#istatistik"]'));
+  kontrol('Panelde kullanıcı düzenleme düğmesi var',
+    !!doc.querySelector('#gorunum [data-islem="kullanici-duzenle"]'));
+  kontrol('Panelde işyeri düzenleme düğmesi var',
+    !!doc.querySelector('#gorunum [data-islem="isyeri-duzenle"]'));
+  kontrol('Rol ayrımı tablosunda Sistem Yöneticisi ve OSGB Müdürü ayrı satır',
+    /Sistem yönetimi/.test(metin('#gorunum')) && /Salt okunur/.test(metin('#gorunum')));
+
   /* Model yalnız `ayarlar.onayModeli` anahtarıyla açılır; anahtar kapanınca
      eski rol davranışı aynen döner. */
+  /* Panelden kurum oluşturma ve düzenleme (mevcut depo işlemleri). */
+  const kurumKutusu = doc.getElementById('sistemKurumAd');
+  kontrol('Kurum adı alanı panelde var', !!kurumKutusu);
+  if (kurumKutusu) {
+    kurumKutusu.value = 'Panel Testi OSGB';
+    doc.querySelector('[data-islem="sistem-kurum-kaydet"]').click();
+    await bekle(200);
+  }
+  const panelKurum = ISG.depo.al().kurumlar.filter((k) => k.ad === 'Panel Testi OSGB')[0];
+  kontrol('Panelden kurum oluşturuldu', !!panelKurum);
+  if (panelKurum) {
+    const kurumDuzenle = doc.querySelector('[data-islem="sistem-kurum-duzenle"][data-id="' + panelKurum.id + '"]');
+    kontrol('Kurum satırında düzenleme düğmesi var', !!kurumDuzenle);
+    if (kurumDuzenle) {
+      kurumDuzenle.click();
+      await bekle(200);
+      const duzenlemeKutusu = doc.getElementById('sistemKurumAd');
+      kontrol('Düzenlemede kurum adı alana yüklenir',
+        !!duzenlemeKutusu && duzenlemeKutusu.value === 'Panel Testi OSGB',
+        duzenlemeKutusu ? duzenlemeKutusu.value : 'alan yok');
+      if (duzenlemeKutusu) {
+        duzenlemeKutusu.value = 'Panel Testi OSGB 2';
+        doc.querySelector('[data-islem="sistem-kurum-kaydet"]').click();
+        await bekle(200);
+      }
+      kontrol('Panelden kurum adı güncellendi',
+        ISG.depo.al().kurumlar.some((k) => k.id === panelKurum.id && k.ad === 'Panel Testi OSGB 2'));
+    }
+  }
+
+  /* Panelden işyeri oluşturma, tehlike sınıfı ve kullanıcı ataması. */
+  const panelIsyeri = ISG.depo.isyeriKaydet({
+    id: '', ad: 'PANEL TEST İŞYERİ', tehlikeSinifi: 'tehlikeli', calisanSayisi: 12,
+    kurumId: panelKurum ? panelKurum.id : '', ana: false
+  });
+  kontrol('Panelden işyeri oluşturuldu', !!panelIsyeri && !!panelIsyeri.id);
+  ISG.depo.isyeriKaydet(Object.assign({},
+    ISG.depo.al().isyerleri.filter((i) => i.id === panelIsyeri.id)[0], { tehlikeSinifi: 'cokTehlikeli' }));
+  kontrol('Panelden işyeri tehlike sınıfı yönetildi',
+    (ISG.depo.al().isyerleri.filter((i) => i.id === panelIsyeri.id)[0] || {}).tehlikeSinifi === 'cokTehlikeli');
+
+  const panelKullanici = ISG.depo.kullaniciKaydet({
+    id: '', adSoyad: 'Panel Uzmanı', eposta: 'panel.uzman@deneme.local', sifre: '1234',
+    rol: 'yetkili', uzmanSinifi: 'A', kurumId: panelKurum ? panelKurum.id : '',
+    isyerleri: [panelIsyeri.id], tumIsyerleri: false, aktif: true
+  });
+  const panelKullaniciKaydi = ISG.depo.al().kullanicilar.filter((k) => k.id === panelKullanici.id)[0] || {};
+  kontrol('Panelden kullanıcı oluşturuldu, kuruma ve işyerine atandı',
+    (panelKullaniciKaydi.isyerleri || []).indexOf(panelIsyeri.id) > -1 &&
+    panelKullaniciKaydi.kurumId === (panelKurum ? panelKurum.id : ''));
+  kontrol('Uzman sınıfı (A) kullanıcıya yazıldı', panelKullaniciKaydi.uzmanSinifi === 'A',
+    String(panelKullaniciKaydi.uzmanSinifi));
+
+  /* Talep → onay akışı gerçek arayüzden: uzman yazar, sistem yöneticisi karar verir. */
+  ISG.yetki.oturumKapat();
+  await girisYap('panel.uzman@deneme.local', '1234');
+  kontrol('Panel uzmanı oturumu açıldı',
+    !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yetkili');
+  const panelTalep = ISG.depo.personelKaydet({
+    id: '', isyeriId: panelIsyeri.id, adSoyad: 'Panel Onay Testi', sicil: 'P1', durum: 'aktif'
+  });
+  kontrol('Uzman değişikliği talebe dönüştü', !!(panelTalep && panelTalep.talep));
+  kontrol('Talep doğrudan yazılmadı',
+    !ISG.depo.al().personel.some((p) => p.adSoyad === 'Panel Onay Testi'));
+  ISG.yetki.oturumKapat();
+  await girisYap('sistem@deneme.local', '1234');
+  await sayfaAc('#sistem');
+  const talepOnayDugmesi = (panelTalep && panelTalep.talep)
+    ? doc.querySelector('#gorunum [data-islem="talep-onayla"][data-id="' + panelTalep.talep.id + '"]') : null;
+  kontrol('Panel bekleyen talebi onay düğmesiyle listeler', !!talepOnayDugmesi);
+  if (talepOnayDugmesi) {
+    talepOnayDugmesi.click();
+    await bekle(140);
+    kontrol('Onaydan önce teyit istenir', doc.getElementById('onayDiyalog').open === true);
+    doc.getElementById('onayEvet').click();
+    await bekle(280);
+  }
+  const onaylananTalep = (panelTalep && panelTalep.talep)
+    ? ISG.depo.al().talepler.filter((t) => t.id === panelTalep.talep.id)[0] || {} : {};
+  kontrol('Panelden onaylanan talep kayda uygulandı',
+    onaylananTalep.durum === 'onaylandi' &&
+    ISG.depo.al().personel.some((p) => p.adSoyad === 'Panel Onay Testi'), String(onaylananTalep.durum));
+
+  ISG.yetki.oturumKapat();
+  await girisYap('panel.uzman@deneme.local', '1234');
+  const ikinciTalep = ISG.depo.personelKaydet({
+    id: '', isyeriId: panelIsyeri.id, adSoyad: 'Panel Ret Testi', sicil: 'P2', durum: 'aktif'
+  });
+  ISG.yetki.oturumKapat();
+  await girisYap('sistem@deneme.local', '1234');
+  await sayfaAc('#sistem');
+  const retDugmesi = (ikinciTalep && ikinciTalep.talep)
+    ? doc.querySelector('#gorunum [data-islem="talep-reddet"][data-id="' + ikinciTalep.talep.id + '"]') : null;
+  kontrol('Panelde ret düğmesi var', !!retDugmesi);
+  if (retDugmesi) {
+    const notAlani = retDugmesi.closest('.onay-satir')
+      ? retDugmesi.closest('.onay-satir').querySelector('[data-talep-not]') : null;
+    if (notAlani) { notAlani.value = 'Panel testi reddi'; }
+    retDugmesi.click();
+    await bekle(140);
+    doc.getElementById('onayEvet').click();
+    await bekle(280);
+  }
+  const reddedilenTalep = (ikinciTalep && ikinciTalep.talep)
+    ? ISG.depo.al().talepler.filter((t) => t.id === ikinciTalep.talep.id)[0] || {} : {};
+  kontrol('Panelden reddedilen talep kayda yazılmadı',
+    reddedilenTalep.durum === 'reddedildi' &&
+    !ISG.depo.al().personel.some((p) => p.adSoyad === 'Panel Ret Testi'), String(reddedilenTalep.durum));
+  kontrol('Ret gerekçesi talebe işlendi',
+    /Panel testi reddi/.test(String(reddedilenTalep.kararNotu || '')), String(reddedilenTalep.kararNotu));
+
+  /* Panelden kullanıcı pasife alınır: pasif hesap onay yetkilisi sayılmaz. */
+  ISG.depo.kullaniciKaydet(Object.assign({},
+    ISG.depo.al().kullanicilar.filter((k) => k.id === panelKullanici.id)[0], { aktif: false }));
+  kontrol('Panelden kullanıcı pasife alındı',
+    (ISG.depo.al().kullanicilar.filter((k) => k.id === panelKullanici.id)[0] || {}).aktif === false);
+  kontrol('Pasif uzman onay yetkilisi sayılmaz',
+    ISG.yetki.isyeriUzmanlari(panelIsyeri.id).every((uzman) => uzman.id !== panelKullanici.id));
+  ISG.depo.kullaniciKaydet(Object.assign({},
+    ISG.depo.al().kullanicilar.filter((k) => k.id === panelKullanici.id)[0], { aktif: true }));
+
+  /* OSGB Müdürü yönetim işlemlerine giremez (rol ayrımı veri katmanında). */
+  const sinirKurum = ISG.depo.kurumKaydet({ ad: 'Panel Sınır OSGB' });
+  const sinirMudur = ISG.depo.kullaniciKaydet({
+    id: '', adSoyad: 'Panel Sınır Müdürü', eposta: 'sinir.mudur@deneme.local', sifre: '1234',
+    rol: 'osgbMuduru', kurumId: sinirKurum.id, isyerleri: [], aktif: true
+  });
+  ISG.yetki.oturumKapat();
+  await girisYap('sinir.mudur@deneme.local', '1234');
+  kontrol('OSGB Müdürü sistem yönetimi menüsünü görmez', doc.getElementById('menuSistem').hidden === true);
+  kontrol('OSGB Müdürü panelde erişim yok uyarısı alır', /Erişim yok/.test(ISG.sayfalar.sistem()));
+  let osgbKurumHatasi = '';
+  try {
+    ISG.depo.kurumKaydet({ ad: 'Yetkisiz Kurum' });
+  } catch (hata) { osgbKurumHatasi = hata.message; }
+  kontrol('OSGB Müdürü kurum oluşturamaz', /yalnızca yöneticilere/.test(osgbKurumHatasi), osgbKurumHatasi);
+  let osgbKullaniciHatasi = '';
+  try {
+    ISG.depo.kullaniciKaydet({
+      id: '', adSoyad: 'Yetkisiz Kullanıcı', eposta: 'yetkisiz@deneme.local', sifre: '1234',
+      rol: 'sistemYoneticisi', isyerleri: []
+    });
+  } catch (hata) { osgbKullaniciHatasi = hata.message; }
+  kontrol('OSGB Müdürü kullanıcı ve rol oluşturamaz', !!osgbKullaniciHatasi, osgbKullaniciHatasi);
+  kontrol('OSGB Müdürü yazma modunda red alır', ISG.yetki.yazmaModu(panelIsyeri.id) === 'red');
+  await sayfaAc('#sistem');
+  kontrol('Doğrudan #sistem adresi OSGB Müdürüne panel açmaz', /Erişim yok/.test(metin('#gorunum')),
+    metin('#gorunum').slice(0, 60));
+
+  /* Normal İş Güvenliği Uzmanı yönetici yetkisi kazanamaz. */
+  ISG.yetki.oturumKapat();
+  await girisYap('panel.uzman@deneme.local', '1234');
+  kontrol('Yetkili sistem yönetimi menüsünü görmez', doc.getElementById('menuSistem').hidden === true);
+  let uzmanYukseltme = '';
+  try {
+    ISG.depo.kullaniciKaydet({
+      id: '', adSoyad: 'Kendini Yükselt', eposta: 'yukselt@deneme.local', sifre: '1234',
+      rol: 'sistemYoneticisi', isyerleri: [panelIsyeri.id]
+    });
+  } catch (hata) { uzmanYukseltme = hata.message; }
+  kontrol('Normal uzman kendine/başkasına yönetici rolü veremez', !!uzmanYukseltme, uzmanYukseltme);
+  kontrol('Normal uzmanın rolü değişmedi',
+    !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yetkili');
+  await sayfaAc('#sistem');
+  kontrol('Doğrudan #sistem adresi uzmana panel açmaz', /Erişim yok/.test(metin('#gorunum')));
+  kontrol('Uzman panelde kurum/kullanıcı düğmesi görmüyor',
+    !doc.querySelector('#gorunum [data-islem="sistem-kurum-kaydet"]') &&
+    !doc.querySelector('#gorunum [data-islem="kullanici-yeni"]'));
+  kontrol('Yetkisiz rol yükseltme denemesi veriye yazılmadı',
+    !ISG.depo.al().kullanicilar.some((k) => k.eposta === 'yukselt@deneme.local'));
+
+  /* Temizlik: test hesapları, işyeri ve kurumları geri alınır. */
+  ISG.yetki.oturumKapat();
+  await girisYap('mehmetkurt0948@gmail.com', '1234');
+  const onayliKisi = ISG.depo.al().personel.filter((p) => p.adSoyad === 'Panel Onay Testi')[0];
+  if (onayliKisi) { ISG.depo.personelSil(onayliKisi.id); }
+  [sistemDeneme, panelKullanici, sinirMudur].forEach((kisi) => {
+    if (kisi && kisi.id) { ISG.depo.kullaniciSil(kisi.id); }
+  });
+  ISG.depo.isyeriSil(panelIsyeri.id);
+  if (panelKurum) { ISG.depo.kurumSil(panelKurum.id); }
+  ISG.depo.kurumSil(sinirKurum.id);
+  const testKimlikleri = [sistemDeneme.id, panelKullanici.id, sinirMudur.id];
+  kontrol('Sistem yöneticisi test verisi temizlendi',
+    ISG.depo.al().kullanicilar.every((k) => testKimlikleri.indexOf(k.id) < 0) &&
+    ISG.depo.al().isyerleri.every((i) => i.id !== panelIsyeri.id) &&
+    ISG.depo.al().kurumlar.every((k) => k.id !== sinirKurum.id && (!panelKurum || k.id !== panelKurum.id)));
+  await sayfaAc('#isyerleri');
+
+
+  console.log('\n20) İşyeri onay modeli (deneysel anahtar)');
   ISG.depo.ayarKaydet({ onayModeli: 'isyeri' });
   kontrol('İşyeri onay modeli açıldı', ISG.yetki.onayModeli() === 'isyeri', ISG.yetki.onayModeli());
   kontrol('Tehlikeli işyeri eşiği A/B', ISG.yetki.onayEsigi('tehlikeli').join('/') === 'A/B');

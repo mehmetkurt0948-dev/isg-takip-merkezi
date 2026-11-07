@@ -616,10 +616,10 @@
     var o = Y.oturum();
     if (!o) { return '<div class="hata">' + B.bosDurum('Oturum bulunamadı', 'Lütfen giriş yapın.', 'i-saglik') + '</div>'; }
     var rol = rolTanimi(o.rol);
-    if (rol.id !== 'yonetici' && rol.id !== 'yetkili' && rol.id !== 'goruntuleyici') {
+    if (!rol.yonetir && rol.id !== 'yetkili' && rol.id !== 'goruntuleyici') {
       return '<div class="hata">' + B.bosDurum('Erişim yok', 'Sağlık kayıtlarını görüntüleme izniniz yok.', 'i-saglik') + '</div>';
     }
-    if (rol.id !== 'yonetici' && !ISG.depo.saglikYetkiliMi(o.kullaniciId)) {
+    if (!rol.yonetir && !ISG.depo.saglikYetkiliMi(o.kullaniciId)) {
       var kendiTalep = ISG.depo.saglikErisimTalepleri().filter(function (t) { return t.kullaniciId === o.kullaniciId; })[0];
       var yonetici = rol.yonetir;
       var talepler = yonetici ? ISG.saglikTakip.erisimTalepleri().filter(function (t) { return t.durum === 'bekliyor'; }) : [];

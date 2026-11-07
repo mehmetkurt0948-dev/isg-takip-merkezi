@@ -119,10 +119,10 @@
     var o = Y.oturum();
     if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
     var rol = Y.rolTanimi(o.rol);
-    if (rol.id !== 'yonetici' && !D.saglikYetkiliMi(o.kullaniciId)) {
+    if (!rol.yonetir && !D.saglikYetkiliMi(o.kullaniciId)) {
       return D.saglikErisimTalepKaydet({ kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad, eposta: o.eposta, rol: o.rol });
     }
-    if (rol.id !== 'yonetici' && rol.id !== 'yetkili') {
+    if (!rol.yonetir && rol.id !== 'yetkili') {
       throw new Error('Sağlık kaydı yalnızca yönetici veya işyeri hekimi/yetkili tarafından kaydedilebilir.');
     }
     if (rol.id === 'yetkili' && (!kayit.isyeriId || o.isyerleri.indexOf(kayit.isyeriId) < 0)) {
@@ -130,7 +130,7 @@
     }
     var hatalar = dogrula(kayit);
     if (hatalar.length) { throw new Error(hatalar.join(' ')); }
-    if (rol.id !== 'yonetici') { throw new Error('Yalnızca yönetici sağlık kayıtlarını ekleyip düzenleyebilir.'); }
+    if (!rol.yonetir) { throw new Error('Yalnızca yönetici sağlık kayıtlarını ekleyip düzenleyebilir.'); }
     kayit.girisYapan = o.kullaniciId;
     var sifreli = kaydiSifrele(kayit);
     return D.saglikTakipKaydet(sifreli);
@@ -140,7 +140,7 @@
     var o = Y.oturum();
     if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
     var rol = Y.rolTanimi(o.rol);
-    if (rol.id !== 'yonetici' && !D.saglikYetkiliMi(o.kullaniciId)) { throw new Error('Sağlık verilerine erişmek için yönetici onayı gerekir.'); }
+    if (!rol.yonetir && !D.saglikYetkiliMi(o.kullaniciId)) { throw new Error('Sağlık verilerine erişmek için yönetici onayı gerekir.'); }
     if (!isyeriId && rol.id === 'yetkili' && o.isyerleri.length === 1) {
       isyeriId = o.isyerleri[0];
     }
@@ -152,14 +152,14 @@
     var o = Y.oturum();
     if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
     var rol = Y.rolTanimi(o.rol);
-    if (rol.id !== 'yonetici') { throw new Error('Sağlık kaydı yalnızca yönetici tarafından silinebilir.'); }
+    if (!rol.yonetir) { throw new Error('Sağlık kaydı yalnızca yönetici tarafından silinebilir.'); }
     D.saglikTakipSil(id);
   }
 
   function duzenlemeTalepEt(kayit) {
     var o = Y.oturum();
     if (!o) { throw new Error('Oturum bulunamadı.'); }
-    if (Y.rolTanimi(o.rol).id !== 'yonetici' && !D.saglikYetkiliMi(o.kullaniciId)) {
+    if (!Y.rolTanimi(o.rol).yonetir && !D.saglikYetkiliMi(o.kullaniciId)) {
       return D.saglikErisimTalepKaydet({ kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad, eposta: o.eposta, rol: o.rol });
     }
     throw new Error('Sağlık kayıtlarını yalnızca yönetici düzenleyebilir.');
@@ -172,12 +172,12 @@
   }
   function erisimTalepleri() {
     var o = Y.oturum();
-    if (!o || Y.rolTanimi(o.rol).id !== 'yonetici') { throw new Error('Sağlık erişim taleplerini yalnızca yönetici görebilir.'); }
+    if (!o || !Y.rolTanimi(o.rol).yonetir) { throw new Error('Sağlık erişim taleplerini yalnızca yönetici görebilir.'); }
     return D.saglikErisimTalepleri();
   }
   function erisimKarar(id, onay) {
     var o = Y.oturum();
-    if (!o || Y.rolTanimi(o.rol).id !== 'yonetici') { throw new Error('Erişim kararını yalnızca yönetici verebilir.'); }
+    if (!o || !Y.rolTanimi(o.rol).yonetir) { throw new Error('Erişim kararını yalnızca yönetici verebilir.'); }
     return D.saglikErisimKarar(id, !!onay);
   }
 

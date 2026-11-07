@@ -14,6 +14,16 @@
       aciklama: 'Tüm işyerleri; kayıtlar doğrudan uygulanır, onay kuyruğunu yönetir.',
       tumIsyerleri: true, dogrudanYazar: true, onaylar: true, yonetir: true
     },
+    /* Sistem Yöneticisi: OSGB Müdüründen BAĞIMSIZ yönetim rolü. Kendi kurumu
+       yoktur; kurum, işyeri ve kullanıcı yönetimini sistem genelinde yapar,
+       onay kuyruğuna karar verir. `sistem: true` yalnızca sistem yönetim
+       panelinin menüsünü açar; yetki kararları `yonetir/onaylar` üzerinden
+       verilir, dolayısıyla tek karar noktası korunur. */
+    sistemYoneticisi: {
+      id: 'sistemYoneticisi', ad: 'Sistem Yöneticisi', kisa: 'Sistem Yöneticisi',
+      aciklama: 'Sistem genelini yönetir: kurum, işyeri, kullanıcı ve rol yönetimi; bekleyen taleplere karar verir.',
+      tumIsyerleri: true, dogrudanYazar: true, onaylar: true, yonetir: true, sistem: true
+    },
     osgbMuduru: {
       id: 'osgbMuduru', ad: 'OSGB Müdürü', kisa: 'OSGB Müdürü',
       aciklama: 'Kendi kurumundaki bütün işyerlerini izler ve raporlar; mesleki kayıtları değiştirmez, onay vermez.',
@@ -43,6 +53,17 @@
     'osgb muduru': 'osgbMuduru',
     'osgb müdür': 'osgbMuduru',
     'osgb mudur': 'osgbMuduru',
+    /* Sistem Yöneticisi yazım/eşleme varyantları. Eski kayıtlarda rol alanı
+       Türkçe adla ya da bitişik yazılmış olabilir; hepsi tek role çözülür. */
+    sistemyoneticisi: 'sistemYoneticisi',
+    'sistem yöneticisi': 'sistemYoneticisi',
+    'sistem yoneticisi': 'sistemYoneticisi',
+    'sistem yönetici': 'sistemYoneticisi',
+    'sistem yonetici': 'sistemYoneticisi',
+    'sistem yöneticisi': 'sistemYoneticisi',
+    sysadmin: 'sistemYoneticisi',
+    superadmin: 'sistemYoneticisi',
+    'system admin': 'sistemYoneticisi',
     yetkili: 'yetkili',
     'isg uzmani': 'yetkili',
     'isg uzmanı': 'yetkili',
@@ -1003,7 +1024,7 @@
       var o = oturum();
       if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
       var rol = rolTanimi(o.rol);
-      if (rol.id !== 'yonetici' && rol.id !== 'yetkili') {
+      if (!rol.yonetir && rol.id !== 'yetkili') {
         throw new Error('Sağlık kayıtlarına yalnızca yönetici ve işyeri hekimi/yetkili erişebilir.');
       }
       if (rol.id === 'yetkili') {

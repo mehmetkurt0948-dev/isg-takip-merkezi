@@ -15,7 +15,7 @@
   }
   function erisimiDogrula() {
     var o = ISG.yetki.oturum();
-    if (!o || (ISG.yetki.rolTanimi(o.rol).id !== 'yonetici' && !ISG.depo.saglikYetkiliMi(o.kullaniciId))) {
+    if (!o || (!ISG.yetki.rolTanimi(o.rol).yonetir && !ISG.depo.saglikYetkiliMi(o.kullaniciId))) {
       throw new Error('Excel sağlık listesi için yönetici onayı gerekir.');
     }
   }
