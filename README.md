@@ -30,7 +30,7 @@ kayıt tabloları.
 | **Yönetim raporu** | Tarih aralığı, açık/geciken iş, doğrulama bekleyen, dönemde tamamlanan, işyeri bazında karşılaştırma tablosu, Excel (CSV) çıktısı |
 | **İstatistikler** | On iki özet KPI, **iş kazası / meslek hastalığı veri girişi ve ortak kayıt listesi** (tarihe göre sıralı; satırdan düzenle / kapat / sil, kapsam işyeriyle "Kaza bildir" ve "Meslek hastalığı bildir") ve iş kazası analizi: **aylık kaza sıklığı (sütun grafik)**, **KSO / KAO / KSH oranları ve 12 aylık oran tablosu**, **kök neden dağılımı**, **neden × vücut bölgesi ısı matrisi**, yaralanma bölgesi/türü, **şiddet sınıfı (SGK)**, **vardiya**, **haftanın günü**, işyeri, departman, kıdem ve iş günü kaybı dağılımları, en çok kazaya uğrayan personel; personel, eğitim, DÖF, risk ve belge dağılımları; kapsam filtresi |
 | **Risk değerlendirmesi** | İşyeri başına son değerlendirme / en geç yenileme / olağan üst sınır, 6 rollü ekip listesi, rol bazlı **ekip üyesi ekle / değiştir / kaldır**, eksik rol uyarısı, **risk belgesi yükle / görüntüle / indir**, 5×5 risk kayıt tablosu |
-| **Acil durum planı** | Çalışan sayısı, plan tarihi, **tarih denetimi** (hazırlanma / son yenileme zorunlu, takvimce geçerli, en geç yenileme tarihi), yenileme sınırı (tehlike sınıfına göre), **zorunlu dört ekipte gerekli / kayıtlı / onaylı mevcut** (yönetmelik oranlarından otomatik), rol bazlı **ekip üyesi ekle / değiştir / kaldır**, **plan belgesi yükle / görüntüle / indir**, plan/ekip kaydı |
+| **Acil durum planı** | Her işyeri için plan kaydı **otomatik açılır** (`ap-<isyeriId>`, tarihler boş — sonradan doldurulur), çalışan sayısı, plan tarihi, **tarih denetimi** (hazırlanma / son yenileme zorunlu, takvimce geçerli, en geç yenileme tarihi), yenileme sınırı (tehlike sınıfına göre), **zorunlu dört ekipte gerekli / kayıtlı / onaylı mevcut** (yönetmelik oranlarından otomatik), rol bazlı **ekip üyesi ekle / değiştir / kaldır**, **plan belgesi yükle / görüntüle / indir**, plan/ekip kaydı |
 | **Ekip ve davetler** | E-posta + rol + **kurum** + yetkili işyeri seçimiyle davet oluşturma, davet listesi ve iptal; **kullanıcılar ve yetkiler** bölümünde rol, kapsam, kurum ve **uzman sınıfı (A/B/C)**, **onay yetkilisi eksik** işyerleri listesi |
 | **Mevzuat ve kapsam** | 20 başlıklı katalog (kanun/yönetmelik/tebliğ/rehber/standart), kategori ve konu araması, teyit durumu, seçili işyeri kapsam özeti, Mevzuat Bilgi Sistemi bağlantısı |
 | **Onay kuyruğu** | Yetkili kullanıcıların yazma işlemlerinden doğan talepler: işlem özeti, işyeri, talep sahibi, **dağıtık onay yetkilisi** bilgisi, onayla / reddet, bekleyen sayısı rozeti, denetim izi |
@@ -298,6 +298,7 @@ isg-takip-merkezi/
 │  ├─ kontrol.js              # jsdom duman testi (929 kontrol)
 │  ├─ belge-test.js           # belge eki (yükle/indir/sil, 1 MB sınırı) testi (27 kontrol)
 │  ├─ acil-tarih-dogrula.js   # bütün işyerlerinde acil plan tarihi: depo ↔ diyalog ↔ kart ↔ bulut
+│  ├─ acil-tarih-canli.js     # SALT OKUNUR: gerçek Supabase satırında aynı doğrulama (canlı veri)
 │  ├─ kontrol-listesi.js      # Word (.docx) / Excel (.xlsx) kontrol listesini hazır şablona çevirir
 │  ├─ kontrol-listesi-kaynaklari.json  # Excel dosya adı → işyeri kodu/ad eşleşmesi (toplu dönüşüm)
 │  ├─ kontrol-listeleri/      # dönüştürülmüş işyeri listeleri (ASKI-1.json, ASKI-2.json, …)
@@ -896,6 +897,44 @@ Her işyeri için ayrı ayrı doğrulananlar:
 
 Çıkış kodu başarısızlıkta `1`'dir; `npm test` bu aracı `--sessiz` kipte çalıştırır.
 
+## 6.9. Canlı veri doğrulaması (salt okunur): `tools/acil-tarih-canli.js`
+
+§6.8'deki doğrulamanın **gerçek üretim verisi** üzerindeki sürümüdür. Demo verisi
+yerine `assets/js/bulut-kimlik.js` içindeki Supabase adresi, anon anahtar ve oda
+koduyla yayındaki tek satırı okur; hiçbir yazma isteği göndermez:
+
+```powershell
+npm run acil:canli                       # gerçek bulut satırı (yalnızca GET)
+node tools/acil-tarih-canli.js --json    # makine okunur rapor
+node tools/acil-tarih-canli.js --veri yedek.json   # yedek dosya (canlı DEĞİL)
+node tools/acil-tarih-canli.js --demo    # demo fixture (canlı DEĞİL)
+```
+
+Her kurum ve her işyeri için ayrı ayrı:
+
+- İlk hazırlanma / son yenileme / son tatbikat: bulut kaydı ↔ veri deposu ↔
+  kayıt ekranı ↔ mevcut durum kartı ↔ kalıcı depo (localStorage) aynı mı?
+- Kayıt kimliği işyeri kimliğiyle eşleşiyor mu; kimliksiz, çift kimlikli,
+  mükerrer ve sahipsiz kayıt var mı? (Ölçüt **ham** veridir.)
+- Kaydet → çek → birleştir zinciri bellekte simüle edilir: eski bulut kopyası
+  yeni tarihi eziyor mu, yerel değişiklik korunuyor mu, kayıt çoğalıyor mu?
+- Kart "En geç yenileme" tek kuraldan mı geliyor, tatbikat dayanak sayılmış mı?
+
+Güvenlik ve sınırlar:
+
+- Yalnızca `GET .../rest/v1/isg_veri?select=…&oda=eq.…` çalışır. jsdom içinde
+  `fetch` kapatılır; araç çalışırken bulut çağrısı denense bile engellenir
+  (raporda "Engellenen bulut isteği" olarak görünür).
+- Gerçek veri **değiştirilmez, silinmez, otomatik düzeltilmez**. Birleştirme
+  denemeleri Node belleğinde yapılır. Tarih farkı bulunursa yalnızca listelenir.
+- Bulut satırı kanonik kaynaktır; **cihazların kendi localStorage kopyaları
+  uzaktan okunamaz**. Şüphe varsa o cihazda dışa aktarılan yedek
+  `--veri yedek.json` ile incelenir.
+- Çıkış kodu: `0` = tutarsızlık yok, `1` = tutarsızlık/erişim hatası.
+- Rapor, veri kaynağını başlıkta ve sonunda açıkça yazar: **canlı**, **yedek**
+  veya **demo**. Demo çıktısı hiçbir zaman canlı doğrulama olarak sunulmaz.
+
+
 ## 7. Yayınlama (GitHub Pages)
 
 Uygulama tamamen statiktir: sunucu tarafı, derleme adımı, veritabanı veya API
@@ -1062,6 +1101,30 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.23.0 — Yeni işyeri açılınca acil durum planı kaydı kendiliğinden oluşur
+
+- **Otomatik plan iskeleti.** İşyeri kaydedildiğinde o işyeri için acil durum
+  planı kaydı **kendiliğinden** açılır (`ap-<isyeriId>`, üç tarih boş, ekip
+  listesi boş). Boş tarih bilinçlidir: uygulama tarih uydurmaz, kartta
+  "Plan tarihi girilmedi" yazar; kullanıcı tarihi girince aynı kayıt dolar.
+- **Tek merkez, iki kapı.** İskelet `acilPlanIskeleti(isyeriId)` ile tek yerde
+  üretilir; hem `ISG.depo.isyeriKaydet` (yeni işyeri) hem de
+  `tekKayitlariTamamla` (açılış/göç/bulut birleşimi) aynı yardımcıyı çağırır.
+  Böylece yönetici, kullanıcı, OSGB ve Excel/içe aktarma yollarının hepsi aynı
+  davranışı görür; ayrı ayrı kod yok.
+- **Idempotent ve veri kaybı yok.** Var olan plan kaydına dokunulmaz (tarih,
+  ekip, belge, kimlik ezilmez); kayıt yoksa eklenir. İşyeri düzenlendiğinde,
+  sayfa yenilendiğinde veya bulut eşitlemesi tekrarlandığında plan çoğalmaz.
+- **Eski verinin tamamlanması (backfill).** Sürüm yükseltildiğinde mevcut
+  işyerleri için eksik plan kayıtları da tamamlanır; dolu planlar aynen kalır.
+- **Onarım kancası.** `ISG.depo.acilPlanOtomatikOlustur(isyeriId)` tek bir
+  işyeri için kaydı doğrular/oluşturur (elle onarım ve içe aktarma için).
+- **Doğrulama.** `tools/acil-tarih-dogrula.js` 7. bölümü eklendi (15 kontrol):
+  otomatik oluşum, deterministik kimlik, boş tarihler, kalıcı yazım, boş plan
+  rozeti, yeniden kaydetme, tarih yazımı, birleşimde geri tamamlama, birleşim
+  tekrarında çoğalmama, mevcut planların (boş tarihli AYULAŞ dahil) korunması,
+  işyeri silinince planın silinmesi ve silinenin birleşimle geri gelmemesi.
 
 ### 2.22.1 — Acil durum planı tarihleri: kayıt ekranı ile mevcut durum artık aynı kaydı okuyor
 

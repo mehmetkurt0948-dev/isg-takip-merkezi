@@ -1486,6 +1486,30 @@
     });
   }
 
+  /* Acil durum planı kaydının boş iskeleti. Üç tarih bilerek BOŞ bırakılır:
+     otomatik tarih uydurulmaz, ekran "Plan tarihi girilmedi" uyarısıyla gerçek
+     hazırlanma tarihini ister. Kimlik işyeri kimliğinden türetildiği için iki
+     cihaz aynı işyeri için aynı kaydı üretir (bkz. tekKayitId). */
+  function acilPlanIskeleti(isyeriId) {
+    return {
+      id: tekKayitId('ap', isyeriId), isyeriId: isyeriId,
+      hazirlanma: '', sonYenileme: '', tatbikat: '', ekip: []
+    };
+  }
+
+  /* Her işyeri için TEK acil durum plan kaydı bulunmasını garanti eder
+     (plan hazırlama adımı işyeri kurulurken açılır). Var olan kayda
+     DOKUNULMAZ: tarihler, ekip, belgeler ve kimlik olduğu gibi korunur.
+     Fonksiyon idempotenttir; kaç kez çağrılırsa çağrılsın kayıt çoğaltmaz. */
+  function acilPlanlariTamamla(veri) {
+    veri.acilPlanlar = Array.isArray(veri.acilPlanlar) ? veri.acilPlanlar : [];
+    (veri.isyerleri || []).forEach(function (isyeri) {
+      if (!isyeri || isyeri.id === null || isyeri.id === undefined || isyeri.id === '') { return; }
+      if (ISG.acilPlanKaydi(veri, isyeri.id)) { return; }
+      veri.acilPlanlar.push(acilPlanIskeleti(isyeri.id));
+    });
+  }
+
   /* Eski sürümden gelen ya da içe aktarılan veriyi güncel şemaya tamamlar. */
   function veriTamamla(veri) {
     if (!veri) { return veri; }
@@ -1600,6 +1624,12 @@
     /* v11: işyeri başına tek acil plan / risk ekibi kaydı ve kalıcı kimlik.
        Kimliksiz kayıt bulut birleşiminde korunmuyordu; ayrıntı: tekKayitYap. */
     tekKayitlariTamamla(veri);
+
+    /* Eksik acil durum plan kayıtları (eski kayıtlar ve içe aktarılan veri)
+       burada tamamlanır: her işyerine bir boş plan iskeleti, var olanlara
+       dokunulmadan eklenir. Bulut birleşimi de bu kapıdan geçtiği için
+       otomatik kayıtlar sonradan kaybolmaz. */
+    acilPlanlariTamamla(veri);
 
     veri.surum = SURUM;
     return veri;
@@ -2032,6 +2062,9 @@
     if (!veri.isyerleri.some(function (isyeri) { return isyeri.ana; }) && veri.isyerleri.length) {
       veri.isyerleri[0].ana = true;
     }
+    /* Yeni işyeri açılır açılmaz acil durum planı da açılır: kayıt ekranı,
+       kart ve rapor boş planı hazır bulur. Var olan plan varsa korunur. */
+    acilPlanlariTamamla(veri);
     depo.kaydet();
     return sonuc;
   };
@@ -2719,13 +2752,33 @@
     return kayit;
   };
 
+  /* İşyerinin acil durum plan kaydını hazırlar: kayıt yoksa oluşturup yazar,
+     varsa olduğu gibi döndürür. İdempotenttir; onarım ve içe aktarma
+     sonrası elle de çağrılabilir. */
+  ISG.depo.acilPlanOtomatikOlustur = function (isyeriId) {
+    var veri = depo.al();
+    var kayit = ISG.acilPlanKaydi(veri, isyeriId);
+    if (kayit) { return kayit; }
+    if (isyeriId === null || isyeriId === undefined || isyeriId === '') { return null; }
+    var hedef = String(isyeriId);
+    var isyeriVar = (veri.isyerleri || []).some(function (isyeri) {
+      return isyeri && String(isyeri.id) === hedef;
+    });
+    if (!isyeriVar) { return null; }
+    kayit = acilPlanIskeleti(isyeriId);
+    veri.acilPlanlar = Array.isArray(veri.acilPlanlar) ? veri.acilPlanlar : [];
+    veri.acilPlanlar.push(kayit);
+    depo.kaydet();
+    return kayit;
+  };
+
   ISG.depo.acilPlanKaydet = function (isyeriId, alanlar) {
     var veri = depo.al();
     var kayit = ISG.acilPlanKaydi(veri, isyeriId);
     if (!kayit) {
       /* Kimlik işyeri kimliğinden türetilir: kayıt bulut eşitlemesine girer,
          böylece yerel yazı bulutun eski kopyasıyla değiştirilmez. */
-      kayit = { id: tekKayitId('ap', isyeriId), isyeriId: isyeriId, hazirlanma: '', sonYenileme: '', tatbikat: '', ekip: [] };
+      kayit = acilPlanIskeleti(isyeriId);
       veri.acilPlanlar.push(kayit);
     }
     /* Üç tarih bağımsız yazılır; boş alan boş kalır (otomatik tarih uydurulmaz). */

@@ -350,7 +350,84 @@ const bekle = (ms) => new Promise((coz) => setTimeout(coz, ms));
   kontrol('Son yenileme girilince dayanak odur',
     ISG.acilPlanOzeti({ tehlikeSinifi: 'cokTehlikeli' }, { hazirlanma: '2024-08-20', sonYenileme: '2026-08-20' }).enGec === '2028-08-20');
 
-  /* 7) Sonuç */
+  /* 7) İşyeri açılınca acil plan kaydı kendiliğinden doğar (idempotent) */
+  console.log('\n7) Otomatik acil plan kaydı');
+  const planSayisi = (veri, id) => (veri.acilPlanlar || []).filter((k) => String(k.isyeriId) === String(id)).length;
+  const yeniIsyeri = {
+    ad: 'OTOMATİK PLAN TEST İŞYERİ', tehlikeSinifi: 'tehlikeli', calisanSayisi: 12,
+    sgkSicil: '2-9999-01-01-9999999-99', yetkili: 'Test Sorumlusu', adres: 'Aydın / Efeler', sektor: 'Test'
+  };
+  const kaydedilen = D.isyeriKaydet(yeniIsyeri);
+  const otomatikPlan = ISG.acilPlanKaydi(D.al(), kaydedilen.id) || {};
+  kontrol('İşyeri açılınca plan kaydı oluştu', !!otomatikPlan.id, 'id=' + (otomatikPlan.id || 'yok'));
+  kontrol('Plan kimliği işyeri kimliğinden türetildi', otomatikPlan.id === 'ap-' + kaydedilen.id,
+    'id=' + (otomatikPlan.id || 'yok') + ' / beklenen=ap-' + kaydedilen.id);
+  kontrol('Plan işyerine bağlandı', String(otomatikPlan.isyeriId) === String(kaydedilen.id),
+    'isyeriId=' + (otomatikPlan.isyeriId || 'yok'));
+  kontrol('Otomatik planın üç tarihi de boş',
+    otomatikPlan.hazirlanma === '' && otomatikPlan.sonYenileme === '' && otomatikPlan.tatbikat === '',
+    'h=' + (otomatikPlan.hazirlanma || '-') + ' sy=' + (otomatikPlan.sonYenileme || '-') + ' t=' + (otomatikPlan.tatbikat || '-'));
+  kontrol('Otomatik planın ekip listesi boş dizi', Array.isArray(otomatikPlan.ekip) && otomatikPlan.ekip.length === 0,
+    'ekip=' + (Array.isArray(otomatikPlan.ekip) ? otomatikPlan.ekip.length : 'dizi değil'));
+
+  const hamPlan = (JSON.parse(w.localStorage.getItem(D.anahtar) || '{}').acilPlanlar || [])
+    .filter((k) => String(k.isyeriId) === String(kaydedilen.id));
+  kontrol('Otomatik plan kalıcı yazıldı (yenilemede kaybolmaz)', hamPlan.length === 1 && hamPlan[0].id === 'ap-' + kaydedilen.id,
+    hamPlan.length + ' kayıt');
+
+  const bosOzet = ISG.acilPlanOzeti(D.al().isyerleri.filter((i) => String(i.id) === String(kaydedilen.id))[0], otomatikPlan);
+  const bosRozet = ISG.sayfalar.acilPlanRozeti(bosOzet);
+  kontrol('Boş plan listede "Plan tarihi girilmedi" rozetiyle görünür',
+    bosRozet.indexOf('Plan tarihi girilmedi') >= 0 && bosRozet.indexOf('Plan geçerli') < 0, bosRozet);
+
+  /* Düzenleme yolu (aynı işyeri yeniden kaydedilir): plan çoğalmaz. */
+  D.isyeriKaydet(Object.assign({}, kaydedilen, { calisanSayisi: 14 }));
+  kontrol('İşyeri yeniden kaydedilince plan çoğalmıyor', planSayisi(D.al(), kaydedilen.id) === 1,
+    planSayisi(D.al(), kaydedilen.id) + ' kayıt');
+
+  /* Kullanıcı tarih girerse kayıt aynı kalır, tarih yazılır. */
+  const yazilanTarih = gunMetni(30);
+  D.acilPlanKaydet(kaydedilen.id, { hazirlanma: yazilanTarih });
+  const tarihliPlan = ISG.acilPlanKaydi(D.al(), kaydedilen.id) || {};
+  kontrol('Tarih aynı plan kaydına yazıldı', tarihliPlan.id === 'ap-' + kaydedilen.id && tarihliPlan.hazirlanma === yazilanTarih,
+    'id=' + (tarihliPlan.id || 'yok') + ' h=' + (tarihliPlan.hazirlanma || '-'));
+
+  /* Bulut birleşimi: karşı tarafta plan yoksa otomatik kayıt geri gelir, varsa korunur. */
+  const planliYerel = JSON.parse(JSON.stringify(D.al()));
+  const plansizBulut = JSON.parse(JSON.stringify(D.al()));
+  plansizBulut.acilPlanlar = plansizBulut.acilPlanlar.filter((k) => String(k.isyeriId) !== String(kaydedilen.id));
+  const birlesim1 = D.birlestir(planliYerel, plansizBulut).veri;
+  kontrol('Birleşimde eksik plan geri tamamlandı',
+    planSayisi(birlesim1, kaydedilen.id) === 1 && (ISG.acilPlanKaydi(birlesim1, kaydedilen.id) || {}).hazirlanma === yazilanTarih,
+    planSayisi(birlesim1, kaydedilen.id) + ' kayıt');
+  const birlesim2 = D.birlestir(birlesim1, JSON.parse(JSON.stringify(birlesim1))).veri;
+  kontrol('Birleşim tekrarında plan çoğalmıyor', planSayisi(birlesim2, kaydedilen.id) === 1,
+    planSayisi(birlesim2, kaydedilen.id) + ' kayıt');
+  kontrol('Birleşimde tüm plan kimlikleri dolu', (birlesim2.acilPlanlar || []).every((k) => !!k.id));
+
+  /* Mevcut planlar dokunulmadan kalır (boş tarihli AYULAŞ dahil). isyerleri
+     dizisi canlı referanstır: otomatik test işyeri de içine düşer, süzülür. */
+  const demoIsyerleri = isyerleri.filter((isyeri) => String(isyeri.id) !== String(kaydedilen.id));
+  const dokunulmamis = demoIsyerleri.every((isyeri, indeks) => {
+    const kayit = ISG.acilPlanKaydi(birlesim2, isyeri.id) || {};
+    return planSayisi(birlesim2, isyeri.id) === 1 && kayit.hazirlanma === beklenen[indeks];
+  });
+  kontrol('Var olan planlar (boş tarihli olanlar dahil) korunuyor', dokunulmamis,
+    demoIsyerleri.map((isyeri, indeks) => {
+      const kayit = ISG.acilPlanKaydi(birlesim2, isyeri.id) || {};
+      return '[' + (indeks + 1) + '] ' + planSayisi(birlesim2, isyeri.id) + 'k h=' +
+        (kayit.hazirlanma || '-') + '/beklenen=' + (beklenen[indeks] || '-');
+    }).join(' | '));
+
+  /* İşyeri silinince planı da gider ve birleşim onu geri getirmez. */
+  D.isyeriSil(kaydedilen.id);
+  kontrol('İşyeri silinince plan kaydı da silindi', planSayisi(D.al(), kaydedilen.id) === 0,
+    planSayisi(D.al(), kaydedilen.id) + ' kayıt');
+  const sonrakiBirlestir = D.birlestir(JSON.parse(JSON.stringify(D.al())), planliYerel).veri;
+  kontrol('Silinen işyerinin planı birleşimle geri gelmiyor', planSayisi(sonrakiBirlestir, kaydedilen.id) === 0,
+    planSayisi(sonrakiBirlestir, kaydedilen.id) + ' kayıt');
+
+  /* 8) Sonuç */
   console.log('\n=== Sonuç: ' + gecen + ' geçti, ' + hata + ' başarısız ===');
   if (hata) {
     console.log('\nBaşarısız kontroller:');
