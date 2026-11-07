@@ -1454,6 +1454,7 @@
 
     /* Kalıcı kimlik: işyeri kimliğinden türetilir ki iki cihaz aynı kaydı
        bağımsız oluştursa bile eşitlemede tek kayda insin. */
+    var simdi = new Date().toISOString();
     var gorulen = {};
     sonuc.forEach(function (kayit) {
       var isyeriId = String(kayit.isyeriId === null || kayit.isyeriId === undefined ? '' : kayit.isyeriId);
@@ -1461,6 +1462,10 @@
         kayit.id = isyeriId ? (onek + '-' + isyeriId) : ISG.yeniId(onek);
         /* Türetilmiş kimlik de çakışırsa rastgele kimliğe düşülür. */
         if (gorulen[kayit.id]) { kayit.id = ISG.yeniId(onek); }
+        /* Göçle kimlik kazanan kayıt bu cihazda "yeni değişiklik" sayılır:
+           aksi hâlde buluttaki kimliksiz eski kopya birleşimde öne geçip bu
+           cihazda girilen tarihleri silebilirdi. */
+        if (!kayit.guncelleme) { kayit.guncelleme = simdi; }
       }
       gorulen[kayit.id] = true;
     });
