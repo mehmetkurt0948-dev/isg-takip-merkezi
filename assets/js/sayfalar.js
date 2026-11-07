@@ -616,23 +616,30 @@
     var o = Y.oturum();
     if (!o) { return '<div class="hata">' + B.bosDurum('Oturum bulunamadı', 'Lütfen giriş yapın.', 'i-saglik') + '</div>'; }
     var rol = rolTanimi(o.rol);
-    if (!rol.yonetir && rol.id !== 'yetkili' && rol.id !== 'goruntuleyici') {
-      return '<div class="hata">' + B.bosDurum('Erişim yok', 'Sağlık kayıtlarını görüntüleme izniniz yok.', 'i-saglik') + '</div>';
-    }
-    if (!rol.yonetir && !ISG.depo.saglikYetkiliMi(o.kullaniciId)) {
+    /* Görüntüleme/yazma izni tek merkezden sorulur (yetki.js). OSGB Müdürü
+       ekranı açabilir ve kendi kurumunu izler ama salt okunurdur; görüntüleme
+       izni yoksa ekran kapanmaz, erişim talebi sunulur. */
+    var saglikIzinleri = Y.saglikIzin ? Y.saglikIzin() : { goruntule: false, ekle: false, duzenle: false, sil: false };
+    var yonetir = saglikIzinleri.ekle === true;
+    if (!saglikIzinleri.goruntule) {
       var kendiTalep = ISG.depo.saglikErisimTalepleri().filter(function (t) { return t.kullaniciId === o.kullaniciId; })[0];
-      var yonetici = rol.yonetir;
-      var talepler = yonetici ? ISG.saglikTakip.erisimTalepleri().filter(function (t) { return t.durum === 'bekliyor'; }) : [];
+      var onaylayabilir = rol.yonetir === true;
+      var talepler = onaylayabilir ? ISG.saglikTakip.erisimTalepleri().filter(function (t) { return t.durum === 'bekliyor'; }) : [];
       return '<section class="sayfa saglik-sayfa"><div class="sayfa-ust"><div class="sayfa-baslik"><span class="kurum">SAĞLIK TAKİBİ</span><h1>Yönetici onayı gerekli</h1><p>Sağlık bilgileri yalnızca yönetici tarafından erişim izni verilen hesaplara açılır.</p></div></div>' +
-        (yonetici ? '<div class="kart"><h2>Bekleyen erişim talepleri</h2>' + (talepler.length ? talepler.map(function (t) { return '<div class="kullanici-satir"><strong>' + kacis(t.kullaniciAd) + '</strong><span>' + kacis(t.eposta) + '</span><button class="dugme ikincil" data-islem="saglik-erisim-ret" data-id="' + kacis(t.id) + '">Reddet</button><button class="dugme birincil" data-islem="saglik-erisim-onay" data-id="' + kacis(t.id) + '">Erişim ver</button></div>'; }).join('') : '<p>Bekleyen talep yok.</p>') + '</div>' : '<div class="kart"><h2>Sağlık verisi erişimi</h2><p>' + (kendiTalep && kendiTalep.durum === 'bekliyor' ? 'Erişim talebiniz yönetici onayı bekliyor.' : (kendiTalep && kendiTalep.durum === 'reddedildi' ? 'Talebiniz reddedildi. Yeniden erişim isteyebilirsiniz.' : 'Sağlık listesini ve kayıtlarını görüntülemek için erişim talep edin.')) + '</p>' + (kendiTalep && kendiTalep.durum === 'bekliyor' ? '' : '<button class="dugme birincil" data-islem="saglik-erisim-talep">Yönetici onayı iste</button>') + '</div>') + '</section>';
+        (onaylayabilir ? '<div class="kart"><h2>Bekleyen erişim talepleri</h2>' + (talepler.length ? talepler.map(function (t) { return '<div class="kullanici-satir"><strong>' + kacis(t.kullaniciAd) + '</strong><span>' + kacis(t.eposta) + '</span><button class="dugme ikincil" data-islem="saglik-erisim-ret" data-id="' + kacis(t.id) + '">Reddet</button><button class="dugme birincil" data-islem="saglik-erisim-onay" data-id="' + kacis(t.id) + '">Erişim ver</button></div>'; }).join('') : '<p>Bekleyen talep yok.</p>') + '</div>' : '<div class="kart"><h2>Sağlık verisi erişimi</h2><p>' + (kendiTalep && kendiTalep.durum === 'bekliyor' ? 'Erişim talebiniz yönetici onayı bekliyor.' : (kendiTalep && kendiTalep.durum === 'reddedildi' ? 'Talebiniz reddedildi. Yeniden erişim isteyebilirsiniz.' : 'Sağlık listesini ve kayıtlarını görüntülemek için erişim talep edin.')) + '</p>' + (kendiTalep && kendiTalep.durum === 'bekliyor' ? '' : '<button class="dugme birincil" data-islem="saglik-erisim-talep">Yönetici onayı iste</button>') + '</div>') + '</section>';
+    }
+
+    /* Tek işyeri seçimi: üst çubuktaki kapsam seçici hem personel kadrosunu
+       hem muayene kayıtlarını, sayımları, aramayı ve Excel çıktısını sınırlar.
+       Seçim yoksa yetkili olunan bütün işyerleri gösterilir. */
+    var seciliIsyeri = UI.kapsam || '';
+    if (seciliIsyeri && !(hesap.isyerleri || []).some(function (isyeri) { return isyeri.id === seciliIsyeri; })) {
+      seciliIsyeri = '';
     }
 
     var liste;
     try {
-      liste = ISG.saglikTakip.listele(
-        rol.id === 'yetkili' && o.isyerleri.length === 1 ? o.isyerleri[0] : '',
-        ''
-      );
+      liste = ISG.saglikTakip.listele(seciliIsyeri, '');
     } catch (hata) {
       return '<div class="hata">' + B.bosDurum('Kayıtlar okunamadı', (hata && hata.message) || 'Beklenmeyen hata.', 'i-saglik') + '</div>';
     }
@@ -655,6 +662,17 @@
         durum: saglikOzet(k)
       };
     });
+    /* İkinci savunma hattı: sorgu katmanı kapsamı zaten süzüyor, ekranda da
+       seçili işyeri dışındaki kayıt (geç/bozuk yanıt) gösterilmez. İşyeri
+       kimliği boş eski kayıtlar, personelin bağlı olduğu işyeriyle eşleşiyorsa
+       görünür; hiçbir işyeriyle eşleşmeyen kayıt başkasına yazılmaz. */
+    if (seciliIsyeri) {
+      zengin = zengin.filter(function (z) {
+        if (z.k.isyeriId === seciliIsyeri) { return true; }
+        var kisi = kisiInd[z.k.personelId];
+        return !!kisi && kisi.isyeriId === seciliIsyeri;
+      });
+    }
     /* En yeni muayene tarihi üstte; aynı tarihte ad soyad sıra ile. */
     zengin.sort(function (a, b) {
       return String(b.k.tarih || '').localeCompare(String(a.k.tarih || '')) || a.ad.localeCompare(b.ad, 'tr');
@@ -671,7 +689,7 @@
       });
     });
     var kadro = ((hesap && hesap.personel) || []).filter(function (kisi) {
-      return kisi && kisi.id;
+      return kisi && kisi.id && (!seciliIsyeri || kisi.isyeriId === seciliIsyeri);
     }).map(function (kisi) {
       var kayitlar = kayitlarKisi[kisi.id] || [];
       return {
@@ -687,7 +705,7 @@
     });
     var kisiArama = String(UI.saglikKisiArama || '').toLocaleLowerCase('tr');
     var kisiDurum = UI.saglikKisiDurum || 'tumu';
-    var kisiIsyeri = UI.saglikKisiIsyeri || '';
+    var kisiIsyeri = seciliIsyeri;
     var kadroFiltre = kadro.filter(function (satir) {
       if (kisiDurum !== 'tumu' && satir.durum.id !== kisiDurum) { return false; }
       if (kisiIsyeri && satir.kisi.isyeriId !== kisiIsyeri) { return false; }
@@ -759,6 +777,40 @@
       }
     }
 
+    /* İşyeri bazında tarama özeti: OSGB Müdürü kurumundaki eksik muayeneleri
+       tek bakışta görür. Yalnızca yetkili olunan (kapsamdaki) işyerleri
+       listelenir; başka kurumun satırı bu listeye giremez. */
+    var taramaOzeti = '';
+    if ((hesap.isyerleri || []).length) {
+      var isyeriSayim = {};
+      (hesap.isyerleri || []).forEach(function (isyeri) {
+        isyeriSayim[isyeri.id] = { ad: isyeri.ad, toplam: 0, yok: 0, sevkli: 0, yasakli: 0, uygun: 0 };
+      });
+      kadro.forEach(function (satir) {
+        var kova = isyeriSayim[satir.kisi.isyeriId];
+        if (!kova) { return; }
+        kova.toplam += 1;
+        kova[satir.durum.id] = (kova[satir.durum.id] || 0) + 1;
+      });
+      var ozetSatirlari = Object.keys(isyeriSayim).map(function (id) { return isyeriSayim[id]; })
+        .filter(function (kova) { return kova.toplam > 0; });
+      if (ozetSatirlari.length) {
+        var eksikToplam = ozetSatirlari.reduce(function (toplam, kova) { return toplam + (kova.yok || 0); }, 0);
+        taramaOzeti = '<div class="kart" id="saglik-tarama-kart"><div class="kart-baslik"><div>' +
+          '<h2>İşyeri sağlık taraması özeti</h2>' +
+          '<p>“Muayene yok”, bu işyerinde hiç sağlık kaydı bulunmayan personel sayısıdır.</p></div>' +
+          '<span class="rozet ' + (eksikToplam ? 'uyari' : 'iyi') + '">' + B.sayi(eksikToplam) + ' eksik tarama</span></div>' +
+          '<div class="tablo-kap"><table class="tablo-kucuk" id="saglik-tarama-tablo"><thead><tr>' +
+            '<th>İşyeri</th><th>Personel</th><th>Muayene yok</th><th>Sevkli</th><th>Yasaklı</th><th>Uygun</th>' +
+          '</tr></thead><tbody>' + ozetSatirlari.map(function (kova) {
+            return '<tr><td><b>' + kacis(kova.ad) + '</b></td><td>' + B.sayi(kova.toplam) + '</td>' +
+              '<td>' + (kova.yok ? B.rozet(B.sayi(kova.yok), 'uyari') : '0') + '</td>' +
+              '<td>' + B.sayi(kova.sevkli || 0) + '</td><td>' + B.sayi(kova.yasakli || 0) + '</td>' +
+              '<td>' + B.sayi(kova.uygun || 0) + '</td></tr>';
+          }).join('') + '</tbody></table></div></div>';
+      }
+    }
+
     var calismaKitabi = ISG.depo.saglikCalismaKitabi ? ISG.depo.saglikCalismaKitabi() : null;
     var varsayilanSekmeler = ['TAM LİSTE', 'YÜKSEK RİSKLİ MESLEKLER', 'ÇALIŞMASI UYGUN DEĞİLDİR',
       'SAĞLIK TARAMALARI EKSİK OLANLAR', 'MALULİYETİ OLANLAR'];
@@ -814,8 +866,10 @@
       '<button type="button" class="dugme" data-islem="saglik-disa-aktar">Excel\'e aktar</button>' +
     '</div>' : '';
     return '<section class="sayfa saglik-sayfa">' +
-      sayfaBaslik('SAĞLIK TAKİBİ', 'Personel Sağlık Takibi', 'Muayene kayıtları, sevk ve çalışma yasağı takibi.') +
+      sayfaBaslik('SAĞLIK TAKİBİ', 'Personel Sağlık Takibi',
+        'Muayene kayıtları, sevk ve çalışma yasağı takibi.', kapsamSecici(hesap)) +
       talepKart +
+      taramaOzeti +
       '<div class="kart"><div class="kart-baslik"><div><h2>İşyeri hekimi çalışma kitabı</h2><p>' + (calismaKitabi ? 'Kaynak: ' + kacis(calismaKitabi.dosyaAdi || 'ASKI İş Yeri Hekimi Sağlık Takip 2026–2028') + ' · ' + B.tarih(String(calismaKitabi.yuklemeTarihi || '').slice(0, 10)) : 'ASKI İş Yeri Hekimi Sağlık Takip 2026–2028 · beş sekmeli liste') + '</p></div>' + kitapArac + '</div><div class="sekme-satir">' + sekmeAdlari.map(function (ad, i) { return '<button type="button" class="sekme' + (i === seciliListeSekmesi ? ' aktif' : '') + '" data-islem="saglik-liste-sekme" data-sekme="' + i + '">' + kacis(ad) + (kitapSekmeleri[i] ? ' <b>' + B.sayi(sekmeSatirSayisi(kitapSekmeleri[i])) + '</b>' : '') + '</button>'; }).join('') + '</div>' + (calismaKitabi ? calismaTablo : '<div class="kart-ic">' + B.bosDurum('Çalışma kitabı henüz yüklenmedi', rol.yonetir ? '“Excel listesini yükle” düğmesini seçin. Dosyanın beş sekmesi sağlık kasasına aktarılacak.' : 'Çalışma kitabı yönetici tarafından yüklendikten sonra burada görünür.', 'i-saglik') + '</div>') + (calismaKitabi && rol.yonetir ? '<p class="muted">Liste bu cihazın korumalı sağlık kasasında saklanır. Genel bulut eşitlemesine eklenmez.</p>' : '') + '</div>' +
       /* Personel listesi: kaydı olmayanlar dâhil tüm kadro */
       '<div class="kart" id="saglik-kisi-kart">' +
@@ -828,8 +882,6 @@
               return '<option value="' + ikili[0] + '"' + secili(ikili[0], kisiDurum) + '>' + ikili[1] + ' (' + B.sayi(kisiSayilar[ikili[0]] || 0) + ')</option>';
             }).join('') +
           '</select>' +
-          (((hesap && hesap.isyerleri) || []).length > 1 ? '<select data-ui="saglikKisiIsyeri" aria-label="İşyeri filtresi"><option value="">Tüm işyerleri</option>' +
-            hesap.isyerleri.map(function (isyeri) { return '<option value="' + kacis(isyeri.id) + '"' + secili(isyeri.id, kisiIsyeri) + '>' + kacis(isyeri.ad) + '</option>'; }).join('') + '</select>' : '') +
         '</div>' +
         '<div class="tablo-kap"><table class="tablo-kucuk" id="saglik-kisi-tablo">' +
           '<thead><tr><th>#</th><th>Personel</th><th>İşyeri</th><th>Son muayene</th><th>Durum</th><th>Kayıt</th><th class="sag">İşlemler</th></tr></thead>' +

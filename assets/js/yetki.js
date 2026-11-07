@@ -162,15 +162,38 @@
 
   /* ---------- Kapsam ---------- */
 
+  /* Oturum sahibi bütün işyerlerini mi görür? Tek karar noktası burasıdır;
+     `kapsam()`, `kapsamliVeri()`, `izin()` ve sağlık kapsamı aynı soruyu bu
+     fonksiyonla yanıtlar, böylece kurallar birbirinden kopmaz.
+
+       Sistem Yöneticisi → sistem genelindeki tüm işyerleri.
+       OSGB Müdürü       → kendi kurumu (kurumKapsami); tüm işyerleri DEĞİL.
+       "Tüm işyerleri" işaretli kullanıcı → tüm işyerleri.
+       Yönetici          → açıkça işyeri atanmışsa YALNIZ atandığı işyerleri;
+                           hiç atama yoksa (varsayılan yönetici hesabı) tüm
+                           işyerleri. Yönetici rolü tek başına sınırsız erişim
+                           anlamına gelmez: atama varsa kapsam daralır.
+       Diğer roller      → yalnız atandığı işyerleri. */
+  function tumunuGorur(o, rol) {
+    if (!o) { return false; }
+    rol = rol || rolTanimi(o.rol);
+    if (rol.id === 'sistemYoneticisi' || rol.sistem === true) { return true; }
+    if (rol.kurumKapsami) { return false; }
+    if (o.tumIsyerleri === true) { return true; }
+    if (rol.id === 'yonetici') { return !(o.isyerleri || []).filter(Boolean).length; }
+    return false;
+  }
+
   /* Oturum sahibinin erişebildiği işyeri kimlikleri.
-     Yönetici → tüm işyerleri; OSGB Müdürü → yalnız KENDİ KURUMUNDAKİ işyerleri;
-     diğerleri → atandığı işyerleri. Kurum dışına çıkış yolu yoktur. */
+     Yönetici → tüm işyerleri (atama yoksa) ya da atandığı işyerleri;
+     OSGB Müdürü → yalnız KENDİ KURUMUNDAKİ işyerleri; diğerleri → atandığı
+     işyerleri. Kurum dışına çıkış yolu yoktur. */
   function kapsam() {
     var o = oturum();
     if (!o) { return []; }
     var veri = D.al();
     var rol = rolTanimi(o.rol);
-    if (rol.tumIsyerleri) {
+    if (tumunuGorur(o, rol)) {
       return (veri.isyerleri || []).map(function (isyeri) { return isyeri.id; });
     }
     if (rol.kurumKapsami) {
@@ -182,11 +205,7 @@
         return kurumId === o.kurumId;
       }).map(function (isyeri) { return isyeri.id; });
     }
-    /* Rolü tüm işyerlerini kapsamayan ama "Tüm işyerleri" işaretli kullanıcı. */
-    if (o.tumIsyerleri) {
-      return (veri.isyerleri || []).map(function (isyeri) { return isyeri.id; });
-    }
-    return o.isyerleri.slice();
+    return (o.isyerleri || []).slice();
   }
 
   function kapsamda(isyeriId) {
@@ -239,10 +258,8 @@
     var o = oturum();
     if (!o) { return bosVeri(veri); }
     var rol = rolTanimi(o.rol);
-    if (rol.tumIsyerleri) { return veri; }
     var kurumGorunumu = !!rol.kurumKapsami;
-
-    if (!kurumGorunumu && o.tumIsyerleri) { return veri; }
+    if (tumunuGorur(o, rol)) { return veri; }
 
     var izinli = kapsam();
     var kurumIdleri = {};
@@ -547,7 +564,7 @@
     if (eylem === 'denetim') { return true; }
     if (eylem === 'ekle' || eylem === 'duzenle' || eylem === 'sil') {
       if (rol.saltOkunur || rol.id === 'goruntuleyici') { return false; }
-      if (rol.tumIsyerleri) { return true; }
+      if (tumunuGorur(o, rol)) { return true; }
       if (isyeriId) { return kapsam().indexOf(isyeriId) > -1; }
       return kapsam().length > 0;
     }
@@ -605,6 +622,66 @@
   }
 
   function degistirebilir(isyeriId) { return izin('ekle', isyeriId); }
+
+  /* ---------- Sağlık verisi yetkisi (görüntüleme ≠ yazma) ---------- */
+  /* Sağlık verisi özel nitelikli kişisel veridir; bu yüzden görüntüleme izni
+     ile kayıt değiştirme izni ayrı ayrı sorulur:
+       görüntüle → yönetim yetkisi ya da yönetici onaylı açık erişim talebi
+       ekle / düzenle / sil / dışa aktar → yalnız yönetim yetkisi (salt okunur
+       roller, ör. OSGB Müdürü ve Görüntüleyici, hiçbirini yapamaz)
+     `listele`, `kaydet`, `sil`, Excel çıktısı ve ekran bu tek kaynağı kullanır. */
+  function saglikKapsam() {
+    var o = oturum();
+    var idler = kapsam();
+    var sozluk = {};
+    idler.forEach(function (id) { sozluk[id] = true; });
+    return { tum: !!o && tumunuGorur(o), idler: idler, sozluk: sozluk };
+  }
+
+  function saglikGoruntule() {
+    var o = oturum();
+    if (!o) { return false; }
+    var rol = rolTanimi(o.rol);
+    if (rol.yonetir) { return true; }
+    return !!D.saglikYetkiliMi(o.kullaniciId);
+  }
+
+  function saglikYazarMi() {
+    var o = oturum();
+    if (!o) { return false; }
+    var rol = rolTanimi(o.rol);
+    return !!rol.yonetir && !rol.saltOkunur && rol.id !== 'goruntuleyici';
+  }
+
+  function saglikIzin(eylem) {
+    var izinler = { goruntule: false, ekle: false, duzenle: false, sil: false, disaAktar: false, karar: false };
+    if (!saglikGoruntule()) { return eylem ? false : izinler; }
+    izinler.goruntule = true;
+    if (saglikYazarMi()) {
+      izinler.ekle = true;
+      izinler.duzenle = true;
+      izinler.sil = true;
+      izinler.disaAktar = true;
+      izinler.karar = true;
+    }
+    if (eylem && Object.prototype.hasOwnProperty.call(izinler, eylem)) { return izinler[eylem]; }
+    return izinler;
+  }
+
+  /* Yetkisiz sağlık erişim denemeleri denetim izine yazılır. Kayıt
+     değiştirilmez; yalnızca "kim, hangi işyerinde, neyi denedi" saklanır. */
+  function saglikDenetim(ozet, isyeriId) {
+    var o = oturum();
+    if (!o) { return null; }
+    try {
+      return D.denetimEkle({
+        tur: 'saglik-erisim', islem: 'saglikErisimRed', kullaniciId: o.kullaniciId,
+        kullaniciAd: o.adSoyad, isyeriId: isyeriId || '',
+        ozet: ozet || 'Sağlık verisi erişimi reddedildi'
+      });
+    } catch (hata) { return null; }
+  }
+
 
   /* ---------- Onay kuyruğu ---------- */
 
@@ -1025,12 +1102,26 @@
       if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
       var rol = rolTanimi(o.rol);
       if (!rol.yonetir && rol.id !== 'yetkili') {
+        saglikDenetim('Sağlık kaydı yazma denemesi reddedildi (' + ad + ')', '');
         throw new Error('Sağlık kayıtlarına yalnızca yönetici ve işyeri hekimi/yetkili erişebilir.');
       }
+      /* Hedef işyeri: yeni kayıtta kaydın işyeri, silmede silinecek kaydın
+         işyeri. Kapsam dışı işyerine yazma/silme sessizce yapılmaz. */
+      var hedefIsyeri = '';
+      if (ad === 'saglikTakipSil') {
+        var mevcutKayit = typeof D.saglikTakipBul === 'function'
+          ? D.saglikTakipBul(String(args[0] || '')) : null;
+        hedefIsyeri = mevcutKayit ? (mevcutKayit.isyeriId || '') : '';
+      } else {
+        hedefIsyeri = (args && args[0] && args[0].isyeriId) || '';
+      }
       if (rol.id === 'yetkili') {
-        var isyeriId = (args && args[0] && args[0].isyeriId) || '';
-        if (!isyeriId) { throw new Error('İşyeri belirlenemedi.'); }
-        if (o.isyerleri.indexOf(isyeriId) < 0) { throw new Error('Bu işyeri yetki kapsamınızda değil.'); }
+        if (!hedefIsyeri) { throw new Error('İşyeri belirlenemedi.'); }
+        if (o.isyerleri.indexOf(hedefIsyeri) < 0) { throw new Error('Bu işyeri yetki kapsamınızda değil.'); }
+      }
+      if (hedefIsyeri && !tumunuGorur(o, rol) && kapsam().indexOf(hedefIsyeri) < 0) {
+        saglikDenetim('Kapsam dışı sağlık kaydı işlemi reddedildi (' + ad + ')', hedefIsyeri);
+        throw new Error('Bu işyeri yetki kapsamınızda değil.');
       }
       var sonuc = asil.apply(D, args);
       denetimYaz(ad, args, o);
@@ -1046,10 +1137,16 @@
     oturumKapat: oturumKapat,
     kapsam: kapsam,
     kapsamda: kapsamda,
+    tumunuGorur: tumunuGorur,
     kapsamliVeri: kapsamliVeri,
     gorunum: function () { return kapsamliVeri(D.al()); },
     izin: izin,
     degistirebilir: degistirebilir,
+    saglikKapsam: saglikKapsam,
+    saglikGoruntule: saglikGoruntule,
+    saglikYazarMi: saglikYazarMi,
+    saglikIzin: saglikIzin,
+    saglikDenetim: saglikDenetim,
     onayModeli: onayModeli,
     onayEsigi: onayEsigi,
     onayDurumu: onayDurumu,

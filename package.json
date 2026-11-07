@@ -1,6 +1,6 @@
 {
   "name": "isg-takip-merkezi",
-  "version": "2.23.0",
+  "version": "2.24.0",
   "private": true,
   "description": "İSG Takip Merkezi — giriş/roller, işyeri bazlı personel, dosya kontrolü, çalışma planı, risk değerlendirmesi, saha DÖF, acil durum takibi, iş kazası kayıtları ve kaza istatistikleri için statik uygulama.",
   "homepage": "https://mehmetkurt0948-dev.github.io/isg-takip-merkezi/",
@@ -8,10 +8,11 @@
     "node": ">=22.22.2"
   },
   "scripts": {
-    "test": "node tools/kontrol.js && node tools/belge-test.js && node tools/acil-tarih-dogrula.js --sessiz",
+    "test": "node tools/kontrol.js && node tools/belge-test.js && node tools/acil-tarih-dogrula.js --sessiz && node test/yetkikapsam.js",
     "test:kontrol": "node tools/kontrol.js",
     "test:belge": "node tools/belge-test.js",
     "test:acil": "node tools/acil-tarih-dogrula.js",
+    "test:yetki": "node test/yetkikapsam.js",
     "acil:canli": "node tools/acil-tarih-canli.js",
     "test:kullanici": "node test/kullanicitest.js",
     "test:saglik": "node test/sagliktest.js && node test/sagliktoplutest.js",

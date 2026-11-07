@@ -118,41 +118,84 @@
   function kaydet(kayit) {
     var o = Y.oturum();
     if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
-    var rol = Y.rolTanimi(o.rol);
-    if (!rol.yonetir && !D.saglikYetkiliMi(o.kullaniciId)) {
+    if (!Y.saglikGoruntule()) {
+      /* Görüntüleme izni yok: istek erişim talebine dönüşür, kayıt yazılmaz. */
       return D.saglikErisimTalepKaydet({ kullaniciId: o.kullaniciId, kullaniciAd: o.adSoyad, eposta: o.eposta, rol: o.rol });
     }
-    if (!rol.yonetir && rol.id !== 'yetkili') {
-      throw new Error('Sağlık kaydı yalnızca yönetici veya işyeri hekimi/yetkili tarafından kaydedilebilir.');
+    if (!Y.saglikIzin('ekle')) {
+      Y.saglikDenetim('Sağlık kaydı ekleme denemesi reddedildi (salt okunur rol)', kayit && kayit.isyeriId);
+      throw new Error('Sağlık kayıtlarını yalnızca yönetici ekleyip düzenleyebilir.');
     }
-    if (rol.id === 'yetkili' && (!kayit.isyeriId || o.isyerleri.indexOf(kayit.isyeriId) < 0)) {
+    /* Kayıt, personelin bağlı olduğu işyerine yazılır: işyeri kimliği ile
+       personel eşleşmesi koparılırsa kayıt başka işyerinin listesine düşer. */
+    var kisi = (D.al().personel || []).filter(function (p) { return p && p.id === kayit.personelId; })[0] || null;
+    if (!kayit.id && kisi && kisi.isyeriId) { kayit.isyeriId = kisi.isyeriId; }
+    if (!kayit.isyeriId) { throw new Error('İşyeri belirlenemedi.'); }
+    if (!Y.kapsamda(kayit.isyeriId)) {
+      Y.saglikDenetim('Kapsam dışı işyerine sağlık kaydı denemesi reddedildi', kayit.isyeriId);
       throw new Error('Bu işyeri yetki kapsamınızda değil.');
     }
     var hatalar = dogrula(kayit);
     if (hatalar.length) { throw new Error(hatalar.join(' ')); }
-    if (!rol.yonetir) { throw new Error('Yalnızca yönetici sağlık kayıtlarını ekleyip düzenleyebilir.'); }
     kayit.girisYapan = o.kullaniciId;
     var sifreli = kaydiSifrele(kayit);
     return D.saglikTakipKaydet(sifreli);
   }
 
+  /* Kapsam süzgeci: kaydın işyeri yetkili işyerlerinden biriyse görünür.
+     İşyeri kimliği boş/eski kayıtlarda personelin işyeri esas alınır; hiçbir
+     biçimde eşleştirilemeyen kayıt başka işyerine aitmiş gibi GÖSTERİLMEZ. */
+  function kayitKapsamda(kayit, kapsam, kisiInd) {
+    if (!kayit) { return false; }
+    if (kapsam.tum) { return true; }
+    if (kayit.isyeriId && kapsam.sozluk[kayit.isyeriId]) { return true; }
+    var kisi = kisiInd && kisiInd[kayit.personelId];
+    if (kisi && kisi.isyeriId && kapsam.sozluk[kisi.isyeriId]) { return true; }
+    return false;
+  }
+
   function listele(isyeriId, personelId) {
     var o = Y.oturum();
     if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
-    var rol = Y.rolTanimi(o.rol);
-    if (!rol.yonetir && !D.saglikYetkiliMi(o.kullaniciId)) { throw new Error('Sağlık verilerine erişmek için yönetici onayı gerekir.'); }
-    if (!isyeriId && rol.id === 'yetkili' && o.isyerleri.length === 1) {
-      isyeriId = o.isyerleri[0];
+    var kapsam = Y.saglikKapsam();
+    if (!Y.saglikGoruntule()) {
+      Y.saglikDenetim('Sağlık listesi okuma denemesi reddedildi (onaysız hesap)', isyeriId || '');
+      throw new Error('Sağlık verilerine erişmek için yönetici onayı gerekir.');
     }
-    var liste = D.saglikTakipListe(isyeriId, personelId);
+    if (isyeriId && !kapsam.tum && !kapsam.sozluk[isyeriId]) {
+      Y.saglikDenetim('Kapsam dışı işyerinin sağlık listesi istendi', isyeriId);
+      throw new Error('Bu işyeri yetki kapsamınızda değil.');
+    }
+    var kisiInd = {};
+    (D.al().personel || []).forEach(function (p) { if (p && p.id) { kisiInd[p.id] = p; } });
+    /* İşyeri kimliği boş/eski kayıtlar personelin işyeriyle eşleştirilir; bu
+       yüzden işyeri filtresi kayıt alanına değil, çözülen işyerine uygulanır. */
+    var hedefKapsamda = function (kayit) {
+      if (kayit.isyeriId) { return kayit.isyeriId === isyeriId; }
+      var kisi = kisiInd[kayit.personelId];
+      return !!kisi && kisi.isyeriId === isyeriId;
+    };
+    var liste = D.saglikTakipListe('', personelId);
+    if (isyeriId) { liste = liste.filter(hedefKapsamda); }
+    if (!kapsam.tum) {
+      liste = liste.filter(function (k) { return kayitKapsamda(k, kapsam, kisiInd); });
+    }
     return liste.map(function (k) { return kaydiCoze(k); });
   }
 
   function sil(id) {
     var o = Y.oturum();
     if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
-    var rol = Y.rolTanimi(o.rol);
-    if (!rol.yonetir) { throw new Error('Sağlık kaydı yalnızca yönetici tarafından silinebilir.'); }
+    if (!Y.saglikIzin('sil')) {
+      Y.saglikDenetim('Sağlık kaydı silme denemesi reddedildi', '');
+      throw new Error('Sağlık kaydı yalnızca yönetici tarafından silinebilir.');
+    }
+    var kayit = D.saglikTakipBul(id);
+    var hedefIsyeri = kayit ? (kayit.isyeriId || '') : '';
+    if (hedefIsyeri && !Y.kapsamda(hedefIsyeri)) {
+      Y.saglikDenetim('Kapsam dışı sağlık kaydı silme denemesi reddedildi', hedefIsyeri);
+      throw new Error('Bu işyeri yetki kapsamınızda değil.');
+    }
     D.saglikTakipSil(id);
   }
 

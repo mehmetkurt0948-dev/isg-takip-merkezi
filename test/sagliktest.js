@@ -60,7 +60,7 @@ const yetkili = {
 };
 const goruntuleyici = {
   id: 'u-gozetmen', adSoyad: 'Gozetmen Ali Kaya', eposta: 'gozetmen@site.local', sifre: '1234',
-  gorev: 'Destek personeli', rol: 'goruntuleyici', isyerleri: [], aktiv: true
+  gorev: 'Destek personeli', rol: 'goruntuleyici', isyerleri: ['isyeri-A', 'isyeri-B'], aktiv: true
 };
 const baslangic = ISG.BOS_VERI();
 baslangic.anaHat = 'test';

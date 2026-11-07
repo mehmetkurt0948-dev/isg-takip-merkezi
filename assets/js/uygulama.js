@@ -104,10 +104,28 @@
   function saglikGorunumYetkili() {
     var o = ISG.yetki.oturum();
     if (!o) { return false; }
-    /* Sağlık verisi ayrı yetki mekanizmasında kalır: açık erişim talebi
-       onaylanmış hesaplar ya da yönetim yetkisi olan roller (Yönetici,
-       Sistem Yöneticisi). */
-    return ISG.yetki.rolTanimi(o.rol).yonetir || D.saglikYetkiliMi(o.kullaniciId);
+    /* Sağlık verisi ayrı yetki mekanizmasında kalır: yönetim yetkisi ya da
+       yönetici onaylı açık erişim talebi (yetki.saglikGoruntule tek kaynak). */
+    return typeof ISG.yetki.saglikGoruntule === 'function'
+      ? ISG.yetki.saglikGoruntule()
+      : (ISG.yetki.rolTanimi(o.rol).yonetir || D.saglikYetkiliMi(o.kullaniciId));
+  }
+
+  /* İşyeri seçimi değiştiğinde işyerine bağlı bütün ekran durumu temizlenir:
+     seçili personel, açık sağlık kaydı, düzenleme formu, sayfa numaraları.
+     Eski işyerinin seçimi yeni işyerinde "seçili" kalmaz. */
+  function kapsamDurumunuTemizle() {
+    UI.kapsamSurum = (Number(UI.kapsamSurum) || 0) + 1;
+    UI.acikPersonel = '';
+    UI.acikSaglik = '';
+    UI.acikSaglikKisi = '';
+    UI.duzenleSaglik = '';
+    UI.saglikKisi = '';
+    UI.saglikFormuAc = false;
+    UI.saglikSayfa = 1;
+    UI.saglikKisiSayfa = 1;
+    UI.dosyaSayfa = 1;
+    UI.saglikToplu = null;
   }
 
   function git(sayfa, kapsam) {
@@ -4060,7 +4078,9 @@
 
   function saglikExcel() {
     try {
-      var liste = ISG.saglikTakip.listele('', '');
+      /* Çıktı, ekranda seçili işyerinin kapsamındadır ve yetki süzgeci sorgu
+         katmanında yeniden uygulanır: yetkisiz işyerinin satırı dosyaya girmez. */
+      var liste = ISG.saglikTakip.listele(UI.kapsam || '', '');
       if (!liste.length) {
         B.bildir('Dışa aktarılacak sağlık kaydı yok.', 'uyari');
         return;
@@ -4101,8 +4121,9 @@
       UI[anahtar] = kutu.value;
       if (anahtar.indexOf('dosya') === 0) { UI.dosyaSayfa = 1; }
       if (anahtar === 'saglikBoyut') { UI.saglikSayfa = 1; }
-      if (anahtar === 'saglikKisiDurum' || anahtar === 'saglikKisiIsyeri') { UI.saglikKisiSayfa = 1; }
-      if (anahtar === 'kapsam') { UI.dosyaSayfa = 1; UI.acikPersonel = ''; }
+      if (anahtar === 'saglikKisiDurum') { UI.saglikKisiSayfa = 1; }
+      /* İşyeri değişimi eski işyerinin seçimlerini taşımaz. */
+      if (anahtar === 'kapsam') { kapsamDurumunuTemizle(); }
       ciz(true);
     });
   }
@@ -4276,7 +4297,14 @@
     if (saglikDosya) { saglikDosya.addEventListener('change', function () {
       var dosya = saglikDosya.files && saglikDosya.files[0];
       if (!dosya) { return; }
+      /* Geç yanıt koruması: dosya okunurken işyeri değişirse eski okumanın
+         sonucu yeni ekranı ezmez (yalnızca bilgi verilir, yeniden çizilmez). */
+      var surum = Number(UI.kapsamSurum) || 0;
       ISG.saglikCalismaKitabi.oku(dosya).then(function (sekmeler) {
+        if ((Number(UI.kapsamSurum) || 0) !== surum) {
+          B.bildir('Excel listesi yüklendi; işyeri değiştiği için ekran yenilenmedi.', 'bilgi');
+          return;
+        }
         UI.saglikListeSekmesi = 0;
         B.bildir('Excel listesi yüklendi: ' + sekmeler.length + ' sekme.', 'basari');
         ciz();
@@ -4293,7 +4321,14 @@
         saglikKayit.value = '';
         return;
       }
+      var surum = Number(UI.kapsamSurum) || 0;
       ISG.excel.oku(dosya).then(function (sayfalar) {
+        /* İşyeri değiştiyse eski dosyanın ön izlemesi açılmaz: aksi hâlde eski
+           işyerinin satırları yeni işyerinin ekranında onaylanabilirdi. */
+        if ((Number(UI.kapsamSurum) || 0) !== surum) {
+          B.bildir('İşyeri değişti; dosya yeniden yüklenmeli.', 'uyari');
+          return;
+        }
         var satirlar = saglikSayfaSec(sayfalar);
         if (!satirlar.length) {
           B.bildir('Excel dosyasında veri bulunamadı.', 'hata');
@@ -4318,6 +4353,11 @@
 
   /* Oturum açıldıktan sonra arayüzü hazırlar ve ilk çizimi yapar. */
   function girisSonrasi() {
+    /* Oturum değişiminde önceki kullanıcının seçili personeli/açık kaydı ve
+       işyeri filtresi devralınmaz; işyeri yetkileri her zaman kullanıcı
+       kaydından okunur. */
+    UI.kapsam = '';
+    kapsamDurumunuTemizle();
     hazirla();
     kisileriDoldur();
     rolArayuzu();

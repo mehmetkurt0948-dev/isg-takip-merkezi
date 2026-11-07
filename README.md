@@ -23,7 +23,7 @@ kayıt tabloları.
 | **Genel bakış** | Tüm işyerlerinden türetilen görev motoru: geciken / bugün / yaklaşan / tarihsiz işler, öncelik sıralı liste, işyeri bazında durum tablosu |
 | **İşyerleri** | Kurum şeridi (kurum adı, ad değiştir, tüm verileri sil), işyeri kartları (kurum, tehlike sınıfı, çalışan ve kontrol maddesi sayısı), kurum seçimli işyeri CRUD |
 | **Personel listesi** | İşyeri bazında bloklar, sicil/TC/meslek/departman/şube/kıdem/telefon/cinsiyet kolonları, arama, detay açma, eğitim kayıtları, gerçek **XLSX şablonu** ve XLSX/CSV içe-dışa aktarma, "listeyi temizle" |
-| **Sağlık takibi** | İşyeri hekimi sağlık kayıtları: personel, işyeri, tarih, doktor, kan grubu, alerji, kronik hastalık, ilaç, engel durumu, son muayene, çalışma yasağı, izinsizlik ve not alanları; hassas alanlar cihazda şifreli saklanır, kayıt ekleme/güncelleme yönetici ve yetkilide, silme yalnızca yöneticide. Personel veya işyeri silinse de muayene kayıtları silinmez: kişi adı, sicil ve işyeri adı kayda dondurulur, listede "silinmiş personel" rozetiyle okunmaya devam eder; silme onayında kaç kaydın korunduğu belirtilir; **tam personel listesi** (muayene kaydı olmayanlar dâhil, arama + durum + işyeri filtresi, kişi geçmişi ve kayıt düzenleme/silme), **üç gruplu katlanır kayıt formu**, **Excel şablonu / içe aktarma (ön izleme + onay) / dışa aktarma** |
+| **Sağlık takibi** | İşyeri hekimi sağlık kayıtları: personel, işyeri, tarih, doktor, kan grubu, alerji, kronik hastalık, ilaç, engel durumu, son muayene, çalışma yasağı, izinsizlik ve not alanları; hassas alanlar cihazda şifreli saklanır, kayıt ekleme/güncelleme yönetici ve yetkilide, silme yalnızca yöneticide. Personel veya işyeri silinse de muayene kayıtları silinmez: kişi adı, sicil ve işyeri adı kayda dondurulur, listede "silinmiş personel" rozetiyle okunmaya devam eder; silme onayında kaç kaydın korunduğu belirtilir; **tam personel listesi** (muayene kaydı olmayanlar dâhil, arama + durum + işyeri filtresi, kişi geçmişi ve kayıt düzenleme/silme), **üç gruplu katlanır kayıt formu**, **Excel şablonu / içe aktarma (ön izleme + onay) / dışa aktarma**. **Erişim ve izolasyon:** liste, sayaç, arama, tarama özeti ve Excel çıktısı **seçili işyeriyle** sınırlıdır (`#kapsam`); kayıtlar yalnız oturum sahibinin yetkili olduğu işyerlerinden döner, işyeri kimliği boş eski kayıtlar personelin işyeriyle eşleştirilir; görüntüleme izni (`ISG.yetki.saglikIzin()`) yazma izninden ayrıdır — OSGB Müdürü ve Görüntüleyici salt okunurdur, yetkisiz erişim denemeleri denetim izine yazılır |
 | **Dosya kontrolleri** | İşyerine göre üretilen kontrol kataloğu (bölüm + madde), Var/Eksik/Yok/İncelenmedi durumları, yenileme tarihleri, 14 günlük uyarı lejantı, bölüm/durum/tarih filtreleri, sayfalama, DÖF oluşturma, **belge eki yükle / görüntüle / indir / kaldır** (belge başına ≤ 1 MB, `localStorage`) |
 | **Çalışma planı** | İlk yardımcı ihtiyaç/mevcut karşılaştırması, yıllık plan kartları, plan kalemi CRUD, tamamlandı işaretleme, plan KPI'ları, **yıl filtresi**, **hazır Excel şablonu indir**, **Excel/CSV toplu yükleme (ön izleme + onay)**, **Excel'e aktar**, satır seçip **toplu silme** |
 | **Saha ve DÖF** | Açık/geciken/doğrulama/kapatılan tespitler, öncelik-tür filtreleri, kapatma akışı, **iş kazası ve meslek hastalığı kayıt tablosu** (personel + sicil/departman, tanı bölgesi/türü, SGK hastalık grubu, etken, kök neden sınıfı ve açıklaması, kayıp gün, sağlık kuruluşu) ve CSV çıktısı, ramak kala ve diğer olay bildirimleri |
@@ -49,9 +49,9 @@ sıfırlama, rol bazlı yetki ve onay akışı.
 
 | Rol | Kapsam | Yazma | Onay kuyruğu |
 |---|---|---|---|
-| **Yönetici** | Tüm işyerleri | Doğrudan yazar | Görür ve yönetir |
+| **Yönetici** | Tüm işyerleri; **ancak kullanıcıya açıkça işyeri atanmışsa yalnız atandığı işyerleri** (atama yoksa tümü) | Doğrudan yazar | Görür ve yönetir |
 | **Sistem Yöneticisi** | Tüm işyerleri | Doğrudan yazar | Görür ve yönetir; **sistem yönetimi** paneliyle kurum, işyeri ve kullanıcı yönetimi |
-| **OSGB Müdürü** | Kendi **kurumu** (`kurumId`) | Yok — salt okunur | Görmez, karar vermez; **kurum denetim panosu**nu görür |
+| **OSGB Müdürü** | Kendi **kurumu** (`kurumId`) | Yok — salt okunur | Görmez, karar vermez; **kurum denetim panosu**nu görür; **Sağlık Takibi**'ni yönetici onaylı görüntüleme izniyle okur |
 | **Yetkili** | Yalnızca atandığı işyerleri | Talebe dönüşür; **işyeri onay modeli** açıksa tek uzmanda doğrudan, çok uzmanda eşik sınıfındaki uzmanın onayıyla | Onay yetkilisiyse görür |
 | **Görüntüleyici** | Yalnızca atandığı işyerleri | Yok (`salt-okunur` gövde sınıfı) | Görmez |
 
@@ -1101,6 +1101,61 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.24.0 — Sağlık takibi erişimi, işyeri bazlı veri izolasyonu ve yönetici kapsamı
+
+- **Kök neden 1 — OSGB Müdürü sağlık ekranına hiç giremiyordu.** `SAYFALAR.saglik`
+  kapısı rol adına bakıyordu (`rol.id !== 'yetkili' && !== 'goruntuleyici'` →
+  "Erişim yok"). Artık kapı tek merkezden sorulur: `ISG.yetki.saglikGoruntule()`.
+  OSGB Müdürü ekranı açar, kendi kurumundaki işyerlerini seçer, **kendi
+  kurumunun** muayene kayıtlarını ve eksik tarama özetini salt okunur görür;
+  görüntüleme izni yoksa ekran kapanmaz, mevcut **erişim talebi** akışı sunulur.
+- **Kök neden 2 — sağlık listesi işyeri parametresi olmadan çekiliyordu.**
+  Ekran `listele('', '')` çağırdığı için cihazdaki bütün sağlık kayıtları
+  geliyordu; işyeri filtresi yalnız personel tablosunu süzüyor, muayene
+  listesini, sayaçları, aramayı ve Excel çıktısını **etkilemiyordu**. ASKI-1
+  seçiliyken ASKI-2'ye geçildiğinde eski işyerinin satırları ekranda kalıyordu.
+  Düzeltme: kapsam **sorgu katmanında** uygulanır
+  (`ISG.saglikTakip.listele` → `Y.saglikKapsam()`), işyeri kimliği boş/eski
+  kayıtlar personelin işyeriyle eşleştirilir, hiçbir işyeriyle eşleşmeyen kayıt
+  başka işyerine yazılmaz. Ekranda ayrıca tek işyeri seçici (üst çubuktaki
+  `#kapsam`) kullanılır; personel listesi, sekme sayaçları, tarama özeti, arama,
+  sayfalama ve Excel çıktısı aynı kapsamdan türetilir.
+- **Kök neden 3 — "Yönetici" rolü koşulsuz tüm işyerlerine erişiyordu.**
+  `kapsam()` yalnız role bakıyordu ve kullanıcı kaydındaki işyeri atamalarını
+  yok sayıyordu. Yeni tek karar noktası `tumunuGorur(o, rol)`: Sistem Yöneticisi
+  her zaman tüm işyerlerini görür; **açıkça işyeri atanmış yönetici yalnız
+  atandığı işyerlerini görür**; "Tüm işyerleri" işaretli kullanıcı tümünü görür;
+  OSGB Müdürü yalnız kendi kurumunu görür. Atama yapılmamış eski yönetici
+  hesabı (varsayılan `u1`) kilitlenmesin diye eski davranış korunur.
+- **Görüntüleme izni ≠ yazma izni.** Sağlık için `ISG.yetki.saglikIzin()` tek
+  kaynak oldu: `goruntule / ekle / duzenle / sil / disaAktar / karar`. Yönetim
+  yetkisi olmayan roller (OSGB Müdürü, Görüntüleyici, onaysız Yetkili) yalnız
+  görüntüleyebilir; ekleme/güncelleme/silme/Excel aktarma reddedilir. Depo
+  katmanındaki `saglikTakipKaydet` / `saglikTakipSil` sarmalayıcısı hedef
+  işyerini de denetler.
+- **Kimlik bilmek erişim hakkı vermez.** Kapsam dışı işyeri kimliğiyle liste
+  istemek ve kapsam dışı kaydı silmek/düzenlemek `Bu işyeri yetki kapsamınızda
+  değil.` hatasıyla reddedilir; deneme `denetim` kaydına (`tur:
+  'saglik-erisim'`) yazılır.
+- **İşyeri değişiminde ekran durumu temizlenir.** `kapsamDurumunuTemizle()`
+  seçili personeli, açık kaydı, düzenleme formunu, sayfa numaralarını ve özet
+  ön izlemesini siler; `UI.kapsamSurum` artırılarak **geç gelen asenkron
+  yanıtlar** (Excel çalışma kitabı, sağlık kaydı ön izlemesi) yeni ekranı
+  ezmez. Oturum değişiminde de önceki kullanıcının seçimleri devralınmaz;
+  yetkiler her zaman kullanıcı kaydından okunur.
+- **Doğrulama.** Yeni `test/yetkikapsam.js` (65 kontrol) sentetik veriyle:
+  OSGB Müdürü menü/ekran erişimi, kurum sınırı, salt okunurluk, onay akışı,
+  ASKI-1 → ASKI-2 geçişinde veri temizliği, kapsam dışı liste/silme/yazma
+  reddi, Excel kaynağının kapsamı, onay eşikleri ve tek uzman kuralının
+  korunması, yeniden girişte yetki sürekliliği. `npm test` zincirine eklendi.
+  `test/sagliktest.js` görüntüleyici fixture'ı işyeri atamasıyla güncellendi
+  (atamasız hesabın veri görememesi yeni kuralın gereğidir).
+- **Supabase/RLS.** Bu sürümde tarayıcı tarafı kurallar sıkılaştırıldı; sunucu
+  tarafı RLS politikaları **henüz uygulanmadı** (bkz. §1.3). Sağlık kasası
+  cihazda (`localStorage`, `sg2:` şifreli) tutulduğu için bulut eşitlemesine
+  konu değildir; yine de çok kullanıcılı kurulumda gerçek güvenlik sınırı
+  Supabase Auth + RLS ile kurulmalıdır.
 
 ### 2.23.0 — Yeni işyeri açılınca acil durum planı kaydı kendiliğinden oluşur
 
