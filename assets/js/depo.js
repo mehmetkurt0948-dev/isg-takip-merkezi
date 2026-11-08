@@ -2948,6 +2948,11 @@
     return sonuc;
   };
 
+  /* DİKKAT: bu fonksiyon yetki katmanından geçen genel yoldur; oturum ve kapsam
+     denetimi `yetki.js` içindeki sarmalayıcıda yapılır (oturum yoksa ret, oturum
+     varsa yalnız kendi şifresi ya da sistem geneli yetkili yönetici). Oturumsuz
+     meşru yol şifre sıfırlamadır ve kod doğrulamasının ardından
+     `yetki.korunmasiz('sifreGuncelle')` ile çağrılır (bkz. giris.js). */
   ISG.depo.sifreGuncelle = function (eposta, yeniSifre) {
     var kullanici = ISG.depo.kullaniciEpostaBul(eposta);
     if (!kullanici) { return null; }

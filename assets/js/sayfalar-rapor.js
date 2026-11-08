@@ -619,13 +619,20 @@
     var yonetici = !!(oturum && ISG.yetki.rolTanimi(oturum.rol).yonetir);
     var atamasiz = typeof ISG.yetki.atamaYok === 'function' && ISG.yetki.atamaYok();
     var hesap = ISG.depo.al();
-    var kullanicilar = (hesap.kullanicilar || []).slice().sort(function (a, b) {
+    /* Kullanıcı listesi yönetim kapsamından gelir: sınırlı yönetici başka
+       kurumun hesaplarını görmez (yetki.js: yonetimVerisi). Sistem geneli
+       yetkili yöneticide liste tamdır. */
+    var yVeri = typeof ISG.yetki.yonetimVerisi === 'function' ? ISG.yetki.yonetimVerisi() : null;
+    var kullanicilar = ((yVeri && yVeri.kullanicilar) || hesap.kullanicilar || []).slice().sort(function (a, b) {
       return String(a.adSoyad || '').localeCompare(String(b.adSoyad || ''), 'tr');
     });
 
     var satirlar = kullanicilar.map(function (kullanici) {
       var tanim = ISG.yetki.rolTanimi(kullanici.rol);
-      var kapsamMetni = kullanici.tumIsyerleri ? 'Tüm işyerleri'
+      /* Beyan edilen kapsam ile fiilî erişim tek metinden okunur; "Tüm
+         işyerleri" yalnız fiilen tüm işyerlerine erişen hesapta yazılır. */
+      var kapsamMetni = typeof ISG.yetki.kapsamMetni === 'function'
+        ? ISG.yetki.kapsamMetni(kullanici, hesap)
         : ((kullanici.isyerleri || []).map(isyeriAdi).join(', ') || 'İşyeri tanımlı değil');
       var kendiHesabi = !!(oturum && oturum.kullaniciId === kullanici.id);
       /* Kurum ve uzman sınıfı onay yetkisini belirler; listede görünmezse
@@ -742,17 +749,16 @@
      Müdürü (salt okunur) bu ekranı ne menüde görür ne de URL ile açabilir. */
   var ROL_YETKI_TABLOSU = ['sistemYoneticisi', 'yonetici', 'osgbMuduru', 'yetkili', 'goruntuleyici'];
 
-  function sistemKapsamYazisi(kullanici, hesap, tanim) {
-    if (tanim.tumIsyerleri || kullanici.tumIsyerleri) { return 'Tüm işyerleri'; }
-    if (tanim.kurumKapsami) {
-      var kurum = (hesap.kurumlar || []).filter(function (kayit) {
-        return kayit.id === (kullanici.kurumId || '');
-      })[0];
-      return kurum ? 'Kurum: ' + kurum.ad : 'Kurum atanmamış';
+  /* Kapsam yazısı tek kaynaktan gelir (yetki.js: kapsamMetni). Beyan edilen
+     alanlar ile fiilî erişim ayrışırsa metin ikisini birlikte yazar. */
+  function sistemKapsamYazisi(kullanici) {
+    if (typeof ISG.yetki.kapsamMetni === 'function') {
+      return ISG.yetki.kapsamMetni(kullanici, ISG.depo.al());
     }
-    var adlar = (kullanici.isyerleri || []).map(function (id) { return ISG.isyeriAdi(hesap, id); })
-      .filter(function (ad) { return ad; });
-    return adlar.length ? adlar.join(', ') : 'İşyeri tanımlı değil';
+    var tanim = ISG.yetki.rolTanimi(kullanici.rol);
+    return tanim.tumIsyerleri ? 'Tüm işyerleri'
+      : ((kullanici.isyerleri || []).map(function (id) { return ISG.isyeriAdi(ISG.depo.al(), id); })
+        .filter(function (ad) { return ad; }).join(', ') || 'İşyeri tanımlı değil');
   }
 
   SAYFALAR.sistem = function () {
@@ -771,6 +777,16 @@
     var isyerleri = hesap.isyerleri || [];
     var kullanicilar = hesap.kullanicilar || [];
     var talepler = hesap.talepler || [];
+    /* Yönetim listeleri kapsam süzgecinden gelir: sınırlı yönetici başka
+       kurumun işyerini/kullanıcısını bu ekranda da görmez (P4/P5). */
+    var yVeri = typeof ISG.yetki.yonetimVerisi === 'function' ? ISG.yetki.yonetimVerisi() : null;
+    if (yVeri) {
+      kurumlar = yVeri.kurumlar || [];
+      isyerleri = yVeri.isyerleri || [];
+      kullanicilar = yVeri.kullanicilar || [];
+      talepler = yVeri.talepler || [];
+    }
+    var tamYetki = yVeri ? !!yVeri.tum : true;
 
     var onayDurumlari = isyerleri.map(function (isyeri) {
       var durum = ISG.yetki.onayDurumu(isyeri.id);
@@ -877,6 +893,7 @@
         '<td class="sayi-sutun">' + B.sayi(personelSayisi) + '</td>' +
         '<td>' + B.rozet(ONAY_MOD_ADI[durum.mod] || durum.mod, ONAY_MOD_ROZET[durum.mod] || 'notr') + '</td>' +
         '<td class="sag"><div class="dosya-eylem">' +
+          '<button type="button" data-islem="sistem-isyeri-detay" data-id="' + kacis(isyeri.id) + '">Ayrıntı</button>' +
           '<button type="button" data-islem="isyeri-duzenle" data-id="' + kacis(isyeri.id) + '">Düzenle</button>' +
         '</div></td>' +
       '</tr>';
@@ -899,14 +916,188 @@
         '<td>' + B.rozet(tanim.ad, ROL_ROZET[tanim.id] || 'bilgi') + '</td>' +
         '<td>' + kacis(kurum ? kurum.ad : '—') + '</td>' +
         '<td>' + kacis(sinifAdi || '—') + '</td>' +
-        '<td>' + kacis(sistemKapsamYazisi(kullanici, hesap, tanim)) + '</td>' +
+        '<td>' + kacis(sistemKapsamYazisi(kullanici)) + '</td>' +
         '<td>' + (kullanici.aktif === false ? B.rozet('Pasif', 'notr') : B.rozet('Aktif', 'iyi')) + '</td>' +
         '<td class="sag"><div class="dosya-eylem">' +
+          '<button type="button" data-islem="sistem-kullanici-detay" data-id="' + kacis(kullanici.id) + '">Ayrıntı</button>' +
           '<button type="button" data-islem="kullanici-duzenle" data-id="' + kacis(kullanici.id) + '">Düzenle</button>' +
           '<button type="button" data-islem="kullanici-sifre" data-id="' + kacis(kullanici.id) + '">Şifre</button>' +
           (kendiHesabi ? '' : '<button type="button" class="sil" data-islem="kullanici-sil" data-id="' +
             kacis(kullanici.id) + '">Sil</button>') +
         '</div></td>' +
+      '</tr>';
+    }).join('');
+
+    /* ---- Kullanıcı ayrıntısı: erişim ≠ görevlendirme ----
+       Beyan edilen kapsam (kayıt alanları), fiilî erişim (kapsam motoru) ve
+       uzman sınıfı eşiği ayrı ayrı yazılır. Ekran yeni yetki kurmaz; yalnızca
+       mevcut kayıtları ve yetki kararlarını okur. */
+    var detayKullanici = UI.sistemKullaniciId
+      ? kullanicilar.filter(function (kisi) { return kisi.id === UI.sistemKullaniciId; })[0] : null;
+    var kullaniciDetayi = '';
+    if (detayKullanici) {
+      var dTanim = ISG.yetki.rolTanimi(detayKullanici.rol);
+      var erisimIdleri = ISG.yetki.kullaniciErisim(detayKullanici);
+      var erisimAdlari = erisimIdleri.map(function (id) {
+        return ISG.isyeriAdi(hesap, id) || (id + ' (kapsam dışı)');
+      });
+      var onayladigi = isyerleri.filter(function (isyeri) {
+        return ISG.yetki.onayDurumu(isyeri.id).onaylayanIdler.indexOf(detayKullanici.id) >= 0;
+      }).map(function (isyeri) { return isyeri.ad || isyeri.id; });
+      var esikDisi = isyerleri.filter(function (isyeri) {
+        if (dTanim.id !== 'yetkili' || erisimIdleri.indexOf(isyeri.id) < 0) { return false; }
+        var durum = ISG.yetki.onayDurumu(isyeri.id);
+        return durum.esik.length > 0 && durum.onaylayanIdler.indexOf(detayKullanici.id) < 0;
+      }).map(function (isyeri) { return isyeri.ad || isyeri.id; });
+      var sonIslemler = (typeof ISG.yetki.denetimListe === 'function' ? ISG.yetki.denetimListe() : [])
+        .filter(function (kayit) { return kayit.kullaniciId === detayKullanici.id; })
+        .slice(0, 6);
+      kullaniciDetayi = '<section class="kart" id="sistemKullaniciDetay">' +
+        '<div class="kart-baslik"><div><h2>Kullanıcı ayrıntısı · ' +
+          kacis(detayKullanici.adSoyad || '') + '</h2>' +
+          '<p>Erişim (işyeri ataması) ile görevlendirme (uzman sınıfı eşiği) ayrı okunur.</p></div>' +
+          '<div class="kart-arac"><button type="button" class="dugme ince" data-islem="sistem-kullanici-detay" data-id="' +
+            kacis(detayKullanici.id) + '">Kapat</button></div></div>' +
+        '<div class="kart-ic">' +
+          '<div class="rol-satir"><span>Rol · e-posta · durum</span><b>' + kacis(dTanim.ad) + ' · ' +
+            kacis(detayKullanici.eposta || '—') + ' · ' +
+            (detayKullanici.aktif === false ? 'Pasif' : 'Aktif') + '</b></div>' +
+          '<div class="rol-satir"><span>Beyan edilen kapsam</span><b>' +
+            kacis(sistemKapsamYazisi(detayKullanici)) + '</b></div>' +
+          '<div class="rol-satir"><span>Fiilî erişim · ' + B.sayi(erisimIdleri.length) + ' işyeri</span><b>' +
+            kacis(erisimAdlari.length ? erisimAdlari.join(', ') : 'Erişim yok') + '</b></div>' +
+          '<div class="rol-satir"><span>Onay yetkilisi olduğu işyerleri</span><b>' +
+            kacis(onayladigi.length ? onayladigi.join(', ') : 'Yok') + '</b></div>' +
+          (esikDisi.length
+            ? '<div class="rol-satir"><span>Erişimi var, sınıf eşiğini karşılamıyor</span><b>' +
+              B.rozet(esikDisi.join(', '), 'uyari') + '</b></div>' : '') +
+          '<div class="rol-satir"><span>Son işlemler</span><b>' +
+            kacis(sonIslemler.length ? sonIslemler.map(function (kayit) {
+              return (kayit.ozet || kayit.islem || '—') + ' · ' + String(kayit.tarih || '').slice(0, 10);
+            }).join(' | ') : 'Kayıt yok') + '</b></div>' +
+        '</div></section>';
+    }
+
+    /* ---- İşyeri ayrıntısı: kurum bağı, onay yetkisi, atanmış hesaplar ---- */
+    var detayIsyeri = UI.sistemIsyeriId
+      ? isyerleri.filter(function (isyeri) { return isyeri.id === UI.sistemIsyeriId; })[0] : null;
+    var isyeriDetayi = '';
+    if (detayIsyeri) {
+      var iDurum = ISG.yetki.onayDurumu(detayIsyeri.id);
+      var iKurum = kurumlar.filter(function (kayit) { return kayit.id === (detayIsyeri.kurumId || ''); })[0];
+      var uzmanMetni = (iDurum.uzmanlar || []).map(function (uzman) {
+        var kod = typeof ISG.uzmanSinifiKodu === 'function' ? ISG.uzmanSinifiKodu(uzman.uzmanSinifi) : '';
+        return (uzman.adSoyad || uzman.id) + (kod ? ' (' + kod + ')' : ' (sınıf yok)');
+      });
+      var atananlar = kullanicilar.filter(function (kisi) {
+        var tanim = ISG.yetki.rolTanimi(kisi.rol);
+        if (tanim.sistem === true) { return true; }
+        if (kisi.tumIsyerleri === true && !tanim.kurumKapsami) { return true; }
+        return (kisi.isyerleri || []).indexOf(detayIsyeri.id) >= 0;
+      }).map(function (kisi) { return (kisi.adSoyad || kisi.id) + ' · ' + ISG.yetki.rolTanimi(kisi.rol).ad; });
+      var acikTalep = talepler.filter(function (talep) {
+        return talep.durum === 'bekliyor' && talep.isyeriId === detayIsyeri.id;
+      }).length;
+      var saglikSayi = 0;
+      if (ISG.depo && typeof ISG.depo.saglikTakipIsyeriSay === 'function') {
+        try { saglikSayi = ISG.depo.saglikTakipIsyeriSay(detayIsyeri.id) || 0; } catch (hata) { saglikSayi = 0; }
+      }
+      isyeriDetayi = '<section class="kart" id="sistemIsyeriDetay">' +
+        '<div class="kart-baslik"><div><h2>İşyeri ayrıntısı · ' +
+          kacis(detayIsyeri.ad || '') + '</h2>' +
+          '<p>Kurum bağı, onay yetkisi ve atanmış hesaplar. Sağlık verisi yalnız sayı olarak gösterilir.</p></div>' +
+          '<div class="kart-arac"><button type="button" class="dugme ince" data-islem="sistem-isyeri-detay" data-id="' +
+            kacis(detayIsyeri.id) + '">Kapat</button></div></div>' +
+        '<div class="kart-ic">' +
+          '<div class="rol-satir"><span>Kurum</span><b>' + kacis(iKurum ? iKurum.ad : 'Kuruma bağlı değil') + '</b></div>' +
+          '<div class="rol-satir"><span>Onay durumu</span><b>' +
+            B.rozet(ONAY_MOD_ADI[iDurum.mod] || iDurum.mod, ONAY_MOD_ROZET[iDurum.mod] || 'notr') + '</b></div>' +
+          '<div class="rol-satir"><span>İşyeri uzmanları</span><b>' +
+            kacis(uzmanMetni.length ? uzmanMetni.join(', ') : 'Atanmış uzman yok') + '</b></div>' +
+          '<div class="rol-satir"><span>Atanmış hesaplar</span><b>' +
+            kacis(atananlar.length ? atananlar.join(' | ') : 'Atama yok') + '</b></div>' +
+          '<div class="rol-satir"><span>Bekleyen talep · sağlık kaydı</span><b>' +
+            B.sayi(acikTalep) + ' talep · ' + B.sayi(saglikSayi) + ' sağlık kaydı</b></div>' +
+        '</div></section>';
+    }
+
+    /* ---- İşlem geçmişi: yönetim yazmaları ve erişim kararları ---- */
+    var gecmis = (typeof ISG.yetki.denetimListe === 'function' ? ISG.yetki.denetimListe() : []).slice(0, 12);
+    var gecmisSatirlari = gecmis.map(function (kayit) {
+      var tur = kayit.tur === 'saglik-erisim' ? 'Erişim reddi'
+        : (kayit.tur === 'talep' ? 'Talep' : (kayit.tur === 'yazma' ? 'Yazma' : (kayit.tur || 'Kayıt')));
+      return '<div class="rol-satir"><span>' + kacis(kayit.ozet || kayit.islem || '—') +
+        '<small class="muted"> · ' + kacis(kayit.kullaniciAd || kayit.kullaniciId || '—') +
+        ' · ' + String(kayit.tarih || '').slice(0, 10) + '</small></span>' +
+        '<b>' + B.rozet(tur, kayit.tur === 'saglik-erisim' ? 'tehlike' : 'notr') + '</b></div>';
+    }).join('');
+
+    /* ---- Veri tutarlılığı: yalnız rapor, otomatik düzeltme YOK ---- */
+    var kurumIdleri = {};
+    kurumlar.forEach(function (kurum) { kurumIdleri[kurum.id] = true; });
+    var isyeriIdleri = {};
+    (hesap.isyerleri || []).concat(isyerleri).forEach(function (isyeri) {
+      if (isyeri && isyeri.id) { isyeriIdleri[isyeri.id] = true; }
+    });
+    var tutarsizliklar = [];
+    var kurumsuzSayi = isyerleri.filter(function (isyeri) {
+      return kurumlar.length && !isyeri.kurumId;
+    }).length;
+    if (kurumsuzSayi) {
+      tutarsizliklar.push(kurumsuzSayi + ' işyeri bir kuruma bağlı değil; OSGB Müdürü bu işyerlerini göremez.');
+    }
+    var silinmisAtama = kullanicilar.filter(function (kisi) {
+      return (kisi.isyerleri || []).some(function (id) { return !isyeriIdleri[id]; });
+    }).length;
+    if (silinmisAtama) {
+      tutarsizliklar.push(silinmisAtama + ' kullanıcıda silinmiş işyerine atama var (erişim üretmez).');
+    }
+    var kurumsuzKullanici = kullanicilar.filter(function (kisi) {
+      return ISG.yetki.rolTanimi(kisi.rol).kurumKapsami && !kisi.kurumId;
+    }).length;
+    if (kurumsuzKullanici) {
+      tutarsizliklar.push(kurumsuzKullanici + ' kurum kapsamlı hesapta kurum atanmamış; erişimi boş.');
+    }
+    var gecersizKurum = kullanicilar.filter(function (kisi) {
+      return !!kisi.kurumId && !kurumIdleri[kisi.kurumId];
+    }).length;
+    if (gecersizKurum) {
+      tutarsizliklar.push(gecersizKurum + ' kullanıcıda silinmiş/geçersiz kurum bağı var.');
+    }
+    var atamasizHesap = kullanicilar.filter(function (kisi) {
+      var tanim = ISG.yetki.rolTanimi(kisi.rol);
+      if (tanim.sistem === true || tanim.kurumKapsami) { return false; }
+      return ISG.yetki.kullaniciErisim(kisi).length === 0;
+    }).length;
+    if (atamasizHesap) {
+      tutarsizliklar.push(atamasizHesap + ' hesabın işyeri erişimi yok; veri ekranları kapalı.');
+    }
+    var yokSayilanTum = kullanicilar.filter(function (kisi) {
+      return ISG.yetki.rolTanimi(kisi.rol).kurumKapsami === true && kisi.tumIsyerleri === true;
+    }).length;
+    if (yokSayilanTum) {
+      tutarsizliklar.push(yokSayilanTum + ' hesapta "tüm işyerleri" işaretli ama kurum kapsamı geçerli; işaret yok sayılıyor.');
+    }
+    if (eksikIsyerleri.length) {
+      tutarsizliklar.push(eksikIsyerleri.length + ' işyerinde onay yetkilisi eksik.');
+    }
+    var tutarlilikSatirlari = tutarsizliklar.length
+      ? tutarsizliklar.map(function (metin) {
+        return '<div class="rol-satir"><span>' + kacis(metin) + '</span>' +
+          '<b>' + B.rozet('İzle', 'uyari') + '</b></div>';
+      }).join('')
+      : '<div class="rol-satir"><span>Veri tutarsızlığı bulunmadı.</span><b>' +
+        B.rozet('Temiz', 'iyi') + '</b></div>';
+
+    /* ---- Erişim ≠ görevlendirme: işyeri bazlı uzman eşiği tablosu ---- */
+    var gorevlendirmeSatirlari = onayDurumlari.map(function (durum) {
+      var esik = (durum.esik || []).length ? durum.esik.join(', ') : 'tanımsız';
+      var uygun = (durum.onaylayanlar || []).map(function (uzman) { return uzman.adSoyad || uzman.id; });
+      return '<tr>' +
+        '<td>' + kacis(durum.isyeriAd || durum.isyeriId) + '</td>' +
+        '<td>' + kacis(esik) + '</td>' +
+        '<td class="sayi-sutun">' + B.sayi(durum.uzmanSayisi) + '</td>' +
+        '<td>' + kacis(uygun.length ? uygun.join(', ') : '—') + '</td>' +
       '</tr>';
     }).join('');
 
@@ -969,7 +1160,11 @@
         '<a class="dugme ince" href="#ekip">Kullanıcılar ve yetkiler</a>' +
       '</div>';
     return P.sayfaBaslik('SİSTEM YÖNETİMİ', 'Sistem yönetimi',
-      'Kurum, işyeri, kullanıcı, rol ve onay yönetimi · ' + rol.ad, B.rozet(rol.ad, 'bilgi')) +
+      'Kurum, işyeri, kullanıcı, rol ve onay yönetimi · ' + rol.ad +
+        (tamYetki ? '' : ' · yönetim kapsamınız sınırlı'), B.rozet(rol.ad, 'bilgi')) +
+
+      kullaniciDetayi +
+      isyeriDetayi +
 
       '<section class="kart"><div class="kart-ic"><div class="kpi-izgara kpi-izgara-alti">' +
         istKutu('Kurum (OSGB)', B.sayi(kurumlar.length), 'kayıtlı kurum', 'i-building', 'soluk') +
@@ -994,7 +1189,9 @@
               '<th>Kurum</th><th class="sag">İşyeri</th><th class="sag">Kullanıcı</th><th class="sag">İşlem</th>' +
             '</tr></thead><tbody>' + kurumSatirlari + '</tbody></table></div>'
           : '<div class="kart-ic"><p class="bolum-aciklama">Henüz kurum kaydı yok. Aşağıdaki alandan ilk OSGB kurumunu oluşturun.</p></div>') +
-        kurumFormu +
+        (tamYetki ? kurumFormu
+          : '<div class="kart-ic"><p class="bolum-aciklama">Kurum oluşturma, adlandırma ve silme sistem geneli yetkiye bağlıdır; ' +
+            'bu ekranda yalnız yetkili olduğunuz kurumlar listelenir.</p></div>') +
       '</section>' +
 
       '<section class="kart"><div class="kart-baslik"><div><h2>İşyeri yönetimi</h2>' +
@@ -1047,6 +1244,30 @@
           ? '<div class="kart-ic">' + eksikSatirlari + '</div>'
           : '<div class="kart-ic">' + B.bosDurum('Eksik işyeri yok',
               'Bütün işyerlerinde onay yetkilisi tanımlı.', 'i-check') + '</div>') +
+      '</section>' +
+
+      '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
+        '<h2>Erişim ve görevlendirme ayrımı</h2>' +
+        '<p>Erişim işyeri atamasından gelir; görevlendirme uzman sınıfı eşiğinden. ' +
+          'Erişimi olan bir uzman, tehlike sınıfı eşiğini karşılamıyorsa onay yetkilisi sayılmaz.</p></div>' +
+        '<div class="tablo-kap"><table class="tablo-kucuk"><thead><tr>' +
+          '<th>İşyeri</th><th>Onay eşiği</th><th class="sag">Uzman</th><th>Onay yetkilisi</th>' +
+        '</tr></thead><tbody>' + (gorevlendirmeSatirlari ||
+          '<tr><td colspan="4">İşyeri kaydı yok.</td></tr>') + '</tbody></table></div>' +
+      '</section>' +
+
+      '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
+        '<h2>Veri tutarlılığı</h2>' +
+        '<p>Yalnızca rapor: bu ekran hiçbir kaydı kendiliğinden düzeltmez. Düzeltme ilgili ekrandan yapılır.</p></div>' +
+        '<div class="kart-ic">' + tutarlilikSatirlari + '</div></section>' +
+
+      '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +
+        '<h2>İşlem geçmişi</h2>' +
+        '<p>Son ' + B.sayi(gecmis.length) + ' denetim kaydı. Yönetim yazmaları, onay talepleri ve reddedilen ' +
+          'erişim denemeleri burada izlenir.</p></div>' +
+        (gecmisSatirlari
+          ? '<div class="kart-ic">' + gecmisSatirlari + '</div>'
+          : '<div class="kart-ic">' + B.bosDurum('Denetim kaydı yok', 'İşlem yapıldıkça burada listelenir.', 'i-check') + '</div>') +
       '</section>' +
 
       '<section class="kart"><div class="kart-baslik" style="flex-direction:column;align-items:flex-start">' +

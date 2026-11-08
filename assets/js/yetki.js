@@ -197,12 +197,16 @@
      Açık "Tüm işyerleri" yetkisi / Sistem Yöneticisi → bütün işyerleri;
      OSGB Müdürü → yalnız KENDİ KURUMUNDAKİ işyerleri; diğerleri (Yönetici
      dahil) → yalnız açıkça atandığı işyerleri. Atama yoksa liste boştur.
-     Kurum dışına çıkış yolu yoktur. */
-  function kapsam() {
-    var o = oturum();
+     Kurum dışına çıkış yolu yoktur.
+
+     Hesap iki yerden okunabilir: canlı oturum (`kapsam()`) ya da herhangi bir
+     kullanıcı kaydı (`kullaniciErisim()`). İki hesap ayrı yazılmaz; aksi hâlde
+     "beyan edilen kapsam" ile "fiilî erişim" sessizce ayrışabilir. */
+  function kapsamHesapla(hesap, rol) {
+    var o = hesap;
     if (!o) { return []; }
     var veri = D.al();
-    var rol = rolTanimi(o.rol);
+    rol = rol || rolTanimi(o.rol);
     if (tumunuGorur(o, rol)) {
       return (veri.isyerleri || []).map(function (isyeri) { return isyeri.id; });
     }
@@ -215,8 +219,14 @@
         return kurumId === o.kurumId;
       }).map(function (isyeri) { return isyeri.id; });
     }
-    return (o.isyerleri || []).slice();
+    /* Silinmiş işyerine kalan atama erişim üretmez: kapsam yalnız var olan
+       işyerlerinden oluşur. */
+    return (o.isyerleri || []).filter(function (id) { return isyeriVar(id); });
   }
+
+  function kapsam() { return kapsamHesapla(oturum()); }
+
+  function kullaniciErisim(kullanici) { return kapsamHesapla(kullanici); }
 
   function kapsamda(isyeriId) {
     if (!isyeriId) { return false; }
@@ -237,6 +247,146 @@
        değildir, boş liste normaldir. */
     if (rol.kurumKapsami || rol.sistem === true) { return false; }
     return kapsam().length === 0;
+  }
+
+  /* ---------- Yönetim kapsamı (yönetim yazmalarının sınırı) ----------
+     2.27.0: `yonetir` rolü yönetim işleminin SINIRINI belirlemez. Kapsam
+     denetimi yönetim yazmalarında da uygulanır:
+       · Sistem Yöneticisi ya da açıkça "Tüm işyerleri" yetkisi → sistem geneli
+       · Yönetici → yalnız açıkça atandığı işyerleri ve o işyerlerinin kurumları
+       · diğer roller (OSGB Müdürü dahil) → yönetim yetkisi yok
+
+     Tek istisna `iceAktar`: bulut eşitlemesi aynı işlevi kullanır (bulut.js)
+     ve yedek geri yükleme bütün veri kümesini değiştirir. Bu açık risk
+     raporlanır; yönetim işlemlerinin geri kalanı kapsam denetiminden geçer. */
+  function yonetimKapsami() {
+    var sonuc = {
+      varMi: false, yonetir: false, tum: false, rolId: '',
+      isyerleri: [], kurumlar: [], kullaniciId: '', kurumId: ''
+    };
+    var o = oturum();
+    if (!o) { return sonuc; }
+    var rol = rolTanimi(o.rol);
+    sonuc.varMi = true;
+    sonuc.yonetir = !!rol.yonetir;
+    sonuc.rolId = rol.id;
+    sonuc.kullaniciId = o.kullaniciId;
+    sonuc.kurumId = o.kurumId || '';
+    if (!sonuc.yonetir) { return sonuc; }
+    var veri = D.al();
+    if (rol.id === 'sistemYoneticisi' || rol.sistem === true || tumunuGorur(o, rol)) {
+      sonuc.tum = true;
+      sonuc.isyerleri = (veri.isyerleri || []).map(function (isyeri) { return isyeri.id; });
+      sonuc.kurumlar = (veri.kurumlar || []).map(function (kurum) { return kurum.id; });
+      return sonuc;
+    }
+    sonuc.isyerleri = kapsamHesapla(o, rol);
+    var gorulen = {};
+    sonuc.isyerleri.forEach(function (isyeriId) {
+      var kurumId = typeof D.isyeriKurumId === 'function' ? D.isyeriKurumId(isyeriId) : '';
+      if (kurumId && !gorulen[kurumId]) { gorulen[kurumId] = true; sonuc.kurumlar.push(kurumId); }
+    });
+    if (sonuc.kurumId && !gorulen[sonuc.kurumId]) { sonuc.kurumlar.push(sonuc.kurumId); }
+    return sonuc;
+  }
+
+  function yonetimIsyeriVar(isyeriId) {
+    var y = yonetimKapsami();
+    if (!y.yonetir || !isyeriId) { return false; }
+    if (y.tum) { return isyeriVar(isyeriId); }
+    return y.isyerleri.indexOf(isyeriId) >= 0;
+  }
+
+  function yonetimKurumVar(kurumId) {
+    var y = yonetimKapsami();
+    if (!y.yonetir || !kurumId) { return false; }
+    if (y.tum) { return true; }
+    return y.kurumlar.indexOf(kurumId) >= 0;
+  }
+
+  /* Sınırlı yöneticinin yönetebildiği kullanıcı kaydı mı? Kendi hesabı her
+     zaman yönetilebilir (atamasız hesap kendi kapsamını buradan alır); diğer
+     hesaplar yalnız yönetim kapsamındaki bir işyerine atanmışsa ya da aynı
+     kurumdaysa. Kapsam dışı hesap ne listede görünür ne düzenlenebilir. */
+  function kullaniciYonetimKapsaminda(kullanici) {
+    var y = yonetimKapsami();
+    if (!y.yonetir || !kullanici) { return false; }
+    if (kullanici.id === y.kullaniciId) { return true; }
+    if (y.tum) { return true; }
+    if ((kullanici.isyerleri || []).some(function (id) { return y.isyerleri.indexOf(id) >= 0; })) { return true; }
+    if (y.kurumId && (kullanici.kurumId || '') === y.kurumId) { return true; }
+    return false;
+  }
+
+  /* Yönetim ekranlarının okuduğu liste: kapsam süzgecinden geçmiş kurum,
+     işyeri, kullanıcı ve talep kayıtları. Kayıt verisi (personel, sağlık,
+     dosya...) buradan beslenmez; onu `kapsamliVeri()` verir. */
+  function yonetimVerisi() {
+    var veri = D.al();
+    var y = yonetimKapsami();
+    if (!y.yonetir) {
+      /* Yönetim yetkisi olmayan hesap yönetim listelerini görmez (#ekip menüsü
+         ve doğrudan adres zaten kapalıdır). Okuma amaçlı çağrıda kullanıcı
+         listesi eskisi gibi tam döner; yazma yetkisi yoktur. */
+      return {
+        yonetir: false, tum: false, kurumlar: [], isyerleri: [], talepler: [],
+        kullanicilar: (veri.kullanicilar || []).slice()
+      };
+    }
+    if (y.tum) {
+      return {
+        yonetir: true, tum: true,
+        kurumlar: (veri.kurumlar || []).slice(),
+        isyerleri: (veri.isyerleri || []).slice(),
+        kullanicilar: (veri.kullanicilar || []).slice(),
+        talepler: (veri.talepler || []).slice()
+      };
+    }
+    return {
+      yonetir: true, tum: false,
+      kurumlar: (veri.kurumlar || []).filter(function (kurum) {
+        return kurum && y.kurumlar.indexOf(kurum.id) >= 0;
+      }),
+      isyerleri: (veri.isyerleri || []).filter(function (isyeri) {
+        return isyeri && y.isyerleri.indexOf(isyeri.id) >= 0;
+      }),
+      kullanicilar: (veri.kullanicilar || []).filter(kullaniciYonetimKapsaminda),
+      talepler: (veri.talepler || []).filter(function (talep) {
+        return talep && y.isyerleri.indexOf(talep.isyeriId) >= 0;
+      })
+    };
+  }
+
+  /* Kapsam metni: BEYAN (kayıt alanları) ile FİİLÎ erişim ayrı okunur. "Tüm
+     işyerleri" yalnız fiilen bütün işyerlerine erişen hesap için yazılır; kurum
+     kapsamlı rolde işaretli olsa bile yok sayıldığı metinde belirtilir. */
+  function kapsamMetni(kullanici, veri) {
+    if (!kullanici) { return ''; }
+    var hesap = veri || D.al();
+    var tanim = rolTanimi(kullanici.rol);
+    var adlar = function (idler) {
+      return (idler || []).map(function (id) {
+        var isyeri = (hesap.isyerleri || []).filter(function (kayit) { return kayit.id === id; })[0];
+        return isyeri ? (isyeri.ad || isyeri.id) : (id + ' (silinmiş işyeri)');
+      });
+    };
+    if (tanim.id === 'sistemYoneticisi' || tanim.sistem === true) {
+      return 'Sistem geneli · tüm işyerleri';
+    }
+    if (tanim.kurumKapsami) {
+      var kurum = (hesap.kurumlar || []).filter(function (kayit) {
+        return kayit.id === (kullanici.kurumId || '');
+      })[0];
+      var metin = kurum ? 'Kurum: ' + (kurum.ad || kurum.id) : 'Kurum atanmamış';
+      if (!kullanici.kurumId) { metin += ' · erişim yok'; }
+      if (kullanici.tumIsyerleri === true) {
+        metin += ' · kayıtta "tüm işyerleri" işaretli, yok sayılır (kurum kapsamı geçerli)';
+      }
+      return metin;
+    }
+    if (kullanici.tumIsyerleri === true) { return 'Tüm işyerleri (açık yetki)'; }
+    var liste = adlar(kullanici.isyerleri);
+    return liste.length ? liste.join(', ') : 'İşyeri tanımlı değil';
   }
 
   function diziSuz(liste, izinli, alan) {
@@ -367,6 +517,7 @@
 
   var ADMIN_ISLEMLERI = {
     isyeriKaydet: 1, isyeriSil: 1, kullaniciKaydet: 1, kullaniciSil: 1,
+    kurumKaydet: 1, kurumSil: 1,
     ayarKaydet: 1, iceAktar: 1, sifirla: 1
   };
 
@@ -401,6 +552,7 @@
     acilEkipEkle: 'Acil durum ekibi üyesi', acilEkipSil: 'Acil durum ekibi üyesi silme',
     isyeriKaydet: 'İşyeri kaydı', isyeriSil: 'İşyeri silme',
     kullaniciKaydet: 'Kullanıcı kaydı', kullaniciSil: 'Kullanıcı silme',
+    sifreGuncelle: 'Şifre değiştirme',
     ayarKaydet: 'Ayarlar'
   };
 
@@ -590,7 +742,18 @@
     var o = oturum();
     if (!o) { return false; }
     var rol = rolTanimi(o.rol);
-    if (ADMIN_ISLEMLERI[eylem]) { return !!rol.yonetir; }
+    if (ADMIN_ISLEMLERI[eylem]) {
+      if (!rol.yonetir) { return false; }
+      /* Yönetim izni de kapsamla sınırlıdır: sınırlı yönetici kurum açamaz,
+         tüm veriyi sıfırlayamaz, atanmadığı işyerini yönetemez. */
+      var yKapsam = yonetimKapsami();
+      if (yKapsam.tum) { return true; }
+      if (eylem === 'kurumKaydet' || eylem === 'kurumSil' || eylem === 'sifirla') { return false; }
+      if ((eylem === 'isyeriKaydet' || eylem === 'isyeriSil') && isyeriId) {
+        return yKapsam.isyerleri.indexOf(isyeriId) >= 0;
+      }
+      return true;
+    }
     if (eylem === 'onayla' || eylem === 'talepKarar') {
       if (rol.saltOkunur || rol.id === 'goruntuleyici') { return false; }
       if (rol.onaylar) { return true; }
@@ -1021,8 +1184,23 @@
     var o = oturum();
     if (!o) { return []; }
     var kayitlar = D.al().denetim || [];
-    if (rolTanimi(o.rol).yonetir) { return kayitlar.slice(); }
-    return kayitlar.filter(function (kayit) { return kayit.kullaniciId === o.kullaniciId; });
+    if (!rolTanimi(o.rol).yonetir) {
+      return kayitlar.filter(function (kayit) { return kayit.kullaniciId === o.kullaniciId; });
+    }
+    var y = yonetimKapsami();
+    if (y.tum) { return kayitlar.slice(); }
+    /* Sınırlı yönetici denetim izinin tamamını okumaz: kendi işlemleri ve
+       yönetim kapsamındaki işyeri/kullanıcı kayıtları. */
+    var kullaniciIdleri = {};
+    (D.al().kullanicilar || []).forEach(function (kisi) {
+      if (kullaniciYonetimKapsaminda(kisi)) { kullaniciIdleri[kisi.id] = true; }
+    });
+    return kayitlar.filter(function (kayit) {
+      if (!kayit) { return false; }
+      if (kayit.kullaniciId === o.kullaniciId) { return true; }
+      if (kayit.isyeriId && y.isyerleri.indexOf(kayit.isyeriId) >= 0) { return true; }
+      return !!kullaniciIdleri[kayit.kullaniciId];
+    });
   }
 
   /* ---------- Koruma kurulumu ---------- */
@@ -1070,8 +1248,178 @@
     return function () { return asil.apply(D, arguments); };
   }
 
+  /* ---------- Yönetim yazmalarının kapsam denetimi ----------
+     Her yönetim eyleminin hedefi ayrı okunur; denetim depo yazımından ÖNCE
+     çalışır, böylece yetkisiz istek veriye hiç dokunmaz. Kurallar:
+       · Yönetici hesabı → atandığı işyerleri + o işyerlerinin kurumları
+       · Kurum açma/silme, onay modeli ve tüm veriyi sıfırlama → sistem geneli
+       · "Tüm işyerleri" yetkisi ve yönetim rolü dağıtımı → sistem geneli
+       · Hiçbir hesap kendi rolünü/kapsamını yükseltemez
+       · Son yönetici silinemez/pasife alınamaz (sistem kilitlenmez) */
+  var YONETIM_YOK = 'Bu işlem yalnızca yöneticilere açıktır.';
+  var GLOBAL_YETKI_YOK = 'Kurum oluşturma ve silme yalnızca sistem geneli yetkili yöneticiye açıktır.';
+
+  function yonetimReddi(mesaj) {
+    var hata = new Error(mesaj);
+    hata.yetkiReddi = true;
+    return hata;
+  }
+
+  /* Son yönetim hesabı mı? Sistemde tek bir aktif yönetim yetkili hesap
+     kaldıysa silme/pasife alma sistemi kilitler; işlem reddedilir. */
+  function sonYoneticiMi(kullanici) {
+    if (!kullanici || kullanici.aktif === false) { return false; }
+    if (!rolTanimi(kullanici.rol).yonetir) { return false; }
+    var yoneticiler = (D.al().kullanicilar || []).filter(function (kisi) {
+      return kisi && kisi.aktif !== false && rolTanimi(kisi.rol).yonetir;
+    });
+    if (yoneticiler.length !== 1) { return false; }
+    return yoneticiler[0].id === kullanici.id;
+  }
+
+  function isyeriYazmaDenetle(girdi) {
+    var y = yonetimKapsami();
+    if (!y.yonetir) { throw yonetimReddi(YONETIM_YOK); }
+    girdi = girdi || {};
+    var id = String(girdi.id || '');
+    if (id) {
+      if (!isyeriVar(id)) { throw yonetimReddi('İşyeri bulunamadı.'); }
+      if (!yonetimIsyeriVar(id)) { throw yonetimReddi('Bu işyeri yönetim kapsamınızda değil.'); }
+    }
+    var kurumId = String(girdi.kurumId || '');
+    if (kurumId && !yonetimKurumVar(kurumId)) {
+      throw yonetimReddi('Bu kurum yönetim kapsamınızda değil.');
+    }
+    if (!id && !kurumId && !y.tum) {
+      throw yonetimReddi('Yeni işyeri yalnızca yetkili olduğunuz bir kuruma bağlı olarak açılabilir.');
+    }
+  }
+
+  function isyeriSilDenetle(id) {
+    var y = yonetimKapsami();
+    if (!y.yonetir) { throw yonetimReddi(YONETIM_YOK); }
+    if (!id || !isyeriVar(String(id))) { return; }
+    if (!yonetimIsyeriVar(String(id))) { throw yonetimReddi('Bu işyeri yönetim kapsamınızda değil.'); }
+  }
+
+  function kurumYazmaDenetle() {
+    var y = yonetimKapsami();
+    if (!y.yonetir) { throw yonetimReddi(YONETIM_YOK); }
+    if (!y.tum) { throw yonetimReddi(GLOBAL_YETKI_YOK); }
+  }
+
+  function sifirlaDenetle() {
+    var y = yonetimKapsami();
+    if (!y.yonetir) { throw yonetimReddi(YONETIM_YOK); }
+    if (!y.tum) { throw yonetimReddi('Tüm verileri silme yalnızca sistem geneli yetkili yöneticiye açıktır.'); }
+  }
+
+  function ayarYazmaDenetle(alanlar) {
+    var y = yonetimKapsami();
+    if (!y.yonetir) { throw yonetimReddi(YONETIM_YOK); }
+    if (y.tum) { return; }
+    /* Kurum adı ve onay modeli sistem geneli karardır: sınırlı yönetici
+       değiştiremez. Diğer ayar anahtarları serbesttir. */
+    var KILITLI = { kurum: true, onayModeli: true };
+    var kilitli = Object.keys(alanlar || {}).filter(function (anahtar) { return KILITLI[anahtar]; });
+    if (kilitli.length) {
+      throw yonetimReddi('Kurum adı ve onay modeli yalnızca sistem geneli yetkili yönetici tarafından değiştirilebilir.');
+    }
+  }
+
+  function kullaniciYazmaDenetle(girdi) {
+    var y = yonetimKapsami();
+    if (!y.yonetir) { throw yonetimReddi(YONETIM_YOK); }
+    girdi = girdi || {};
+    var mevcut = null;
+    if (girdi.id) {
+      mevcut = D.kullaniciBul(String(girdi.id)) ||
+        D.kullaniciEpostaBul(String(girdi.eposta || ''));
+    }
+    if (girdi.id && !mevcut) { throw yonetimReddi('Kullanıcı bulunamadı.'); }
+    var rolYeni = rolCoz(girdi.rol !== undefined ? girdi.rol : (mevcut && mevcut.rol));
+    var isyerleri = Array.isArray(girdi.isyerleri) ? girdi.isyerleri.slice()
+      : ((mevcut && mevcut.isyerleri) || []);
+    var tumu = girdi.tumIsyerleri === undefined ? !!(mevcut && mevcut.tumIsyerleri)
+      : girdi.tumIsyerleri === true;
+    var pasif = !!(mevcut && girdi.aktif === false);
+
+    /* Son yönetici koruması kapsamdan bağımsızdır: sistem kilitlenmesin. */
+    if (pasif && sonYoneticiMi(mevcut)) {
+      throw yonetimReddi('Son yönetici hesabı pasife alınamaz; önce yeni bir yönetici atayın.');
+    }
+    /* Rol düşürmesi de kilitleme üretir: hesap açık kalsa bile sistem yönetimsiz
+       kalırsa hiçbir yönetim işlemi yapılamaz. */
+    if (mevcut && rolTanimi(rolYeni).yonetir !== true && sonYoneticiMi(mevcut)) {
+      throw yonetimReddi('Son yönetici hesabının rolü düşürülemez; önce yeni bir yönetici atayın.');
+    }
+    if (y.tum) { return; }
+
+    if (tumu) {
+      throw yonetimReddi('"Tüm işyerleri" yetkisini yalnızca sistem geneli yetkili yönetici verebilir.');
+    }
+    var kendiHesabi = !!(mevcut && mevcut.id === y.kullaniciId);
+    if (kendiHesabi && rolYeni !== y.rolId) {
+      throw yonetimReddi('Kendi rolünüzü değiştiremezsiniz; yönetim rolü ataması sistem yöneticisine aittir.');
+    }
+    if (rolTanimi(rolYeni).sistem === true) {
+      throw yonetimReddi('Sistem Yöneticisi rolü yalnızca sistem geneli yetkili yönetici tarafından atanabilir.');
+    }
+    /* Atamasız yönetici kendi kapsamını alabilir (sistem kendini kilitlemesin);
+       başka hesaba atama yapamaz. */
+    var bootstrap = !!(kendiHesabi && y.isyerleri.length === 0);
+    if (rolTanimi(rolYeni).yonetir && !bootstrap && !isyerleri.length && !pasif) {
+      throw yonetimReddi('Yönetici rolü için en az bir işyeri ataması zorunludur.');
+    }
+    if (mevcut && !bootstrap && !kullaniciYonetimKapsaminda(mevcut)) {
+      throw yonetimReddi('Bu kullanıcı yönetim kapsamınızda değil.');
+    }
+    if (!bootstrap) {
+      isyerleri.forEach(function (isyeriId) {
+        if (!yonetimIsyeriVar(String(isyeriId))) {
+          throw yonetimReddi('Atanan işyeri yönetim kapsamınızda değil.');
+        }
+      });
+    }
+    var kurumId = String(girdi.kurumId !== undefined ? girdi.kurumId : ((mevcut && mevcut.kurumId) || ''));
+    if (kurumId && !yonetimKurumVar(kurumId)) {
+      throw yonetimReddi('Bu kurum yönetim kapsamınızda değil.');
+    }
+  }
+
+  function kullaniciSilDenetle(id) {
+    var y = yonetimKapsami();
+    if (!y.yonetir) { throw yonetimReddi(YONETIM_YOK); }
+    var hedef = D.kullaniciBul(String(id || ''));
+    if (!hedef) { return; }
+    if (sonYoneticiMi(hedef)) {
+      throw yonetimReddi('Son yönetici hesabı silinemez; önce yeni bir yönetici atayın.');
+    }
+    if (y.tum) { return; }
+    if (!kullaniciYonetimKapsaminda(hedef)) {
+      throw yonetimReddi('Bu kullanıcı yönetim kapsamınızda değil.');
+    }
+    if (rolTanimi(hedef.rol).yonetir) {
+      throw yonetimReddi('Yönetici hesaplarını yalnızca sistem geneli yetkili yönetici silebilir.');
+    }
+  }
+
   var ADMIN_KORUMA = ['isyeriKaydet', 'isyeriSil', 'kullaniciKaydet', 'kullaniciSil',
     'ayarKaydet', 'sifirla', 'iceAktar', 'kurumKaydet', 'kurumSil'];
+
+  var ADMIN_DENETIM = {
+    isyeriKaydet: function (args) { isyeriYazmaDenetle(args[0]); },
+    isyeriSil: function (args) { isyeriSilDenetle(args[0]); },
+    kullaniciKaydet: function (args) { kullaniciYazmaDenetle(args[0]); },
+    kullaniciSil: function (args) { kullaniciSilDenetle(args[0]); },
+    kurumKaydet: kurumYazmaDenetle,
+    kurumSil: kurumYazmaDenetle,
+    ayarKaydet: function (args) { ayarYazmaDenetle(args[0]); },
+    sifirla: sifirlaDenetle
+    /* iceAktar: bulut eşitlemesi aynı işlevi kullanır (bulut.js) ve yedek geri
+       yükleme bütün veri kümesini değiştirir; kapsam denetimi burada
+       uygulanmaz. Açık risk olarak raporlanır. */
+  };
 
   ADMIN_KORUMA.forEach(function (ad) {
     var asil = D[ad];
@@ -1081,13 +1429,54 @@
       var args = Array.prototype.slice.call(arguments);
       var o = oturum();
       if (!o) { throw new Error('Oturum bulunamadı, lütfen yeniden giriş yapın.'); }
-      if (!rolTanimi(o.rol).yonetir) { throw new Error('Bu işlem yalnızca yöneticilere açıktır.'); }
+      if (!rolTanimi(o.rol).yonetir) { throw new Error(YONETIM_YOK); }
+      /* Kapsam denetimi yazmadan ÖNCE: yetkisiz istek veriye hiç dokunmaz. */
+      var denetim = ADMIN_DENETIM[ad];
+      if (typeof denetim === 'function') { denetim(args); }
       var hedef = hedefKullanici(ad, args);
       var sonuc = asil.apply(D, args);
       denetimYaz(ad, args, o, hedef || hedefKullanici(ad, args));
       return sonuc;
     };
   });
+
+  /* ---------- Şifre değiştirme sınırı (2.27.0) ----------
+     `sifreGuncelle` alt seviye bir mutatördür ve şifreyi düz metin olarak yazar;
+     bu yüzden arayüz dışından çağrılabilir olması hesap devralmaya açıktı.
+     Kural:
+       · Oturum yoksa çağrı reddedilir (istek veriye dokunmaz).
+       · Oturum sahibi yalnızca KENDİ şifresini değiştirebilir.
+       · Başka hesabın şifresini yalnızca sistem geneli yetkili yönetici
+         (destek amacıyla) değiştirebilir; sınırlı yönetici kapsam dışı hesaba
+         dokunamaz.
+     Tek meşru oturumsuz yol şifre sıfırlama akışıdır: `giris.js` → `sifreSifirla`
+     e-posta kodunu kendi içinde doğrular ve `yetki.korunmasiz('sifreGuncelle')`
+     ile bu sarmalayıcıyı atlar. */
+  (function () {
+    var ad = 'sifreGuncelle';
+    var asil = D[ad];
+    if (typeof asil !== 'function') { return; }
+    orijinal[ad] = asil;
+    D[ad] = function (eposta, yeniSifre) {
+      var o = oturum();
+      if (!o) {
+        throw new Error('Şifre değiştirmek için oturum gerekir. Şifrenizi unuttuysanız ' +
+          'giriş ekranındaki şifre sıfırlama akışını kullanın.');
+      }
+      var hedef = D.kullaniciEpostaBul(eposta);
+      if (!hedef) { return null; }
+      if (String(hedef.id) !== String(o.kullaniciId)) {
+        var y = yonetimKapsami();
+        if (!y.yonetir || !y.tum) {
+          throw yonetimReddi('Başka hesabın şifresini yalnızca sistem geneli yetkili ' +
+            'yönetici değiştirebilir.');
+        }
+      }
+      var sonuc = asil.apply(D, arguments);
+      denetimYaz(ad, arguments, o, hedef);
+      return sonuc;
+    };
+  })();
 
   YAZMA_ISLEMLERI.forEach(function (ad) {
     var asil = D[ad];
@@ -1187,6 +1576,14 @@
     kapsamda: kapsamda,
     atamaYok: atamaYok,
     tumunuGorur: tumunuGorur,
+    kullaniciErisim: kullaniciErisim,
+    yonetimKapsami: yonetimKapsami,
+    yonetimVerisi: yonetimVerisi,
+    yonetimIsyeriVar: yonetimIsyeriVar,
+    yonetimKurumVar: yonetimKurumVar,
+    kullaniciYonetimKapsaminda: kullaniciYonetimKapsaminda,
+    kapsamMetni: kapsamMetni,
+    sonYoneticiMi: sonYoneticiMi,
     kapsamliVeri: kapsamliVeri,
     gorunum: function () { return kapsamliVeri(D.al()); },
     izin: izin,

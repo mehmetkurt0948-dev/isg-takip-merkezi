@@ -32,9 +32,10 @@
   var YONETICI_SAYFALARI = { isyerleri: 1, ekip: 1, sistem: 1 };
 
   /* Ataması olmayan hesap için açık kalan ekranlar. Veri ekranları kapalıdır;
-     işyeri ve kullanıcı ekranları açık kalır çünkü atama ancak buradan
-     yapılabilir (ataması olmayan yönetici kendi kapsamını buradan alır). */
-  var ATAMASIZ_SAYFALAR = { ekip: 1, isyerleri: 1 };
+     işyeri, kullanıcı ve sistem yönetimi ekranları açık kalır çünkü atama ancak
+     buradan yapılabilir (ataması olmayan yönetici kendi kapsamını buradan alır)
+     ve sistem bütünlüğü bu ekranlarda denetlenir. */
+  var ATAMASIZ_SAYFALAR = { ekip: 1, isyerleri: 1, sistem: 1 };
 
   var bekleyenOnay = null;
   var cizZamanlayici = null;
@@ -399,8 +400,11 @@
     form.elements.id.value = kayit ? kayit.id : '';
     el('isyeriBaslik').textContent = kayit ? 'İşyerini düzenle' : 'Yeni işyeri';
     /* Kurum alanı tek kurumlu kurulumda otomatik seçilir; çok kurumda
-       yönetici açıkça seçer, boş bırakılırsa işyeri hiçbir kuruma bağlanmaz. */
-    var kurumlar = veri().kurumlar || [];
+       yönetici açıkça seçer, boş bırakılırsa işyeri hiçbir kuruma bağlanmaz.
+       Sınırlı yönetici yalnız yönetim kapsamındaki kurumları görür. */
+    var kapsam = ISG.yetki.yonetimKapsami ? ISG.yetki.yonetimKapsami() : null;
+    var sinirli = !!(kapsam && kapsam.yonetir && !kapsam.tum);
+    var kurumlar = sinirli ? (ISG.yetki.yonetimVerisi().kurumlar || []) : (veri().kurumlar || []);
     var varsayilanKurum = (kayit && kayit.kurumId) ||
       (kurumlar.length === 1 ? kurumlar[0].id : '') || '';
     if (form.elements.kurumId) {
@@ -2749,6 +2753,19 @@
         break;
       }
 
+      /* Sistem yönetimi — kullanıcı ve işyeri ayrıntısı. Ayrıntı paneli aynı
+         ekranda açılır; yeni bir yetki yolu kurmaz, mevcut kayıtları okur. */
+      case 'sistem-kullanici-detay': {
+        UI.sistemKullaniciId = (UI.sistemKullaniciId === id) ? '' : id;
+        ciz();
+        break;
+      }
+      case 'sistem-isyeri-detay': {
+        UI.sistemIsyeriId = (UI.sistemIsyeriId === id) ? '' : id;
+        ciz();
+        break;
+      }
+
       /* Personel */
       case 'personel-yeni':
         personelAc('', isyeriId);
@@ -3215,7 +3232,17 @@
   /* ---------- Kullanıcı yönetimi (yalnızca yönetici) ---------- */
 
   function rolSecenekleri(secili) {
-    return Object.keys(ISG.yetki.ROLLER).map(function (anahtar) {
+    /* Sınırlı yönetici yönetim rolü dağıtamaz: "Sistem Yöneticisi" seçeneği
+       yalnız sistem geneli yetkili yöneticide listelenir (depo katmanı da
+       aynı kuralı uygular). */
+    var kapsam = ISG.yetki.yonetimKapsami ? ISG.yetki.yonetimKapsami() : null;
+    var tumYetki = !kapsam || kapsam.tum;
+    return Object.keys(ISG.yetki.ROLLER).filter(function (anahtar) {
+      var rol = ISG.yetki.ROLLER[anahtar];
+      if (tumYetki) { return true; }
+      if (rol.sistem === true) { return anahtar === secili; }
+      return true;
+    }).map(function (anahtar) {
       var rol = ISG.yetki.ROLLER[anahtar];
       return '<option value="' + B.kacis(anahtar) + '"' + (anahtar === secili ? ' selected' : '') + '>' +
         B.kacis(rol.ad) + '</option>';
@@ -3223,10 +3250,13 @@
   }
 
   /* Kurum seçenekleri: kurum kaydı yoksa alan boş kalır ve işyeri/kullanıcı
-     kurumsuz (serbest metin ayarına bağlı) çalışmaya devam eder. */
+     kurumsuz (serbest metin ayarına bağlı) çalışmaya devam eder. Sınırlı
+     yönetici yalnız yönetim kapsamındaki kurumları görür ve seçebilir. */
   function kurumSecenekleri(secili) {
-    /* Kullanıcı formunda kurum listesi de atama amaçlı tam listeden gelir. */
-    var kurumlar = veri().atamaKurumlar || veri().kurumlar || [];
+    var kapsam = ISG.yetki.yonetimKapsami ? ISG.yetki.yonetimKapsami() : null;
+    var kurumlar = (kapsam && kapsam.yonetir && !kapsam.tum)
+      ? (ISG.yetki.yonetimVerisi().kurumlar || [])
+      : (veri().atamaKurumlar || veri().kurumlar || []);
     var liste = ['<option value="">Kurum seçilmedi</option>'];
     kurumlar.forEach(function (kurum) {
       liste.push('<option value="' + B.kacis(kurum.id) + '"' +
@@ -3238,10 +3268,18 @@
   function isyeriKutulari(seciliIds, tumuMu) {
     /* Atama listesi kapsam süzgecinden geçmez: atanacak işyerini seçebilmek
        için bütün işyerleri görünmelidir (yetki.js: atamaIsyerleri). Kayıt
-       verisi yine kapsam süzgecinden okunur. */
+       verisi yine kapsam süzgecinden okunur. "Tüm işyerleri" kutusu yalnız
+       sistem geneli yetkili yöneticide kullanılabilir; sınırlı yöneticide
+       kilitli görünür (depo katmanı da aynı kuralı uygular). */
     var isyerleri = veri().atamaIsyerleri || veri().isyerleri || [];
+    var kapsam = ISG.yetki.yonetimKapsami ? ISG.yetki.yonetimKapsami() : null;
+    var tumYetki = !kapsam || kapsam.tum;
     var liste = ['<label><input type="checkbox" class="kullanici-isyeri" value="__tumu"' +
-      (tumuMu ? ' checked' : '') + '><span><strong>Tüm işyerleri</strong><small>Yeni açılan işyerleri de kapsar</small></span></label>'];
+      (tumuMu ? ' checked' : '') + (tumYetki ? '' : ' disabled') +
+      '><span><strong>Tüm işyerleri</strong><small>' +
+      (tumYetki ? 'Yeni açılan işyerleri de kapsar'
+        : 'Yalnız sistem yöneticisi verebilir; işyerlerini tek tek işaretleyin') +
+      '</small></span></label>'];
     isyerleri.forEach(function (isyeri) {
       liste.push('<label><input type="checkbox" class="kullanici-isyeri" value="' + B.kacis(isyeri.id) + '"' +
         (tumuMu || seciliIds.indexOf(isyeri.id) >= 0 ? ' checked' : '') + '>' +
@@ -3296,9 +3334,10 @@
 
     var seciliIsyerleri = (mevcut && Array.isArray(mevcut.isyerleri)) ? mevcut.isyerleri : [];
     el('kullaniciIsyerleri').innerHTML = isyeriKutulari(seciliIsyerleri, !!(mevcut && mevcut.tumIsyerleri));
-    /* Şifre değişiminde yetkiler korunur; kutular kilitli gösterilir. */
+    /* Şifre değişiminde yetkiler korunur; kutular kilitli gösterilir. "Tüm
+       işyerleri" kutusunun sınırlı yöneticideki kilidi korunur. */
     Array.prototype.forEach.call(document.querySelectorAll('.kullanici-isyeri'), function (kutu) {
-      kutu.disabled = kullaniciSifreModu;
+      kutu.disabled = kullaniciSifreModu || kutu.disabled;
     });
 
     uyariGoster('kullaniciUyari', '');

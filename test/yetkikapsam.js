@@ -7,6 +7,10 @@
      4) Kapsam disi dogrudan erisim (isyeri kimligi / kayit kimligi) reddedilir.
      5) Saglik goruntuleme izni ile yazma izni ayridir; izinsiz okuma denetlenir.
      6) Onay modeli, uzman sinifi esikleri ve tek uzman kurali bozulmaz.
+     7) Yonetim yazma kapsami (2.27.0): yonetici yalniz atandigi isyerleri ve
+        kurumu kapsaminda yazar; kendine "tum isyerleri" veremez; kurum acma,
+        onay modeli ve sifirlama sistem geneli yetkiye baglidir.
+     8) Beyan edilen kapsam ile fiili erisim ayni kaynaktan hesaplanir.
    Calistirma: node test/yetkikapsam.js */
 const fs = require('fs');
 const path = require('path');
@@ -548,6 +552,310 @@ function kayitEkle(personelId, isyeriId, tarih) {
   girisYap(uzman);
   ok(ISG.yetki.yazmaModu('isyeri-1') === 'talep' && ISG.yetki.yazmaModu('isyeri-2') === 'kapsam-disi',
     'uzman onay akışı ve işyeri sınırı korunuyor');
+
+  /* 20) Yönetim yazma kapsamı (P2): `yonetir` rolü sınırsız yazma demek değil.
+     Bütün hesaplar ve kayıtlar sentetiktir; gerçek kullanıcı verisi kullanılmaz. */
+  console.log('\n20) Yönetim yazma kapsamı (P2)');
+  girisYap(kisitliYonetici);
+  var yKapsam = ISG.yetki.yonetimKapsami();
+  ok(yKapsam.yonetir === true && yKapsam.tum === false && yKapsam.isyerleri.join(',') === 'isyeri-1',
+    'sınırlı yöneticinin yönetim kapsamı atandığı işyeri', yKapsam.isyerleri.join(','));
+  ok(yKapsam.kurumlar.join(',') === 'kr-aski', 'yönetim kapsamı yalnız kendi kurumunu içerir', yKapsam.kurumlar.join(','));
+  ok(ISG.yetki.yonetimIsyeriVar('isyeri-2') === false && ISG.yetki.yonetimKurumVar('kr-baska') === false,
+    'kapsam dışı işyeri/kurum yönetim kapsamında değil');
+  ok(ISG.yetki.izin('isyeriSil', 'isyeri-1') === true && ISG.yetki.izin('isyeriSil', 'isyeri-2') === false,
+    'izin() yönetim işyeri hedefini kapsamla sınıyor');
+
+  /* 20a) İşyeri yazmaları: kapsam dışı güncelleme, silme ve yeni kayıt reddedilir. */
+  var disGuncelleme = hataMetni(function () { ISG.depo.isyeriKaydet({ id: 'isyeri-2', ad: 'Ele Gecirildi' }); });
+  ok(/yönetim kapsamınızda değil/.test(disGuncelleme), 'kapsam dışı işyeri güncellenemez', disGuncelleme);
+  ok(ISG.depo.al().isyerleri.filter(function (i) { return i.id === 'isyeri-2'; })[0].ad === 'ASKI - 2',
+    'reddedilen güncelleme kaydı bozmadı');
+  var disIsyeriSilme = hataMetni(function () { ISG.depo.isyeriSil('isyeri-2'); });
+  ok(/yönetim kapsamınızda değil/.test(disIsyeriSilme), 'kapsam dışı işyeri silinemez', disIsyeriSilme);
+  ok(!!ISG.depo.al().isyerleri.filter(function (i) { return i.id === 'isyeri-2'; })[0],
+    'reddedilen silme kaydı bozmadı');
+  var yabanciKurumIsyeri = hataMetni(function () {
+    ISG.depo.isyeriKaydet({ ad: 'Baska Kurum Isyeri', kurumId: 'kr-baska' });
+  });
+  ok(/kurum yönetim kapsamınızda değil/.test(yabanciKurumIsyeri), 'kapsam dışı kurumda işyeri açılamaz', yabanciKurumIsyeri);
+  var kurumsuzIsyeri = hataMetni(function () { ISG.depo.isyeriKaydet({ ad: 'Kurumsuz Isyeri' }); });
+  ok(/kuruma bağlı/.test(kurumsuzIsyeri), 'sınırlı yönetici kurumsuz işyeri açamaz', kurumsuzIsyeri);
+  ok(ISG.depo.al().isyerleri.length === 3, 'reddedilen denemeler işyeri sayısını değiştirmedi',
+    String(ISG.depo.al().isyerleri.length));
+  var kapsamIciGuncelleme = ISG.depo.isyeriKaydet({
+    id: 'isyeri-1', ad: 'ASKI - 1', kurumId: 'kr-aski', tehlikeSinifi: 'Az Tehlikeli'
+  });
+  ok(!!kapsamIciGuncelleme && kapsamIciGuncelleme.id === 'isyeri-1', 'kapsam içi işyeri güncellenebiliyor');
+
+  /* 20b) Kurum, global ayar ve sıfırlama yalnız sistem geneli yetkiye açıktır. */
+  ok(ISG.yetki.izin('kurumKaydet') === false, 'sınırlı yöneticide kurum oluşturma izni yok');
+  var kurumHatasi = hataMetni(function () { ISG.depo.kurumKaydet({ ad: 'Sizinti OSGB' }); });
+  ok(/sistem geneli/.test(kurumHatasi), 'sınırlı yönetici kurum açamaz', kurumHatasi);
+  var kurumSilmeHatasi = hataMetni(function () { ISG.depo.kurumSil('kr-baska'); });
+  ok(/sistem geneli/.test(kurumSilmeHatasi), 'sınırlı yönetici kurum silemez', kurumSilmeHatasi);
+  ok(ISG.depo.al().kurumlar.length === 2, 'kurum listesi değişmedi', String(ISG.depo.al().kurumlar.length));
+  var ayarHatasi = hataMetni(function () { ISG.depo.ayarKaydet({ kurum: 'Ele Gecirildi OSGB' }); });
+  ok(/sistem geneli/.test(ayarHatasi), 'kurum adı sınırlı yöneticide değiştirilemez', ayarHatasi);
+  var onayModeliHatasi = hataMetni(function () { ISG.depo.ayarKaydet({ onayModeli: 'isyeri' }); });
+  ok(/sistem geneli/.test(onayModeliHatasi), 'onay modeli sınırlı yöneticide değiştirilemez', onayModeliHatasi);
+  ok(ISG.yetki.onayModeli() === 'rol', 'reddedilen ayar değişikliği modele işlemedi');
+  var sifirlaHatasi = hataMetni(function () { ISG.depo.sifirla(); });
+  ok(/sistem geneli/.test(sifirlaHatasi), 'tüm veriyi sıfırlama sınırlı yöneticide reddedilir', sifirlaHatasi);
+  ok(ISG.depo.al().isyerleri.length === 3 && (ISG.depo.al().personel || []).length >= 3,
+    'reddedilen sıfırlama veriyi silmedi');
+
+  /* 20c) Kullanıcı yazmaları: ayrıcalık yükseltme ve kapsam dışı atama reddedilir. */
+  var kendineTum = hataMetni(function () {
+    ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-yon'), { tumIsyerleri: true }));
+  });
+  ok(/Tüm işyerleri/.test(kendineTum), 'sınırlı yönetici kendine "tüm işyerleri" veremez', kendineTum);
+  ok(ISG.depo.kullaniciBul('u-yon').tumIsyerleri !== true, 'yetki yükseltme veriye yazılmadı');
+  var kendineRol = hataMetni(function () {
+    ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-yon'), { rol: 'sistemYoneticisi' }));
+  });
+  ok(/Kendi rolünüzü|Sistem Yöneticisi rolü/.test(kendineRol), 'kendi rolünü yükseltemez', kendineRol);
+  var baskasinaSistem = hataMetni(function () {
+    ISG.depo.kullaniciKaydet({
+      id: '', adSoyad: 'Yeni Sistem', eposta: 'yeni.sistem@test.local', sifre: '1234',
+      rol: 'sistemYoneticisi', isyerleri: ['isyeri-1'], aktif: true
+    });
+  });
+  ok(/Sistem Yöneticisi rolü/.test(baskasinaSistem), 'sınırlı yönetici sistem yöneticisi atayamaz', baskasinaSistem);
+  ok(!ISG.depo.kullaniciEpostaBul('yeni.sistem@test.local'), 'reddedilen hesap oluşmadı');
+  var disIsyeriAtama = hataMetni(function () {
+    ISG.depo.kullaniciKaydet({
+      id: '', adSoyad: 'Kacak Uzman', eposta: 'kacak.uzman@test.local', sifre: '1234',
+      rol: 'yetkili', isyerleri: ['isyeri-9'], uzmanSinifi: 'A', aktif: true
+    });
+  });
+  ok(/yönetim kapsamınızda değil/.test(disIsyeriAtama), 'kapsam dışı işyerine atama yapılamaz', disIsyeriAtama);
+  var kapsamIciAtama = ISG.depo.kullaniciKaydet({
+    id: '', adSoyad: 'Kapsam Ici Uzman', eposta: 'kapsam.ici@test.local', sifre: '1234',
+    rol: 'yetkili', isyerleri: ['isyeri-1'], uzmanSinifi: 'B', aktif: true
+  });
+  ok(!!kapsamIciAtama && !!kapsamIciAtama.id, 'kapsam içi atama yazılabiliyor');
+  ok(ISG.yetki.kullaniciYonetimKapsaminda(kapsamIciAtama) === true, 'yeni hesap yönetim kapsamına girdi');
+  var disKullaniciSilme = hataMetni(function () { ISG.depo.kullaniciSil('u-osgb'); });
+  ok(/yönetim kapsamınızda değil/.test(disKullaniciSilme), 'kapsam dışı kullanıcı silinemez', disKullaniciSilme);
+  ok(!!ISG.depo.kullaniciBul('u-osgb'), 'reddedilen silme hesabı bozmadı');
+
+  /* 20d) Sistem geneli yetkili yönetici mevcut yetkilerini korur. */
+  girisYap(yonetici);
+  ok(ISG.yetki.yonetimKapsami().tum === true && ISG.yetki.izin('kurumKaydet') === true &&
+    ISG.yetki.izin('sifirla') === true, 'sistem geneli yetkili yönetici yönetim yetkilerini koruyor');
+  ok(ISG.depo.kurumKaydet({ id: 'kr-temiz', ad: 'Temizlik Kurumu' }).id === 'kr-temiz',
+    'tam yetkili yönetici kurum açabiliyor');
+  ISG.depo.kurumSil('kr-temiz');
+  ISG.depo.kullaniciSil(kapsamIciAtama.id);
+  ok(!ISG.depo.kullaniciEpostaBul('kapsam.ici@test.local'), 'test hesabı temizlendi');
+
+  /* 21) Atamasız yönetici: yönetim sınırı ve kilitlenmeyen bootstrap.
+     Atamasız yönetici kendi kapsamını alabilir; başkasına yetki veremez. */
+  console.log('\n21) Atamasız yönetici ve yönetim sınırı');
+  ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-atamasiz'),
+    { isyerleri: [], tumIsyerleri: false }));
+  girisYap(atamasizYonetici);
+  ok(ISG.yetki.atamaYok() === true, 'atamasız yönetici yeniden atamasız durumda');
+  var atamasizKapsam = ISG.yetki.yonetimKapsami();
+  ok(atamasizKapsam.tum === false && atamasizKapsam.isyerleri.length === 0,
+    'atamasız yöneticinin yönetim kapsamı boş', atamasizKapsam.isyerleri.join(','));
+  var atamasizTum = hataMetni(function () {
+    ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-atamasiz'), { tumIsyerleri: true }));
+  });
+  ok(/Tüm işyerleri/.test(atamasizTum), 'atamasız yönetici kendine "tüm işyerleri" veremez', atamasizTum);
+  var atamasizBaska = hataMetni(function () {
+    ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-uz'), { isyerleri: ['isyeri-1'] }));
+  });
+  ok(/yönetim kapsamınızda değil/.test(atamasizBaska), 'atamasız yönetici başka hesabı yönetemez', atamasizBaska);
+  ok(ISG.depo.kullaniciBul('u-uz').isyerleri.join(',') === 'isyeri-1', 'reddedilen yönetim hesabı bozmadı');
+  var atamasizKurum = hataMetni(function () { ISG.depo.kurumKaydet({ ad: 'Atamasiz OSGB' }); });
+  ok(/sistem geneli/.test(atamasizKurum), 'atamasız yönetici kurum açamaz', atamasizKurum);
+  var kendiAtama = ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-atamasiz'),
+    { isyerleri: ['isyeri-1'], tumIsyerleri: false }));
+  ok(!!kendiAtama && ISG.yetki.kapsam().join(',') === 'isyeri-1',
+    'atamasız yönetici kendi kapsamını alabiliyor (sistem kilitlenmiyor)', ISG.yetki.kapsam().join(','));
+  ok(ISG.yetki.kullaniciYonetimKapsaminda(ISG.depo.kullaniciBul('u-uz')) === true,
+    'kapsam alınınca kapsamdaki hesaplar yönetilebiliyor');
+
+  /* 21b) Son yönetici koruması: sistem kilitlenmez. */
+  girisYap(yonetici);
+  var hepsi = ISG.depo.al().kullanicilar;
+  var oncekiAktif = hepsi.map(function (kisi) { return kisi.aktif; });
+  hepsi.forEach(function (kisi) { if (kisi.id !== 'u1') { kisi.aktif = false; } });
+  ok(ISG.yetki.sonYoneticiMi(ISG.depo.kullaniciBul('u1')) === true,
+    'tek yönetici kalınca son yönetici koruması devreye girer');
+  var sonSilme = hataMetni(function () { ISG.depo.kullaniciSil('u1'); });
+  ok(/Son yönetici/.test(sonSilme), 'son yönetici hesabı silinemez', sonSilme);
+  var sonPasif = hataMetni(function () {
+    ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u1'), { aktif: false }));
+  });
+  ok(/Son yönetici/.test(sonPasif), 'son yönetici hesabı pasife alınamaz', sonPasif);
+  /* Rol düşürmesi de kilitleme üretir: hesap açık kalır ama yönetim kalmaz. */
+  var sonRol = hataMetni(function () {
+    ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u1'), { rol: 'goruntuleyici' }));
+  });
+  ok(/Son yönetici/.test(sonRol), 'son yönetici hesabının rolü düşürülemez', sonRol);
+  ok(ISG.depo.kullaniciBul('u1').rol === 'yonetici', 'reddedilen rol değişikliği kaydı bozmadı');
+
+  hepsi.forEach(function (kisi, sira) { kisi.aktif = oncekiAktif[sira]; });
+  ISG.depo.kaydet();
+  ok(ISG.yetki.sonYoneticiMi(ISG.depo.kullaniciBul('u1')) === false,
+    'diğer hesaplar geri açılınca koruma kalkıyor');
+  ok(ISG.depo.kullaniciBul('u1') !== null && ISG.depo.kullaniciBul('u-sis').aktif !== false,
+    'koruma testi hesapları bozmadı');
+
+  /* 22) Sistem yönetimi ekranları (P3/P4/P5/P8).
+     Ekranlar sentetik veriyle çizilir; hiçbir ağ/kayıt işlemi yapılmaz. */
+  console.log('\n22) Sistem yönetimi ekranları (P3/P4/P5/P8)');
+  girisYap(yonetici);
+  ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-atamasiz'),
+    { isyerleri: [], tumIsyerleri: false }));
+  /* P3: atamasız yönetici sistem yönetimi ekranını açabilir (P2'yi kapatmak için). */
+  girisYap(atamasizYonetici);
+  pencere.location.hash = '#sistem';
+  ISG.uygulama.ciz();
+  var sistemMetni = String((belge.getElementById('gorunum') || {}).textContent || '');
+  ok(/Sistem uyarıları ve hata durumları/.test(sistemMetni) && /Veri tutarlılığı/.test(sistemMetni),
+    'atamasız yönetici sistem yönetimi ekranını açabiliyor (P3)', sistemMetni.slice(0, 70));
+  ok(!/Henüz işyeri atamanız bulunmuyor/.test(sistemMetni),
+    'sistem ekranı atama uyarısıyla kapanmıyor (P3)');
+
+  /* P4: sınırlı yönetici kurum tablosunda yalnız kendi kurumunu görür. */
+  girisYap(kisitliYonetici);
+  pencere.location.hash = '#sistem';
+  ISG.uygulama.ciz();
+  sistemMetni = String((belge.getElementById('gorunum') || {}).textContent || '');
+  ok(/ASKI OSGB/.test(sistemMetni) && !/Baska OSGB/.test(sistemMetni),
+    'sistem ekranı kurum tablosu yönetim kapsamıyla sınırlı (P4)', sistemMetni.slice(0, 70));
+  ok(!belge.querySelector('#gorunum [data-islem="sistem-kurum-kaydet"]'),
+    'sınırlı yöneticide kurum oluşturma düğmesi yok');
+  ok(ISG.yetki.yonetimVerisi().kurumlar.length === 1,
+    'yönetim verisi tek kurum döndürüyor', String(ISG.yetki.yonetimVerisi().kurumlar.length));
+
+  /* P5: kullanıcı listesi başka kurumun hesaplarını göstermez. */
+  pencere.location.hash = '#ekip';
+  ISG.uygulama.ciz();
+  var ekipMetni = String((belge.getElementById('gorunum') || {}).textContent || '');
+  var gorunenKullanicilar = ISG.yetki.yonetimVerisi().kullanicilar.map(function (k) { return k.id; }).sort();
+  ok(gorunenKullanicilar.join(',') === 'u-iki,u-uz,u-yon',
+    '#ekip yalnız yönetim kapsamındaki hesapları listeliyor (P5)', gorunenKullanicilar.join(','));
+  ok(!/Dokuzuncu|sistem@test\.local|osgb@test\.local/.test(ekipMetni),
+    '#ekip başka kurumun hesaplarını göstermiyor (P5)');
+  ok(!/mehmetkurt0948/.test(ekipMetni), '#ekip kapsam dışı yönetici hesabını göstermiyor (P5)');
+
+  /* P8: "Tüm işyerleri" yalnız fiilen tüm işyerlerine erişen hesapta yazılır. */
+  var isaretliMudur = Object.assign({}, osgbMudur, { tumIsyerleri: true });
+  var mudurMetni = ISG.yetki.kapsamMetni(isaretliMudur, ISG.depo.al());
+  ok(!/^Tüm işyerleri/.test(mudurMetni), 'kurum kapsamlı rolde "tüm işyerleri" işareti metne yazılmıyor (P8)', mudurMetni);
+  ok(/yok sayılır/.test(mudurMetni), 'yok sayılan işaret metinde açıkça belirtiliyor', mudurMetni);
+  ok(ISG.yetki.kullaniciErisim(isaretliMudur).indexOf('isyeri-9') < 0,
+    'işaret fiilî erişimi genişletmiyor');
+  girisYap(yonetici);
+  ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-osgb'), { tumIsyerleri: true }));
+  pencere.location.hash = '#ekip';
+  ISG.uygulama.ciz();
+  var osgbSatiri = Array.prototype.slice.call(belge.querySelectorAll('#gorunum .kullanici-satir'))
+    .filter(function (satir) { return /OSGB Muduru/.test(satir.textContent); })[0];
+  ok(!!osgbSatiri && !/Tüm işyerleri/.test(osgbSatiri.textContent),
+    '#ekip OSGB Müdürü satırında "Tüm işyerleri" yazmıyor (P8)',
+    osgbSatiri ? osgbSatiri.textContent.slice(0, 80) : 'satır yok');
+  ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-osgb'), { tumIsyerleri: false }));
+
+  /* 22b) Yeni ekranlar: kullanıcı ayrıntısı, işyeri ayrıntısı, işlem geçmişi,
+     veri tutarlılığı ve erişim ≠ görevlendirme bloğu çiziliyor. */
+  pencere.location.hash = '#sistem';
+  ISG.uygulama.ciz();
+  var detayDugme = belge.querySelector('#gorunum [data-islem="sistem-kullanici-detay"]');
+  ok(!!detayDugme, 'sistem ekranında kullanıcı ayrıntısı düğmesi var');
+  if (detayDugme) {
+    detayDugme.click();
+    var panel = belge.getElementById('sistemKullaniciDetay');
+    ok(!!panel, 'kullanıcı ayrıntısı paneli açıldı');
+    if (panel) {
+      var panelMetni = panel.textContent;
+      ok(/Beyan edilen kapsam/.test(panelMetni) && /Fiilî erişim/.test(panelMetni) &&
+        /Onay yetkilisi olduğu işyerleri/.test(panelMetni),
+        'ayrıntı paneli beyan ile fiilî erişimi ayrı gösteriyor', panelMetni.slice(0, 60));
+      panel.querySelector('[data-islem="sistem-kullanici-detay"]').click();
+      ok(!belge.getElementById('sistemKullaniciDetay'), 'kullanıcı ayrıntısı paneli kapatılabiliyor');
+    }
+  }
+  var isyeriDetayDugme = belge.querySelector('#gorunum [data-islem="sistem-isyeri-detay"]');
+  ok(!!isyeriDetayDugme, 'sistem ekranında işyeri ayrıntısı düğmesi var');
+  if (isyeriDetayDugme) {
+    isyeriDetayDugme.click();
+    ok(!!belge.getElementById('sistemIsyeriDetay'), 'işyeri ayrıntısı paneli açıldı');
+    belge.querySelector('#sistemIsyeriDetay [data-islem="sistem-isyeri-detay"]').click();
+    ok(!belge.getElementById('sistemIsyeriDetay'), 'işyeri ayrıntısı paneli kapatılabiliyor');
+  }
+  var sonMetin = String((belge.getElementById('gorunum') || {}).textContent || '');
+  ok(/İşlem geçmişi/.test(sonMetin), 'işlem geçmişi bölümü çiziliyor');
+  ok(/Veri tutarlılığı/.test(sonMetin), 'veri tutarlılığı bölümü çiziliyor');
+  ok(/Erişim ve görevlendirme ayrımı/.test(sonMetin), 'erişim ve görevlendirme ayrımı bölümü çiziliyor');
+  ok(/Rol yetkileri/.test(sonMetin) && /Onay yetkilisi eksik işyerleri/.test(sonMetin),
+    'mevcut sistem yönetimi bölümleri korunuyor');
+
+  /* 23) Beyan edilen kapsam ile fiilî erişim tek kaynaktan hesaplanır. */
+  console.log('\n23) Beyan edilen kapsam = fiilî erişim');
+  girisYap(kisitliYonetici);
+  ok(ISG.yetki.kapsam().join(',') === ISG.yetki.kullaniciErisim(ISG.yetki.oturum()).join(','),
+    'oturum kapsamı ile kullanıcı erişimi aynı sonucu veriyor', ISG.yetki.kapsam().join(','));
+  girisYap(ikiIsyeriYoneticisi);
+  ok(ISG.yetki.kapsam().join(',') ===
+    ISG.yetki.kullaniciErisim(ISG.depo.kullaniciBul('u-iki')).join(','),
+    'iki işyerli yöneticide iki hesap aynı', ISG.yetki.kapsam().join(','));
+  girisYap(osgbMudur);
+  ok(ISG.yetki.kapsam().join(',') ===
+    ISG.yetki.kullaniciErisim(ISG.depo.kullaniciBul('u-osgb')).join(','),
+    'kurum kapsamlı rolde iki hesap aynı', ISG.yetki.kapsam().join(','));
+  girisYap(yonetici);
+  ok(ISG.yetki.kapsam().length === ISG.yetki.kullaniciErisim(ISG.depo.kullaniciBul('u1')).length,
+    'açık "tüm işyerleri" yetkisinde iki hesap aynı');
+  /* Silinmiş işyerine kalan atama erişim üretmez (beyan ≠ fiilî erişim). */
+  ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-iki'),
+    { isyerleri: ['isyeri-1', 'isyeri-2', 'iy-silinmis'] }));
+  ok(ISG.yetki.kullaniciErisim(ISG.depo.kullaniciBul('u-iki')).join(',') === 'isyeri-1,isyeri-2',
+    'silinmiş işyerine atama erişim üretmiyor',
+    ISG.yetki.kullaniciErisim(ISG.depo.kullaniciBul('u-iki')).join(','));
+  ok(/silinmiş işyeri/.test(ISG.yetki.kapsamMetni(ISG.depo.kullaniciBul('u-iki'), ISG.depo.al())),
+    'beyan metni silinmiş işyerini işaretliyor');
+  ISG.depo.kullaniciKaydet(Object.assign({}, ISG.depo.kullaniciBul('u-iki'),
+    { isyerleri: ['isyeri-1', 'isyeri-2'] }));
+  ok(ISG.yetki.kullaniciErisim(ISG.depo.kullaniciBul('u-iki')).join(',') === 'isyeri-1,isyeri-2',
+    'temizlik sonrası atama korunuyor');
+
+  /* 24) Şifre değiştirme sınırı (2.27.0).
+     `depo.sifreGuncelle` alt seviye mutatördür; şifreyi düz metin yazdığı için
+     oturum ve kapsam denetiminden geçmelidir. Oturumsuz meşru yol şifre
+     sıfırlamadır (bkz. tools/kontrol.js 12d bölümü). */
+  console.log('\n24) Şifre değiştirme sınırı');
+  const uzmanEposta = 'uzman@test.local';
+  const uzmanSifreOnce = ISG.depo.kullaniciEpostaBul(uzmanEposta).sifre;
+  if (ISG.yetki.oturum()) { ISG.yetki.oturumKapat(); }
+  const oturumsuzSifre = hataMetni(() => ISG.depo.sifreGuncelle(uzmanEposta, 'ele-gecirildi'));
+  ok(/oturum/i.test(oturumsuzSifre) && ISG.depo.kullaniciEpostaBul(uzmanEposta).sifre === uzmanSifreOnce,
+    'oturum yokken şifre değiştirme reddediliyor ve veri değişmiyor', oturumsuzSifre);
+
+  girisYap(kisitliYonetici);
+  const kapsamDisiSifre = hataMetni(() => ISG.depo.sifreGuncelle('sistem@test.local', 'ele-gecirildi'));
+  ok(/sistem geneli/.test(kapsamDisiSifre) &&
+    ISG.depo.kullaniciEpostaBul('sistem@test.local').sifre === '1234',
+    'sınırlı yönetici başka hesabın şifresini değiştiremiyor', kapsamDisiSifre);
+  const kendiSifre = ISG.depo.sifreGuncelle('yon@test.local', 'kendi-yeni-1');
+  ok(!!kendiSifre && kendiSifre.sifre === 'kendi-yeni-1',
+    'oturum sahibi kendi şifresini değiştirebiliyor');
+  ISG.depo.sifreGuncelle('yon@test.local', '1234');
+  ok(ISG.yetki.denetimListe().some(function (kayit) { return kayit.islem === 'sifreGuncelle'; }),
+    'şifre değişikliği denetim izine yazılıyor');
+
+  girisYap(sistemYoneticisi);
+  const destekSifre = ISG.depo.sifreGuncelle(uzmanEposta, 'destek-yeni-2');
+  ok(!!destekSifre && destekSifre.sifre === 'destek-yeni-2',
+    'sistem geneli yetkili yönetici destek amacıyla şifre değiştirebiliyor');
+  ISG.depo.sifreGuncelle(uzmanEposta, uzmanSifreOnce);
+  ok(ISG.giris.kullaniciDogrula(uzmanEposta, uzmanSifreOnce).id === 'u-uz',
+    'geri alınan şifreyle giriş doğrulaması çalışıyor');
 
   const basarisiz = !!process.exitCode;
   console.log(basarisiz ? 'BAZI YETKİ KAPSAMI TESTLERİ BAŞARISIZ' : 'TÜM YETKİ KAPSAMI TESTLERİ GEÇTİ');

@@ -35,10 +35,12 @@ kayıt tabloları.
 | **Mevzuat ve kapsam** | 20 başlıklı katalog (kanun/yönetmelik/tebliğ/rehber/standart), kategori ve konu araması, teyit durumu, seçili işyeri kapsam özeti, Mevzuat Bilgi Sistemi bağlantısı |
 | **Onay kuyruğu** | Yetkili kullanıcıların yazma işlemlerinden doğan talepler: işlem özeti, işyeri, talep sahibi, **dağıtık onay yetkilisi** bilgisi, onayla / reddet, bekleyen sayısı rozeti, denetim izi |
 | **Kurum denetim panosu** | Yalnızca **OSGB Müdürü** görür (salt okunur): kurumun işyeri sayısı, kullanıcı sayısı, **onay yetkilisi eksik işyeri** sayacı, bekleyen talep sayacı, işyeri başına uzman sayısı + onay durumu (tek uzman / onay zorunlu / yetkili eksik / uzman yok) + eşik sınıfı, son 20 talep ve kurum ekibi listesi |
-| **Sistem yönetimi** | Yalnızca **Sistem Yöneticisi** (ve mevcut Yönetici) görür: kurum (OSGB) oluşturma/düzenleme, işyeri listesi (kurum, tehlike sınıfı, çalışan, personel, onay durumu) ve düzenleme, kullanıcı/rol/uzman sınıfı/atama yönetimi, rol yetki özeti tablosu, **sistem uyarı ve hata listesi** (onay yetkilisi eksiği, bekleyen talep, vadesi geçen kayıt, eşitleme hatası), bekleyen talepleri onaylama/reddetme, onay yetkilisi eksik işyerleri ve rapor bağlantıları |
+| **Sistem yönetimi** | **Sistem Yöneticisi** görür; **Yönetici** kendi atandığı işyerlerinin kayıtlarıyla sınırlı olarak görür: kurum (OSGB) oluşturma/düzenleme (sistem geneli), işyeri listesi (kurum, tehlike sınıfı, çalışan, personel, onay durumu) ve düzenleme, kullanıcı/rol/uzman sınıfı/atama yönetimi, rol yetki özeti tablosu, **sistem uyarı ve hata listesi** (onay yetkilisi eksiği, bekleyen talep, vadesi geçen kayıt, eşitleme hatası), bekleyen talepleri onaylama/reddetme, onay yetkilisi eksik işyerleri ve rapor bağlantıları |
 
 Ek yetenekler: `localStorage` kalıcılığı, **isteğe bağlı Supabase bulut
-eşitlemesi** (cihazlar arası ortak kayıt), JSON yedek al / geri yükle, işyeri
+eşitlemesi** (cihazlar arası ortak kayıt), JSON yedek işlevleri
+(`depo.disariAktar` / `depo.iceAktar`; **arayüzde düğmesi yoktur**, test/tool
+yolu olarak durur), işyeri
 kapsam filtresi (tüm ekranlarda), menüyü gizleme, mobil menü, yazdırma dostu
 görünüm, klavye erişilebilir `<dialog>` formları, personel için gerçek
 **XLSX** (şablon + dışa/içe aktarma) desteği, diğer listeler için CSV dışa
@@ -74,14 +76,30 @@ kuralı üzerinden `true` döner; diğer herkes kullanıcı kaydındaki
 **hiçbir işyeri görmez**: uygulama, sayfa yerine *"Henüz işyeri atamanız
 bulunmuyor. Sisteme erişebilmek için yetkili yönetici tarafından işyeri
 atamanız yapılmalıdır."* uyarısını gösterir (`ISG.yetki.atamaYok()`).
-Atamasız hesapta **Kullanıcılar ve yetkiler** ile **İşyerleri** ekranları açık
-kalır; çünkü atama yalnızca buradan yapılabilir (kullanıcı formundaki
-işyeri/kurum seçenekleri `atamaIsyerleri` / `atamaKurumlar` tam listesinden
-gelir, kayıt verisi ise kapsam süzgecinden okunur). Sağlık verisi için işyeri
+Atamasız hesapta **Kullanıcılar ve yetkiler**, **İşyerleri** ve **Sistem
+yönetimi** ekranları açık kalır; çünkü atama yalnızca buradan yapılabilir
+(kullanıcı formundaki işyeri/kurum seçenekleri `atamaIsyerleri` / `atamaKurumlar`
+tam listesinden gelir, kayıt verisi ise kapsam süzgecinden okunur). Sistem
+yönetimi ekranı yönetim yetkisi olmayan atamasız hesapta yalnız uyarı gösterir;
+yönetim işlemleri `yonetimKapsami()` denetiminden geçer. Sağlık verisi için işyeri
 ataması **ve** görüntüleme yetkisi birlikte aranır; yönetim rolü tek başına
 sağlık verisi okuma hakkı vermez. Kapsam dışı hedefe yapılan doğrudan yazma
 (işyeri ya da kayıt kimliği bilinse bile) "Bu işyeri yetki kapsamınızda değil."
 hatasıyla reddedilir.
+
+**Yönetim yazmaları da kapsama bağlı (2.27.0).** `yonetir` rolü yönetim
+işleminin sınırını belirlemez: `isyeriKaydet/isyeriSil`, `kullaniciKaydet/
+kullaniciSil` ve `ayarKaydet` çağrıları **depo yazımından önce**
+`ISG.yetki.yonetimKapsami()` denetiminden geçer. Sistem Yöneticisi ve açık
+**"Tüm işyerleri"** yetkisi sistem geneli çalışır; **Yönetici** yalnız atandığı
+işyerlerini ve o işyerlerinin kurumlarını yönetir (`kurumKaydet/kurumSil`,
+`sifirla`, Sistem Yöneticisi rolü dağıtımı ve "Tüm işyerleri" verme yalnız
+sistem geneli yetkide açıktır). Sınırlı yönetici kendi rolünü değiştiremez;
+son aktif yönetici silinemez, pasife alınamaz, rolü düşürülemez. Atamasız
+yönetici **Sistem yönetimi** ekranını da açabilir (kendi atamasını yapabilsin
+diye) ama sistem ekranındaki kurum/işyeri/kullanıcı/talep listeleri
+`ISG.yetki.yonetimVerisi()` kapsam süzgecinden gelir: sınırlı yönetici başka
+kurumun kaydını görmez.
 
 **Kurum (OSGB) ve uzman sınıfı.** Her işyeri bir `kurumId` taşır; üst düzey
 `kurumlar` listesi kurum kayıtlarını tutar. Yetkili kullanıcıda **uzman sınıfı**
@@ -1066,16 +1084,23 @@ Notlar:
 
 ## 8. Bilinen sınırlar
 
-- Yayınlanan site boş açılır; **örnek veriler** yalnızca `Örnek veri` düğmesiyle
-  gelir ve **gerçek kurum verisi değildir** — sayılar ve tarihler örnek amaçlı
-  üretilir. Sağlık verisi, TC kimlik no ve kişisel dosya içeriği bu ortamda
-  saklanmamalıdır.
+- Yayınlanan site **boş açılır**: demo / örnek veri düğmesi arayüzden
+  kaldırılmıştır. Örnek veri yalnızca testlerde `tools/demo-veri.js`
+  fixture'ından gelir ve **gerçek kurum verisi değildir** — sayılar ve tarihler
+  örnek amaçlı üretilir. Sağlık verisi, TC kimlik no ve kişisel dosya içeriği bu
+  ortamda saklanmamalıdır.
 - Veriler önce tarayıcının `localStorage` alanında tutulur; gizli sekmede veya
   depolama temizlendiğinde kaybolur. Cihazlar arası paylaşım için isteğe bağlı
   **Supabase** eşitlemesi vardır ([1.3](#13-cihazlar-arası-ortak-kayıt-supabase)),
   ancak orada da kullanıcı doğrulaması yoktur: oda kodunu bilen herkes veriyi
   okuyup yazabilir. Gerçek çok kullanıcılı kurulum için Supabase Auth + RLS
-  politikaları gerekir.
+  politikaları gerekir. **Somut sonucu (R6):** bulut eşitlemesi gelen veriyi
+  `depo.yukle` ile yerleştirdiği ve bu işlev oturum denetiminden geçmediği için
+  gelen veri kümesindeki `kullanicilar[].sifre` yerel kaydın üzerine yazar;
+  yani parola sıfırlama yolu dışarıdan tetiklenebilir. İstemci tarafında
+  eklenecek "yerel parolayı koru" kuralı gerçek bir sınır üretmez, çünkü aynı
+  yazma doğrudan Supabase satırına da yapılabilir; çözüm sunucu tarafı
+  yetkilendirmedir (2.27.0 sürüm notlarında R4/R6 maddeleri).
 - Belge ekleri de `localStorage` içinde base64 olarak tutulur: tarayıcı kotası
   genelde 5 MB olduğu için belge başına sınır **1 MB**, toplamda birkaç belge
   pratik sınırdır. Daha büyük arşivler için dosya sunucusu / bulut depolama
@@ -1097,6 +1122,26 @@ Notlar:
   gerekir. Servis tanımlı değilse kod ekranda gösterilir ve bu durum açıkça
   uyarılır. Sunucu tarafı doğrulama olmadığı için bu akış güvenlik sınırı
   değildir.
+- **Şifre değiştirme yalnız iş kuralı düzeyinde korunur (2.27.0).**
+  `depo.sifreGuncelle` artık oturum ve kapsam denetiminden geçer (oturum yoksa
+  ret; kendi şifresi ya da sistem geneli yetkili yönetici), ancak parolalar
+  `localStorage` içinde **düz metin** tutulmaya devam eder ve geliştirici
+  araçlarıyla depo doğrudan yazılabildiği için bu mutlak bir güvenlik sınırı
+  değildir. Parola özeti (hash) + sunucu tarafı oturum ayrı bir geçiş
+  gerektirir; **mevcut hesapların parolaları otomatik değiştirilmez** ve ilk
+  girişte parola değiştirme zorunluluğu getirilmemiştir.
+- **Yedek geri yükleme arayüzde yoktur.** Yedek al / yedekten geri yükle
+  düğmeleri kaldırıldı; `depo.iceAktar` yalnızca **test/tool işlevi** olarak
+  durur ve kapsam denetiminden geçmez (yönetici oturumu yeterlidir, sistem
+  geneli yetki aranmaz — açık risk). Bulut eşitlemesi ayrı yolu
+  (`depo.yukle`) kullanır; `depo.geriYukle` / `depo.damgala` / `depo.birlestir`
+  alt seviye işlevleri de oturum denetimi olmadan çağrılabilir.
+- **Üretim bağlantısı kullanan test yoktur (2.27.0).**
+  `test/bulutgiristest.js` gerçek Supabase satırını çekmeyi bıraktı; sentetik
+  veri ve stub `fetch` (0 ağ çağrısı) ile çalışır, dosyada gerçek adres / oda
+  kodu / hesap / parola tutulmaz. Buna karşılık **gömülü `anon` anahtarı ve oda
+  kodu** siteyle birlikte yayınlanır; RLS uygulanana kadar odayı bilen herkes
+  veriyi okuyup yazabilir (bkz. yukarıdaki Supabase maddesi).
 - Personel listesi gerçek `.xlsx` (Office Open XML) olarak indirilip yüklenir;
   diğer ekranların "Excel indir" düğmeleri hâlâ `.csv` (UTF-8 BOM, noktalı
   virgül) üretir. Şablon tarih hücrelerini `YYYY-AA-GG` metnine çevirir; birleşik
@@ -1133,6 +1178,102 @@ Notlar:
    güncelleme bildirimi.
 
 ## 10. Bu sürümde neler değişti?
+
+### 2.27.0 — Yönetim yazmaları kapsama bağlandı; sistem yönetimi ekranları tamamlandı
+
+- **Yönetim yazmalarında kapsam denetimi (P2).** `yonetir` rolü artık işlemin
+  **sınırını** belirlemez. `isyeriKaydet/isyeriSil`,
+  `kullaniciKaydet/kullaniciSil`, `ayarKaydet`, `kurumKaydet/kurumSil` ve
+  `sifirla` çağrıları depo yazımından **önce** `yonetimKapsami()` +
+  `ADMIN_DENETIM` denetiminden geçer. Sistem Yöneticisi ve açık **"Tüm
+  işyerleri"** yetkisi sistem geneli çalışır; **Yönetici** yalnız atandığı
+  işyerlerini ve o işyerlerinin kurumlarını yönetir. Kapsam dışı hedefte
+  *"Bu işyeri yönetim kapsamınızda değil."*, *"Bu kurum yönetim kapsamınızda
+  değil."*, *"Bu kullanıcı yönetim kapsamınızda değil."* döner ve **veri
+  değişmez** (ret yazımdan öncedir).
+- **Kurum açma/silme, tüm veriyi sıfırlama ve yönetim rolü dağıtımı sistem
+  geneli.** `izin()` de aynı sınırı uygular; sınırlı yönetici bu işlemleri
+  menüde görse bile yapamaz. Yönetici rolü için en az bir işyeri ataması
+  zorunludur. **Atamasız yönetici kilitlenmez:** yalnız **kendi** hesabına
+  atama yapabilir (bootstrap; mevcut işyerlerinden seçer), başka hesaba atama
+  ve yönetim rolü veremez.
+- **Kimlik yükseltme kapalı.** Sınırlı yönetici kendi rolünü değiştiremez,
+  kendine "Tüm işyerleri" veremez, **Sistem Yöneticisi** rolünü atayamaz ve
+  yönetici hesabı silemez; bu işlemler yalnız sistem geneli yetkili yöneticiye
+  açıktır. Sistem geneli yetkili yönetici kendi rolünü değiştirebilir; tek
+  yönetici kalıyorsa aşağıdaki kilitlenme koruması devreye girer.
+- **Kilitlenme koruması.** Son aktif yönetici hesabı silinemez, pasife alınamaz
+  **ve rolü düşürülemez** (`sonYoneticiMi`; kapsamdan bağımsız, depo
+  sarmalayıcısında çalışır).
+- **Atamasız yönetici sistem ekranını açar (P3).** `ATAMASIZ_SAYFALAR` listesine
+  `sistem` eklendi: atamasız yönetici veri sayfalarında uyarı görürken
+  **Kullanıcılar ve yetkiler / İşyerleri / Sistem yönetimi** ekranlarından kendi
+  atamasını yapabilir.
+- **Sistem ekranı kapsam süzgecinden okur (P4/P5).** Kurum, işyeri, kullanıcı ve
+  talep listeleri `ISG.yetki.yonetimVerisi()` üzerinden gelir; sınırlı yönetici
+  başka kurumun kaydını görmez, sistem geneli yetkide liste tamdır. Kullanıcı
+  formundaki işyeri seçenekleri yetkili işyerleriyle sınırlı, "Tüm işyerleri"
+  kutusu yalnız sistem geneli yetkide açıktır. Denetim izi de kapsam süzgecinden
+  okunur (kendi işlemleri + kapsamındaki işyeri/kullanıcı kayıtları).
+- **Beyan edilen kapsam ≠ fiilî erişim (P8).** `kapsamMetni()` tek kaynak oldu:
+  "Tüm işyerleri" yalnız **fiilen** bütün işyerlerine erişen hesapta yazılır
+  (kurum kapsamlı rolde işaret yok sayılır ve metinde açıkça belirtilir);
+  silinmiş işyerine kalan atama erişim üretmez, listede *"(silinmiş işyeri)"*
+  olarak görünür. `kullaniciErisim()` oturum kapsamıyla **aynı** hesabı kullanır.
+  Sistem ekranına **kullanıcı ayrıntısı** (rol/durum, beyan edilen kapsam, fiilî
+  erişim, onay yetkilisi olduğu işyerleri, erişimi olup sınıf eşiğini
+  karşılamadığı işyerleri, son işlemler) ve **işyeri ayrıntısı** panelleri
+  eklendi; mevcut bölümler (rol yetkileri, onay yetkilisi eksik işyerleri, işlem
+  geçmişi, veri tutarlılığı, erişim ve görevlendirme ayrımı) korunur.
+- **Testler.** `test/yetkikapsam.js` 20–23. bölümler: kapsam dışı yönetim reddi,
+  kimlik yükseltme denemeleri, kurum açma/sıfırlama reddi, son yönetici koruması
+  (silme/pasif/**rol düşürme**), atamasız yöneticinin sistem ekranı, kapsam
+  süzgeçli listeler, ayrıntı panelleri ve beyan/fiilî erişim eşitliği.
+- **Yedek geri yükleme arayüzde YOK — gerçek durum.** Depoda `iceAktar` /
+  `disariAktar` işlevleri durur, ancak **yedek al / yedekten geri yükle
+  düğmeleri arayüzden kaldırılmıştır** (`#yedekle` / `#geriYukle` ve
+  `ornekVeriDugme` yok; bkz. `tools/kontrol.js`). `iceAktar` bugün
+  **test/tool işlevidir**: `tools/demo-veri.js` fixture'ı `tools/kontrol.js`,
+  `tools/belge-test.js`, `tools/acil-tarih-dogrula.js` ve `test/yetkikapsam.js`
+  içinde bu yolu kullanır. **Bulut eşitlemesi `iceAktar` üzerinden yürümez:**
+  `bulut.js` gelen birleşik veriyi `depo.yukle()` ile yerleştirir; `iceAktar`
+  yalnızca `depo.yukle` bulunamazsa yedek yol olarak çağrılır.
+- **Açık risk (R1) — `iceAktar` kapsam denetimi yok.** `ADMIN_KORUMA` listesinde
+  yer aldığı için yönetici rolü ve oturum aranır, ancak **kapsam
+  (`yonetimKapsami().tum`) aranmaz**: yetkili herhangi bir yönetici tüm veri
+  kümesini tek çağrıyla değiştirebilir (kapsam dışı işyeri/personel yazılır,
+  `senkron.silinen` sıfırlanır, sonrasında buluta tam gövde gönderilir).
+  Arayüzde tetikleyicisi olmadığı için erişim geliştirici konsoluyla sınırlıdır;
+  sınırın kapatılması sistem geneli yetki şartı gerektirdiği ve fixture
+  yüklemelerinin (`kontrol.js`, `belge-test.js`, `acil-tarih-dogrula.js`,
+  `yetkikapsam.js`) tam yetkili hesapla taşınmasını zorunlu kıldığı için
+  **2.27.0 sonrasına bırakılmıştır** (backlog).
+- **Şifre değiştirme sınırı (R3, düzeltildi).** `depo.sifreGuncelle` alt seviye
+  mutatörü artık yetki katmanından geçer: **oturum yoksa çağrı reddedilir**
+  (veriye dokunulmaz), oturum sahibi yalnız **kendi** şifresini değiştirebilir,
+  başka hesabın şifresini yalnızca **sistem geneli yetkili yönetici**
+  değiştirebilir ve her değişiklik denetim izine yazılır. Şifre sıfırlama akışı
+  oturumsuz çalışmaya devam eder: e-posta kodu doğrulandıktan sonra
+  `yetki.korunmasiz('sifreGuncelle')` çağrılır (`giris.js` → `sifreSifirla`).
+- **Test ağı kesildi (R5, düzeltildi).** `test/bulutgiristest.js` üretim
+  Supabase satırını çekmeyi bıraktı: sentetik veri + stub `fetch` ile çalışır
+  (ağ çağrısı sayısı 0), dosyada gerçek adres, oda kodu, e-posta veya parola
+  yoktur; gömülü bulut kimliği testte devre dışı bırakılır.
+- **Supabase RLS yok (R4, açık).** Tablo politikası `for all to anon
+  using (true) with check (true)`; gömülü `anon` anahtarı tasarımı gereği
+  herkese açıktır. Yani istemci tarafı yetki kuralları **güvenlik sınırı
+  değildir**. Canlıya yayın öncesi RLS + Supabase Auth geçişi tamamlanmalıdır
+  (bkz. §8 Bilinen sınırlar).
+- **R4'ün somut sonucu — hesap devralma (R6, açık, yüksek).** `depo.yukle` ve
+  `depo.birlestir` oturum denetiminden geçmediği için gelen veri kümesindeki
+  `kullanicilar[].sifre` alanı yerel kaydın üzerine yazılır. Oturum **yokken**
+  çağrılan bir yükleme, yönetici hesabının parolasını değiştirebiliyor
+  (2.27.0'da sonda ile doğrulandı: `1234` → dışarıdan verilen değer, kurum adı
+  da değişti). Aynı etki bulut satırına doğrudan yazılarak da elde edilir,
+  çünkü `anon` anahtarı istemcidedir. Bu yüzden **çözüm istemci tarafında
+  parola koruma kuralı eklemek değil**, R4'teki sunucu tarafı yetkilendirmedir;
+  `yukle`/`birlestir`/`damgala` sarmalayıcıları geçici bir yumuşatma olarak
+  değerlendirilmelidir. R4 ile birlikte, **canlıya yayın öncesi** kapatılmalıdır.
 
 ### 2.26.0 — Rol ≠ kapsam: atamasız yönetici artık hiçbir işyerini görmüyor
 
@@ -1271,7 +1412,8 @@ Notlar:
   yanıtlar** (Excel çalışma kitabı, sağlık kaydı ön izlemesi) yeni ekranı
   ezmez. Oturum değişiminde de önceki kullanıcının seçimleri devralınmaz;
   yetkiler her zaman kullanıcı kaydından okunur.
-- **Doğrulama.** Yeni `test/yetkikapsam.js` (65 kontrol) sentetik veriyle:
+- **Doğrulama.** Yeni `test/yetkikapsam.js` (2.26.0'da 65 kontrol; 2.27.0'da
+  **206** kontrol) sentetik veriyle:
   OSGB Müdürü menü/ekran erişimi, kurum sınırı, salt okunurluk, onay akışı,
   ASKI-1 → ASKI-2 geçişinde veri temizliği, kapsam dışı liste/silme/yazma
   reddi, Excel kaynağının kapsamı, onay eşikleri ve tek uzman kuralının
