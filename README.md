@@ -113,21 +113,29 @@ kurumun kaydını görmez.
 
 **İki onay modeli.** `ayarlar.onayModeli` boş/`rol` iken bugünkü davranış sürer:
 yönetici doğrudan yazar, diğer yazarların değişikliği talebe dönüşür. Değer
-`isyeri` yapıldığında onay işyeri bazına iner: işyerinde **tek aktif uzman**
-varsa o uzman doğrudan yazar; **birden çok uzman** varsa tehlike sınıfına uygun
+`isyeri` yapıldığında onay işyeri bazına iner ve **işyeri kaydındaki uzman
+görevlendirmesine** bakar (2.28.0, A′): işyerinde **tek aktif uzman** varsa o
+uzman doğrudan yazar; **birden çok uzman** varsa tehlike sınıfına uygun
 sınıftaki uzman(lar) onay yetkilisidir ve diğerlerinin değişikliği talebe döner;
 uygun sınıfta uzman yoksa talep **"onay yetkilisi eksik"** durumunda bekler ve
-onaylanamaz. Pasif hesaplar onay yetkilisi sayılmaz. Model ayrı bir anahtarla
-açıldığı için canlı veri tek hamlede davranış değiştirmez; anahtar silinirse
-eski davranışa dönülür. `ISG.yetki.onayDurumu(isyeriId)` bu kararı
-(`tekUzman` / `onayli` / `eksik` / `uzman-yok`) ve eşik sınıflarını döndürür;
-onay kuyruğu, kurum panosu ve `tools/yetki-envanter.js` aynı hesabı kullanır.
+onaylanamaz. Görevlendirme **veri erişimi vermez**: uzmanın rolü ve işyeri
+kapsamı değişmez, yalnız onay akışı etkilenir. Pasif hesaplar onay yetkilisi
+sayılmaz. Model ayrı bir anahtarla açıldığı için canlı veri tek hamlede davranış
+değiştirmez; anahtar silinirse eski davranışa dönülür.
+`ISG.yetki.onayDurumu(isyeriId)` bu kararı
+(`onayli` / `tekUzman` / `tekUzmanSinifEksik` / `eksik` / `uzman-yok`) ve eşik
+sınıflarını döndürür; `ISG.yetki.onayUyarilari()` işyeri kaydından üretilen
+uyarıları verir (kart, sayfa ve kaydetme bildirimi aynı kaynağı kullanır).
 
-Site **boş açılır**; kayıtlı tek hesap yönetici hesabıdır (şifre: `1234`):
+Site **boş açılır** ve **varsayılan şifre yoktur (2.28.0).** İlk açılışta
+`ilkKurulum` akışı çalışır: kurulum ekranında yönetici e-postası ve en az
+`minSifre` uzunluğunda bir şifre belirlenir, sonra normal giriş yapılır.
+Kurulum tamamlanmadan hiçbir ekran veri göstermez; boş şifreli hesap kalmaz.
+Kayıtlı tek hesap budur:
 
 | E-posta | Ad | Rol | İşyerleri |
 |---|---|---|---|
-| `mehmetkurt0948@gmail.com` | Mehmet Kurt | Yönetici | Tümü (içi boşken tümü) |
+| (kurulumda belirlenir) | Mehmet Kurt | Yönetici | Tümü (içi boşken tümü) |
 
 Örnek veri yüklendiğinde (`Örnek veri` düğmesi — bkz. [1.4](#14-boş-açılış-örnek-veri-ve-temizlik))
 ayrıca iki tanıtım hesabı gelir: `buse.senol@ornek.com` (Yetkili · `iy1`, `iy2`) ve
@@ -1179,7 +1187,52 @@ Notlar:
 
 ## 10. Bu sürümde neler değişti?
 
-### 2.27.0 — Yönetim yazmaları kapsama bağlandı; sistem yönetimi ekranları tamamlandı
+### 2.28.0 — Varsayılan yönetici şifresi kaldırıldı; uzman görevlendirmesi ve onay yetkisi (A′)
+
+- **R0 — varsayılan yönetici şifresi yok.** Boş şifreli `YONETICI_HESAP`
+  kaldırıldı; varsayılan hesap artık **şifresiz açılmaz**. İlk açılışta
+  `ilkKurulum: true` bayrağıyla **kurulum akışı** çalışır: yönetici e-postası ve
+  en az `minSifre` uzunluğunda şifre belirlenir, ardından normal giriş yapılır.
+  Kurulum tamamlanana kadar hiçbir ekran veri göstermez. (Kurulum akışı
+  `Y.korunmasiz('sifreGuncelle')` üzerinden çalışır; kapı `ilkKurulumMu`.)
+- **R1 — tam veri içe aktarma kapsama bağlandı.** `iceAktarDenetle(args)`
+  dosyanın **içeriğine** bakar: aktarılan veri kümesinde aktaranın yönetim
+  kapsamı dışında **tek bir işyeri veya kurum** varsa işlem reddedilir; veri
+  değişmez. Sistem geneli yetkili sınırsızdır. Yeni cihazda yedek geri yükleme
+  için **kapsamı boş kurulum yöneticisi** istisnası korunur (felaket kurtarma).
+- **A′ — uzman görevlendirmesi ve onay yetkisi ayrıldı.** İşyeri kaydında
+  `uzmanGorevlendirmeleri[]` ve `onayYetkilisiId` alanları tutulur. Onay akışı
+  artık *hangi uzmanların görevlendirildiğine* bağlıdır:
+  `onayli` · `tekUzman` · `tekUzmanSinifEksik` · `eksik` · `uzman-yok`.
+  Tek kaynak `yetki.js` (`onayDurumu`, `onayUyarilari`, `onaylayanIdler`,
+  `kapsamUzmanlari`, `tekUzmanSinifEksik`, `pasifAtama`).
+- **Görevlendirme veri erişimi VERMEZ.** Atama yalnız onay akışını etkiler;
+  uzmanın rolü ve işyeri kapsamı değişmez. Kurum dışı görevlendirme/onay
+  yetkilisi **yasaktır**: yetki kapısı (`isyeriYazmaDenetle`) isteği reddeder,
+  kapıdan geçmeyen yazmalarda (içe aktarma, bulut birleşimi) depo katmanı
+  (`kurumIciAtamalar`) atamayı düşürür. **Silinmiş hesap** kimliği atılmaz;
+  “geçersiz atama” olarak korunur ve uyarı üretir (kayıt kilitlenmez).
+- **Bilinçli pasife alma uyarı üretmez.** Uzman işaretten çıkarıldığında kayıt
+  silinmez, `aktif: false` olur; geçmiş korunur, onay akışı dışında kalır.
+- **Arayüz.** İşyeri formunda “Görevli İSG uzmanları” listesi (yalnız işyerinin
+  kurumundaki uzmanlar) ve “Onay yetkilisi” seçimi; kurum değişince liste
+  tazelenir. İşyeri kartında onay durumu satırı, İşyerleri sayfasında
+  **onay uyarıları kartı** (`onayUyariKarti`) ve kaydetme sonrası `B.bildir`
+  uyarısı.
+- **R4 — Supabase Auth/RLS geçişi planlandı, uygulanmadı.** Canlı veritabanına
+  hiçbir DDL uygulanmadı; yalnız boş şifreli hesaplar işaretlendi. Geçiş planı
+  `PLAN-R4-SUPABASE.md`, betik taslağı
+  `supabase/migrations/20261108_r4_auth_rls.sql` (aşamalar, geri dönüş, kabul
+  ölçütleri). Sunucu tarafı kimlik doğrulama ve RLS politikaları sonraki sürüme
+  bırakıldı.
+- **Testler.** Yeni `test/uzmanatama_ui_test.js` (66 kontrol: liste süzme,
+  atama kaydı, yeniden açma, pasife alma, kurum değişimi, yetki kapısı + depo
+  katmanı, geçersiz atama, kart/uyarı kartı/bildirim, erişim kapsamının
+  değişmemesi, bulut birleşimi). `test/yetkikapsam.js` R1 içe aktarma
+  yetkisi için yeniden yazıldı; `tools/kontrol.js` ve `tools/belge-test.js`
+  ilk kurulum akışına uyarlandı.
+
+
 
 - **Yönetim yazmalarında kapsam denetimi (P2).** `yonetir` rolü artık işlemin
   **sınırını** belirlemez. `isyeriKaydet/isyeriSil`,
@@ -1238,16 +1291,17 @@ Notlar:
   içinde bu yolu kullanır. **Bulut eşitlemesi `iceAktar` üzerinden yürümez:**
   `bulut.js` gelen birleşik veriyi `depo.yukle()` ile yerleştirir; `iceAktar`
   yalnızca `depo.yukle` bulunamazsa yedek yol olarak çağrılır.
-- **Açık risk (R1) — `iceAktar` kapsam denetimi yok.** `ADMIN_KORUMA` listesinde
-  yer aldığı için yönetici rolü ve oturum aranır, ancak **kapsam
-  (`yonetimKapsami().tum`) aranmaz**: yetkili herhangi bir yönetici tüm veri
-  kümesini tek çağrıyla değiştirebilir (kapsam dışı işyeri/personel yazılır,
-  `senkron.silinen` sıfırlanır, sonrasında buluta tam gövde gönderilir).
-  Arayüzde tetikleyicisi olmadığı için erişim geliştirici konsoluyla sınırlıdır;
-  sınırın kapatılması sistem geneli yetki şartı gerektirdiği ve fixture
-  yüklemelerinin (`kontrol.js`, `belge-test.js`, `acil-tarih-dogrula.js`,
-  `yetkikapsam.js`) tam yetkili hesapla taşınmasını zorunlu kıldığı için
-  **2.27.0 sonrasına bırakılmıştır** (backlog).
+- **R1 — `iceAktar` kapsam denetimi (2.28.0'da kapatıldı).** 2.27.0'da yalnız
+  yönetici rolü ve oturum aranıyordu, kapsam aranmıyordu: yetkili herhangi bir
+  yönetici tek çağrıyla kapsam dışı işyeri/personel yazabiliyor,
+  `senkron.silinen` sıfırlanıyor ve buluta tam gövde gönderiliyordu. 2.28.0'da
+  `iceAktarDenetle(args)` **içerik tabanlı** denetim yapar: aktarılan kümede
+  aktaranın yönetim kapsamı dışında **tek bir işyeri veya kurum** varsa işlem
+  reddedilir ve veri değişmez; sistem geneli yetkili sınırsızdır. Yeni cihazda
+  yedek geri yükleme için **kapsamı boş kurulum yöneticisi** istisnası korunur
+  (felaket kurtarma). Bulut eşitlemesi hâlâ `iceAktar` üzerinden yürümez
+  (`depo.yukle`/`depo.birlestir`), bu yüzden denetim yalnız içe aktarma yolunda
+  devreye girer.
 - **Şifre değiştirme sınırı (R3, düzeltildi).** `depo.sifreGuncelle` alt seviye
   mutatörü artık yetki katmanından geçer: **oturum yoksa çağrı reddedilir**
   (veriye dokunulmaz), oturum sahibi yalnız **kendi** şifresini değiştirebilir,
@@ -1259,11 +1313,14 @@ Notlar:
   Supabase satırını çekmeyi bıraktı: sentetik veri + stub `fetch` ile çalışır
   (ağ çağrısı sayısı 0), dosyada gerçek adres, oda kodu, e-posta veya parola
   yoktur; gömülü bulut kimliği testte devre dışı bırakılır.
-- **Supabase RLS yok (R4, açık).** Tablo politikası `for all to anon
-  using (true) with check (true)`; gömülü `anon` anahtarı tasarımı gereği
-  herkese açıktır. Yani istemci tarafı yetki kuralları **güvenlik sınırı
-  değildir**. Canlıya yayın öncesi RLS + Supabase Auth geçişi tamamlanmalıdır
-  (bkz. §8 Bilinen sınırlar).
+- **Supabase RLS yok (R4, açık — 2.28.0'da plan hazır).** Tablo politikası
+  `for all to anon using (true) with check (true)`; gömülü `anon` anahtarı
+  tasarımı gereği herkese açıktır. Yani istemci tarafı yetki kuralları
+  **güvenlik sınırı değildir**. 2.28.0'da geçiş planı ve betik taslağı yazıldı
+  (`PLAN-R4-SUPABASE.md`, `supabase/migrations/20261108_r4_auth_rls.sql`) ama
+  **canlı projeye hiçbir DDL uygulanmadı**; istemci Auth'a taşınmadı. Canlıya
+  yayın öncesi RLS + Supabase Auth geçişi tamamlanmalıdır (bkz. §8 Bilinen
+  sınırlar).
 - **R4'ün somut sonucu — hesap devralma (R6, açık, yüksek).** `depo.yukle` ve
   `depo.birlestir` oturum denetiminden geçmediği için gelen veri kümesindeki
   `kullanicilar[].sifre` alanı yerel kaydın üzerine yazılır. Oturum **yokken**
