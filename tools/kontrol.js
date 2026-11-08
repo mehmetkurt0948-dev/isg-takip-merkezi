@@ -113,15 +113,19 @@ function bekle(ms) {
     await bekle(220);
   };
 
-  await girisYap('mehmetkurt0948@gmail.com', 'yanlis');
-  kontrol('Hatalı şifre uyarısı', doc.getElementById('girisUyari').hidden === false && /Şifre hatalı/.test(metin('#girisUyari')), metin('#girisUyari'));
-  kontrol('Hatalı girişte oturum açılmaz', !ISG.yetki.oturum());
+  /* R0 (2.28.0): kurulum hesabı ŞİFRESİZ doğar. Bilinen varsayılan şifre
+     yayındaki her kurulumda aynı kimlik bilgisi demekti; giriş ekranı ilk
+     açılışta tek seferlik şifre belirleme adımını zorunlu kılar. */
+  const ILK_SIFRE = 'Kurulum123';
+  const kurulumHesap = () => ISG.depo.kullaniciEpostaBul('mehmetkurt0948@gmail.com');
+  kontrol('Kurulum hesabı şifresiz doğar', ISG.giris.ilkKurulumMu(kurulumHesap()));
 
-  await girisYap('admin@isg.local', '1234');
-  kontrol('Kayıtsız e-postada kayıtlı hesaplar hatırlatılır',
-    /kayıtlı kullanıcı bulunamadı/i.test(metin('#girisUyari')) && /mehmetkurt0948@gmail\.com/.test(metin('#girisUyari')),
-    metin('#girisUyari'));
-  kontrol('Kayıtsız e-postada oturum açılmaz', !ISG.yetki.oturum());
+  const kurulumGonder = async (sifre, tekrar) => {
+    doc.getElementById('kurulumSifre').value = sifre;
+    doc.getElementById('kurulumSifreTekrar').value = tekrar === undefined ? sifre : tekrar;
+    doc.getElementById('kurulumForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await bekle(180);
+  };
 
   /* 2.26.0: kurulum hesabı kapsamsız gelir (rol ≠ kapsam). Bu kontrol dosyası
      boş veriyle bütün ekranları dolaştığı için yöneticiye "tüm işyerleri"
@@ -132,11 +136,45 @@ function bekle(ms) {
   if (acilisYonetici) { acilisYonetici.tumIsyerleri = true; ISG.depo.kaydet(); }
 
   await girisYap('mehmetkurt0948@gmail.com', '1234');
+  kontrol('Şifresiz hesapta şifre denemesi oturum açmaz', !ISG.yetki.oturum());
+  kontrol('Giriş yerine ilk kurulum adımı açılır',
+    doc.getElementById('kurulumForm').hidden === false && doc.getElementById('girisForm').hidden === true);
+
+  await kurulumGonder('1234');
+  kontrol('İlk kurulum kısa şifreyi reddeder',
+    /en az 8 karakter/i.test(metin('#kurulumUyari')) && !ISG.yetki.oturum(), metin('#kurulumUyari'));
+  await kurulumGonder(ILK_SIFRE, 'Kurulum124');
+  kontrol('İlk kurulum şifre tekrarı uyuşmazlığını reddeder',
+    /uyuşmuyor/i.test(metin('#kurulumUyari')) && !ISG.yetki.oturum(), metin('#kurulumUyari'));
+
+  await kurulumGonder(ILK_SIFRE);
+  kontrol('İlk kurulum şifreyi belirledi', kurulumHesap().sifre === ILK_SIFRE, String(kurulumHesap().sifre));
+  kontrol('İlk kurulum işareti temizlendi', !ISG.giris.ilkKurulumMu(kurulumHesap()));
+  kontrol('İlk kurulum denetim kaydı yazıldı',
+    (ISG.depo.al().denetim || []).some((k) => k.islem === 'ilkKurulum'));
   kontrol('Yönetici oturumu açıldı', !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yonetici');
   kontrol('Giriş katmanı kapandı', doc.getElementById('girisKatman').hidden === true);
   kontrol('Gövde oturum sınıfı temizlendi', !doc.body.classList.contains('oturum-yok'));
   kontrol('Onay menüsü yöneticide görünür', doc.getElementById('menuOnaylar').hidden === false);
   kontrol('Kullanıcı alanı oturum sahibini gösterir', /Mehmet Kurt/.test(metin('#kullaniciAd')), metin('#kullaniciAd'));
+
+  /* Şifresi belirlenmiş hesapta normal giriş yolu: hatalı şifre reddi ve
+     tanınmayan e-postada kayıtlı hesap ipucu. */
+  ISG.yetki.oturumKapat();
+  ISG.giris.goster();
+  await girisYap('mehmetkurt0948@gmail.com', 'yanlis');
+  kontrol('Hatalı şifre uyarısı', doc.getElementById('girisUyari').hidden === false && /Şifre hatalı/.test(metin('#girisUyari')), metin('#girisUyari'));
+  kontrol('Hatalı girişte oturum açılmaz', !ISG.yetki.oturum());
+
+  await girisYap('admin@isg.local', '1234');
+  kontrol('Kayıtsız e-postada kayıtlı hesaplar hatırlatılır',
+    /kayıtlı kullanıcı bulunamadı/i.test(metin('#girisUyari')) && /mehmetkurt0948@gmail\.com/.test(metin('#girisUyari')),
+    metin('#girisUyari'));
+  kontrol('Kayıtsız e-postada oturum açılmaz', !ISG.yetki.oturum());
+
+  await girisYap('mehmetkurt0948@gmail.com', ILK_SIFRE);
+  kontrol('Belirlenen şifreyle oturum açılır', !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yonetici');
+  kontrol('Giriş katmanı yeniden kapandı', doc.getElementById('girisKatman').hidden === true);
 
   console.log('\n0b) Boş açılış, örnek veri temizliği ve örnek veri yükleme');
   const bos = ISG.depo.al();
@@ -146,9 +184,12 @@ function bekle(ms) {
   kontrol('Site boş açılıyor: işyeri yok', bos.isyerleri.length === 0, String(bos.isyerleri.length));
   kontrol('Site boş açılıyor: personel yok', bos.personel.length === 0, String(bos.personel.length));
   kontrol('Site boş açılıyor: tüm kayıt listeleri boş', doluDolanlar.length === 0, doluDolanlar.join(', '));
-  kontrol('Boş açılışta denetim izinde yalnızca oturum kayıtları var',
-    bos.denetim.length > 0 && bos.denetim.every((k) => k.tur === 'giris' || k.tur === 'cikis'),
-    bos.denetim.map((k) => k.tur).join(', '));
+  /* R0 (2.28.0): ilk kurulumda yazılan `sifre/ilkKurulum` denetim kaydı da
+     oturum kayıtlarıyla birlikte beklenen izdir. */
+  kontrol('Boş açılışta denetim izinde yalnızca oturum ve ilk kurulum kayıtları var',
+    bos.denetim.length > 0 && bos.denetim.every((k) => k.tur === 'giris' || k.tur === 'cikis' ||
+      (k.tur === 'sifre' && k.islem === 'ilkKurulum')),
+    bos.denetim.map((k) => k.tur + '/' + k.islem).join(', '));
   kontrol('Boş açılışta örnek (@ornek.com) hesap yok',
     !bos.kullanicilar.some((k) => /@ornek\.com$/i.test(String(k.eposta || ''))),
     bos.kullanicilar.map((k) => k.eposta).join(', '));

@@ -492,13 +492,49 @@ function kayitEkle(personelId, isyeriId, tarih) {
   const ikiKapsamDisi = hataMetni(() => ISG.saglikTakip.listele('isyeri-9', ''));
   ok(/kapsamınızda değil/.test(ikiKapsamDisi), 'ataması olmayan işyerinin sağlık verisi istenemiyor', ikiKapsamDisi);
 
-  /* 19g) Bulut içe aktarımı ve yeniden giriş atamaları bozmuyor. */
+  /* 19g) R1 (2.28.0): tam veri içe aktarma yönetim kapsamıyla sınırlıdır.
+     Sınırlı yönetici kapsam dışı işyeri/kurum içeren yedeği içe aktaramaz;
+     kapsam içi yedek kabul edilir; ataması olmayan kurulum yöneticisi (kapsamı
+     boş) yeni cihazda yedek geri yükleme yolunu korur. */
   const atamaOncesi = ISG.yetki.kapsam().join(',');
-  ISG.depo.iceAktar(JSON.stringify(ISG.depo.al()));
+  const tamYedek = JSON.stringify(ISG.depo.al());
+  const disariReddi = hataMetni(() => ISG.depo.iceAktar(tamYedek));
+  ok(/yönetim kapsamınız dışındaki kayıtları içeriyor/.test(disariReddi),
+    'sınırlı yönetici kapsam dışı kayıt içeren yedeği içe aktaramıyor', disariReddi);
+  ok(ISG.yetki.kapsam().join(',') === atamaOncesi && ISG.depo.al().isyerleri.length === 3,
+    'reddedilen içe aktarma depoyu değiştirmiyor', ISG.yetki.kapsam().join(','));
+
+  const kapsamIciYedek = JSON.parse(tamYedek);
+  kapsamIciYedek.isyerleri = (kapsamIciYedek.isyerleri || [])
+    .filter(function (i) { return ['isyeri-1', 'isyeri-2'].indexOf(i.id) > -1; });
+  kapsamIciYedek.kurumlar = (kapsamIciYedek.kurumlar || [])
+    .filter(function (k) { return k.id === 'kr-aski'; });
+  kapsamIciYedek.personel = (kapsamIciYedek.personel || [])
+    .filter(function (p) { return ['isyeri-1', 'isyeri-2'].indexOf(p.isyeriId) > -1; });
+  const kapsamIciHata = hataMetni(function () { ISG.depo.iceAktar(JSON.stringify(kapsamIciYedek)); });
+  ok(!kapsamIciHata, 'kapsam içi yedek içe aktarılabiliyor', kapsamIciHata);
+  ok(ISG.depo.al().isyerleri.length === 2 && ISG.depo.al().kurumlar.length === 1,
+    'kapsam içi yedek depoya yazıldı',
+    ISG.depo.al().isyerleri.length + ' işyeri / ' + ISG.depo.al().kurumlar.length + ' kurum');
+
+  /* Sistem geneli yetkili sınırsızdır: tam yedeği geri yükler. */
+  girisYap(sistemYoneticisi);
+  const sistemIciHata = hataMetni(function () { ISG.depo.iceAktar(tamYedek); });
+  ok(!sistemIciHata && ISG.depo.al().isyerleri.length === 3,
+    'sistem geneli yetkili tam yedeği içe aktarabiliyor', sistemIciHata);
+
+  /* Ataması olmayan kurulum yöneticisi: kapsamı boş olduğu için felaket
+     kurtarma yolu (yeni cihaza yedek geri yükleme) açık kalır. */
+  girisYap(atamasizYonetici);
+  ok(ISG.yetki.kapsam().length === 0, 'kurulum yöneticisinin kapsamı boş');
+  const kurtarmaHatasi = hataMetni(function () { ISG.depo.iceAktar(tamYedek); });
+  ok(!kurtarmaHatasi, 'ataması olmayan yönetici yedeği geri yükleyebiliyor (kurtarma yolu)', kurtarmaHatasi);
+
+  /* Yedek geri yükleme atamaları bozmuyor. */
   const bulutSonrasi = (ISG.depo.al().kullanicilar || []).filter(function (k) { return k.id === 'u-iki'; })[0];
   ok(!!bulutSonrasi && (bulutSonrasi.isyerleri || []).join(',') === 'isyeri-1,isyeri-2' &&
     bulutSonrasi.tumIsyerleri !== true,
-    'bulut senkronizasyonu sonrası atamalar korunuyor',
+    'içe aktarma sonrası atamalar korunuyor',
     bulutSonrasi ? (bulutSonrasi.isyerleri || []).join(',') : 'kayıt yok');
   girisYap(ikiIsyeriYoneticisi);
   ok(ISG.yetki.kapsam().join(',') === atamaOncesi,

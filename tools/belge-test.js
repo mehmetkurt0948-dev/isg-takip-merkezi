@@ -62,7 +62,17 @@ function sunucuBaslat() {
     await new Promise((r) => setTimeout(r, 250));
   };
   kontrol('Giriş katmanı açılışta görünür', d.getElementById('girisKatman').hidden === false);
-  await girisYap('mehmetkurt0948@gmail.com', '1234');
+  /* R0 (2.28.0): kurulum hesabı şifresiz doğar; ilk açılışta şifre belirlenir. */
+  d.getElementById('girisEposta').value = 'mehmetkurt0948@gmail.com';
+  d.getElementById('girisSifre').value = '1234';
+  d.getElementById('girisForm').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await new Promise((r) => setTimeout(r, 250));
+  kontrol('Şifresiz hesap ilk kurulum adımına yönlendirilir',
+    d.getElementById('kurulumForm').hidden === false && !ISG.yetki.oturum());
+  d.getElementById('kurulumSifre').value = 'Kurulum123';
+  d.getElementById('kurulumSifreTekrar').value = 'Kurulum123';
+  d.getElementById('kurulumForm').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await new Promise((r) => setTimeout(r, 250));
   kontrol('Yönetici oturumu açıldı', !!ISG.yetki.oturum() && ISG.yetki.oturum().rol === 'yonetici');
 
   /* Site boş açılır; belge akışı gerçekçi bir işyeri ve kontrol kataloğu
