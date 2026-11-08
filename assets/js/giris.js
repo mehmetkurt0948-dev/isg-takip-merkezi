@@ -41,6 +41,15 @@
     var kullanici = D.kullaniciEpostaBul(eposta);
     if (!kullanici) { throw new Error(kayitliEpostaIpucu()); }
     if (kullanici.aktif === false) { throw new Error('Bu kullanıcı pasif durumda, yöneticinizle görüşün.'); }
+    /* R0 (2.28.0): şifresiz/ilk kurulum hesabı asla doğrudan oturum açmaz.
+       Giriş ekranı yeni şifre belirletir (bkz. ilkKurulumTamamla). Bilinen
+       varsayılan şifre yayındaki her kurulumda aynı kimlik bilgisi demekti. */
+    if (ilkKurulumMu(kullanici)) {
+      var hata = new Error('Bu hesap için henüz şifre belirlenmemiş. İlk kurulum adımında yeni şifrenizi belirleyin.');
+      hata.kod = 'ilkKurulum';
+      hata.kullanici = kullanici;
+      throw hata;
+    }
     if (String(kullanici.sifre || '') !== String(sifre || '')) { throw new Error('Şifre hatalı, yeniden deneyin.'); }
     return kullanici;
   }
@@ -60,6 +69,72 @@
     try { global.location.reload(); } catch (hata) { goster(); }
   }
 
+
+  /* ---------- İlk kurulum (R0) ---------- */
+
+  /* Şifre kuralı tek yerden okunur: varsayilan-veri.js ISG.SIFRE_MIN_UZUNLUK. */
+  function minSifre() {
+    var deger = Number(ISG.SIFRE_MIN_UZUNLUK);
+    return deger > 0 ? deger : 8;
+  }
+
+  /* Şifresi hiç yazılmamış ya da göçle `ilkKurulum` işaretlenmiş hesap. */
+  function ilkKurulumMu(kullanici) {
+    if (!kullanici) { return false; }
+    if (kullanici.ilkKurulum === true) { return true; }
+    return String(kullanici.sifre || '') === '';
+  }
+
+  /* İlk kurulum formunu gösterir; e-posta önceden yazılmış olandan gelir. */
+  function kurulumGoster(kullanici) {
+    if (!kullanici) { return; }
+    var girisForm = el('girisForm');
+    var sifirlaForm = el('sifirlaForm');
+    var kurulumForm = el('kurulumForm');
+    if (!kurulumForm) { return; }
+    if (girisForm) { girisForm.hidden = true; }
+    if (sifirlaForm) { sifirlaForm.hidden = true; }
+    kurulumForm.hidden = false;
+    var eposta = el('kurulumEposta');
+    if (eposta) { eposta.value = kullanici.eposta || ''; }
+    var bilgi = el('kurulumBilgi');
+    if (bilgi) {
+      bilgi.hidden = false;
+      bilgi.textContent = (kullanici.eposta || '') + ' hesabı için henüz şifre belirlenmemiş. ' +
+        'En az ' + minSifre() + ' karakterlik yeni şifrenizi belirleyin; bu adım yalnızca bir kez görünür.';
+    }
+    uyariGoster('kurulumUyari', '');
+    uyariGoster('girisUyari', '');
+    var alan = el('kurulumSifre');
+    if (alan) { setTimeout(function () { try { alan.focus(); } catch (hata) { /* yok say */ } }, 40); }
+  }
+
+  /* İlk şifreyi belirler ve oturumu açar. `sifreGuncelle` yönetici oturumu
+     istediği için korunmasız çağrılır — aynı yol `sifreSifirla`da kullanılır;
+     yetki denetimi burada `ilkKurulumMu` ile yapılır. */
+  function ilkKurulumTamamla(eposta, yeniSifre, sifreTekrar) {
+    var kullanici = D.kullaniciEpostaBul(eposta);
+    if (!kullanici) { throw new Error(kayitliEpostaIpucu()); }
+    if (kullanici.aktif === false) { throw new Error('Bu kullanıcı pasif durumda, yöneticinizle görüşün.'); }
+    if (!ilkKurulumMu(kullanici)) {
+      throw new Error('Bu hesabın şifresi zaten belirlenmiş. Giriş sekmesini kullanın ya da şifrenizi sıfırlayın.');
+    }
+    if (String(yeniSifre || '').length < minSifre()) {
+      throw new Error('Yeni şifre en az ' + minSifre() + ' karakter olmalı.');
+    }
+    if (String(yeniSifre) !== String(sifreTekrar || '')) {
+      throw new Error('Yeni şifreler birbiriyle uyuşmuyor.');
+    }
+    var guncel = Y.korunmasiz('sifreGuncelle')(kullanici.eposta, String(yeniSifre));
+    if (!guncel) { throw new Error('Kullanıcı bulunamadı.'); }
+    try {
+      D.denetimEkle({
+        tur: 'sifre', islem: 'ilkKurulum', kullaniciId: guncel.id,
+        kullaniciAd: guncel.adSoyad || '', ozet: 'İlk kurulumda şifre belirlendi'
+      });
+    } catch (hata) { /* denetim kaydı yazılamazsa işlem sürer */ }
+    return guncel;
+  }
 
   /* ---------- Şifre sıfırlama (e-posta kodu) ---------- */
 
@@ -183,7 +258,7 @@
 
   function sifreSifirla(eposta, kod, yeniSifre, sifreTekrar) {
     var kayit = kodDogrula(eposta, kod);
-    if (String(yeniSifre || '').length < 6) { throw new Error('Yeni şifre en az 6 karakter olmalı.'); }
+    if (String(yeniSifre || '').length < minSifre()) { throw new Error('Yeni şifre en az ' + minSifre() + ' karakter olmalı.'); }
     if (yeniSifre !== sifreTekrar) { throw new Error('Yeni şifreler birbiriyle uyuşmuyor.'); }
     var kullanici = Y.korunmasiz('sifreGuncelle')(kayit.eposta, yeniSifre);
     if (!kullanici) { throw new Error('Kullanıcı bulunamadı.'); }
@@ -225,6 +300,24 @@
           '<button type="submit" class="dugme birincil giris-dugme">Giriş yap</button>' +
         '</form>' +
 
+        /* R0 (2.28.0): şifresiz doğan / ilk kurulum hesabı için tek seferlik
+           şifre belirleme adımı. Giriş formu gizlenir, bu form görünür. */
+        '<form id="kurulumForm" class="giris-form" hidden novalidate>' +
+          '<h2 class="giris-alt-baslik">İlk kurulum</h2>' +
+          '<p class="giris-ipucu" id="kurulumBilgi" hidden></p>' +
+          '<input type="hidden" name="eposta" id="kurulumEposta">' +
+          '<div class="form-izgara">' +
+            '<label class="alan"><span>Yeni şifre</span>' +
+              '<input type="password" name="sifre" id="kurulumSifre" autocomplete="new-password" placeholder="En az ' + minSifre() + ' karakter" required>' +
+            '</label>' +
+            '<label class="alan"><span>Yeni şifre (tekrar)</span>' +
+              '<input type="password" name="sifreTekrar" id="kurulumSifreTekrar" autocomplete="new-password" placeholder="Şifreyi yineleyin" required>' +
+            '</label>' +
+          '</div>' +
+          '<p class="form-uyari" id="kurulumUyari" role="alert" hidden></p>' +
+          '<button type="submit" class="dugme birincil giris-dugme">Şifreyi belirle ve giriş yap</button>' +
+        '</form>' +
+
         '<form id="sifirlaForm" class="giris-form" hidden novalidate>' +
           '<div id="sifirlaAdim1">' +
             '<label class="alan"><span>E-posta</span>' +
@@ -243,7 +336,7 @@
             '</label>' +
             '<div class="form-izgara">' +
               '<label class="alan"><span>Yeni şifre</span>' +
-                '<input type="password" name="sifre" autocomplete="new-password" placeholder="En az 6 karakter" required>' +
+                '<input type="password" name="sifre" autocomplete="new-password" placeholder="En az ' + minSifre() + ' karakter" required>' +
               '</label>' +
               '<label class="alan"><span>Yeni şifre (tekrar)</span>' +
                 '<input type="password" name="sifreTekrar" autocomplete="new-password" placeholder="Şifreyi yineleyin" required>' +
@@ -266,6 +359,8 @@
     });
     var girisForm = el('girisForm');
     var sifirlaForm = el('sifirlaForm');
+    var kurulumForm = el('kurulumForm');
+    if (kurulumForm && !kurulumForm.hidden) { kurulumForm.hidden = true; }
     if (girisForm) { girisForm.hidden = ad !== 'giris'; }
     if (sifirlaForm) { sifirlaForm.hidden = ad !== 'sifirla'; }
     if (ad === 'sifirla') { sifirlaAdimi(1); }
@@ -445,6 +540,12 @@
       form.reset();
       girisiTamamla(kullanici);
     } catch (hata) {
+      /* R0: şifresiz/ilk kurulum hesabında şifre denemesi yapılmaz; ekran
+         tek seferlik şifre belirleme adımına geçer. */
+      if (hata.kod === 'ilkKurulum' && hata.kullanici) {
+        kurulumGoster(hata.kullanici);
+        return;
+      }
       /* Hesap yerelde hiç yoksa buluta bakılır; şifre/pasiflik hatasında
          (hesap yerelde var) bulut denemesi anlamsızdır. */
       if (!D.kullaniciEpostaBul(alanlar.eposta)) {
@@ -452,6 +553,26 @@
         return;
       }
       uyariGoster('girisUyari', hata.message);
+    }
+  }
+
+  /* İlk kurulum formu: yeni şifreyi belirler ve doğrudan oturum açar. */
+  function kurulumGonder(olay) {
+    olay.preventDefault();
+    var form = olay.target;
+    if (!form || String(form.tagName).toUpperCase() !== 'FORM') { return; }
+    var alanlar = formDegerleri(form);
+    uyariGoster('kurulumUyari', '');
+    try {
+      var kullanici = ilkKurulumTamamla(alanlar.eposta, alanlar.sifre, alanlar.sifreTekrar);
+      form.reset();
+      var kurulumForm = el('kurulumForm');
+      if (kurulumForm) { kurulumForm.hidden = true; }
+      var girisForm = el('girisForm');
+      if (girisForm) { girisForm.hidden = false; }
+      girisiTamamla(kullanici);
+    } catch (hata) {
+      uyariGoster('kurulumUyari', hata.message);
     }
   }
 
@@ -551,6 +672,7 @@
     document.addEventListener('submit', function (olay) {
       if (!olay.target) { return; }
       if (olay.target.id === 'girisForm') { girisGonder(olay); }
+      if (olay.target.id === 'kurulumForm') { kurulumGonder(olay); }
       if (olay.target.id === 'sifirlaForm') {
         var ikinciAdim = el('sifirlaAdim2');
         if (ikinciAdim && !ikinciAdim.hidden) { sifirlaKaydet(olay); }
@@ -625,6 +747,10 @@
     cikis: cikis,
     sekmeSec: sekmeSec,
     kullaniciDogrula: kullaniciDogrula,
+    ilkKurulumMu: ilkKurulumMu,
+    ilkKurulumTamamla: ilkKurulumTamamla,
+    kurulumGoster: kurulumGoster,
+    sifreMinUzunluk: minSifre,
     kodGonder: kodGonder,
     kodDogrula: kodDogrula,
     sifreSifirla: sifreSifirla,

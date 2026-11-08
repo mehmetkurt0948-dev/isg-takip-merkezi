@@ -14,7 +14,7 @@
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="assets/css/style.css?v=fcaadd04">
+  <link rel="stylesheet" href="assets/css/style.css?v=dc480766">
 </head>
 <body class="oturum-yok">
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -238,7 +238,16 @@
           <input type="checkbox" name="ana" value="1">
           <span>Ana kurum olarak işaretle</span>
         </label>
+        <label class="alan genis" id="isyeriOnayYetkilisiAlani">
+          <span>Onay yetkilisi (uzman)</span>
+          <select name="onayYetkilisiId" id="isyeriOnayYetkilisi"></select>
+        </label>
+        <fieldset class="alan genis" id="isyeriUzmanAlani">
+          <legend>Uzman görevlendirmeleri</legend>
+          <div class="secim-listesi" id="isyeriUzmanListesi"></div>
+        </fieldset>
       </div>
+      <p class="form-ipucu">Görevlendirme yalnız onay akışını belirler; uzmanın rolünü ve veri erişimini değiştirmez. Onay yetkilisi seçilmezse görevlendirilmiş uzmanların sınıf eşiğini karşılayanları onaylar.</p>
       <p class="form-uyari" id="isyeriUyari" role="alert" hidden></p>
       <div class="diyalog-eylem">
         <button type="button" class="dugme ikincil" data-kapat>Vazgeç</button>
@@ -1212,24 +1221,24 @@
 
   <noscript><p class="noscript">Bu uygulama JavaScript gerektirir. Lütfen tarayıcınızda JavaScript'i etkinleştirin.</p></noscript>
 
-  <script src="assets/js/varsayilan-veri.js?v=2abb7ee9"></script>
+  <script src="assets/js/varsayilan-veri.js?v=e2eb6760"></script>
   <script src="assets/js/kontrol-listeleri.js?v=430de5a3"></script>
-  <script src="assets/js/depo.js?v=31452d67"></script>
+  <script src="assets/js/depo.js?v=abb14e8d"></script>
   <script src="assets/js/bicim.js?v=df2337ea"></script>
   <script src="assets/js/bulut-kimlik.js?v=c22d436d"></script>
   <script src="assets/js/bulut.js?v=ca99ce81"></script>
-  <script src="assets/js/yetki.js?v=d58cd7f1"></script>
+  <script src="assets/js/yetki.js?v=8b2d80ac"></script>
   <script src="assets/js/saglik-takip.js?v=75c1d8a7"></script>
   <script src="assets/js/saglik-toplu.js?v=30fd72d0"></script>
   <script src="assets/js/saglik-calisma-kitabi.js?v=47443e58"></script>
   <script src="assets/js/excel.js?v=394d9d94"></script>
   <script src="assets/js/personel-toplu.js?v=c1da8dfb"></script>
   <script src="assets/js/plan-toplu.js?v=200e3c61"></script>
-  <script src="assets/js/sayfalar.js?v=9e95e972"></script>
+  <script src="assets/js/sayfalar.js?v=10f8e7d0"></script>
   <script src="assets/js/sayfalar-kayit.js?v=72be2dd0"></script>
   <script src="assets/js/sayfalar-rapor.js?v=82d3c50d"></script>
-  <script src="assets/js/giris.js?v=89968189"></script>
-  <script src="assets/js/uygulama.js?v=0da9ea83"></script>
+  <script src="assets/js/giris.js?v=6c46f4ec"></script>
+  <script src="assets/js/uygulama.js?v=b1ed8b93"></script>
 </body>
 </html>
 

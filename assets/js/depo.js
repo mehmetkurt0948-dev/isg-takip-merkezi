@@ -1546,6 +1546,35 @@
       });
     }
 
+    /* A′ (2.28.0): işyeri bazlı uzman görevlendirmesi ve onay yetkilisi.
+       `uzmanGorevlendirmeleri` işyeri kaydında durur ve kullanıcının veri
+       erişim kapsamından (`isyerleri` / `tumIsyerleri`) AYRI bir olgudur:
+       burada işaretlenen hesap uygulama rolü ya da veri erişimi KAZANMAZ,
+       yalnız "bu işyerinin onay hesabı" bilgisine girer. Kayıtlar hesap
+       kimliğiyle tekilleştirilir; tanınmayan alanlar sessizce düşürülür,
+       böylece içe aktarılan bozuk bir yedek motoru kilitlemez. */
+    veri.isyerleri.forEach(function (isyeri) {
+      if (!isyeri || typeof isyeri !== 'object') { return; }
+      var gorulen = {};
+      var atamalar = [];
+      (Array.isArray(isyeri.uzmanGorevlendirmeleri) ? isyeri.uzmanGorevlendirmeleri : [])
+        .forEach(function (atama) {
+          if (!atama || typeof atama !== 'object') { return; }
+          var kullaniciId = String(atama.kullaniciId || '').trim();
+          if (!kullaniciId || gorulen[kullaniciId]) { return; }
+          gorulen[kullaniciId] = true;
+          atamalar.push({
+            kullaniciId: kullaniciId,
+            /* Pasiflik bilinçli bir karardır (ayrılan uzman); silinmez, korunur. */
+            aktif: atama.aktif !== false,
+            gorevSinifi: String(atama.gorevSinifi || '').trim(),
+            baslangic: String(atama.baslangic || '').slice(0, 10)
+          });
+        });
+      isyeri.uzmanGorevlendirmeleri = atamalar;
+      isyeri.onayYetkilisiId = String(isyeri.onayYetkilisiId || '').trim();
+    });
+
     /* Uzman sınıfı (A/B/C) tek biçime indirilir; tanınmayan değer boşaltılır.
        Boş sınıf "belirtilmedi" sayılır ve o hesap onay yetkilisi olarak
        sayılmaz — uydurma sınıf atanmaz. */
@@ -1553,6 +1582,10 @@
       if (!kullanici || typeof kullanici !== 'object') { return; }
       kullanici.uzmanSinifi = ISG.uzmanSinifiKodu(kullanici.uzmanSinifi);
       kullanici.kurumId = String(kullanici.kurumId || (tekKurum || ''));
+      /* R0 (2.28.0): şifresi olmayan hesap "ilk kurulum bekliyor" demektir ve
+         giriş ekranı bu hesapta oturum açmaz. Bayrak şifreden TÜRETİLİR, böylece
+         hem eski kayıtlar kendini onarır hem de şifre belirlenince bayrak düşer. */
+      kullanici.ilkKurulum = !String(kullanici.sifre || '');
     });
 
     /* v7: kayıt bazlı eşitleme bilgisi. `kayit` kimlik→son değişiklik zamanı,
@@ -1594,16 +1627,12 @@
     var kullaniciVar = (veri.kullanicilar || []).length > 0;
     if (!kullaniciVar && typeof ISG.YONETICI_HESAP === 'function') {
       /* Yönetici hesabı olmadan giriş yapılamaz: örnek hesaplar değil,
-         yalnızca gerçek yönetici hesabı eklenir. */
+         yalnızca gerçek yönetici hesabı eklenir. R0 (2.28.0): burada ikinci bir
+         hesap (enginozcan1402@gmail.com / '1402') düz metin şifreyle
+         ekleniyordu. Site herkese açık olduğu için bu da bilinen kimlik bilgisi
+         demekti ve kaldırıldı. Ek hesaplar yalnızca Kullanıcılar ve yetkiler
+         ekranından, sistem geneli yetkili yönetici tarafından açılır. */
       veri.kullanicilar = ISG.YONETICI_HESAP();
-
-      /* ENGIN EKLE: enginozcan1402@gmail.com hesabı her cihazda yerel olarak 
-      olsun, bulut senkronizasyonu kapalıysa bile giriş yapılabilsin. */
-      veri.kullanicilar.push({
-        id: 'u2', adSoyad: 'Engin Özcan', eposta: 'enginozcan1402@gmail.com',
-        sifre: '1402', rol: 'yetkili', gorev: 'İSG Güvenliği Uzmanı',
-        isyerleri: [], aktif: true, sonGiris: ''
-      });
     }
 
     /* v8: çalışma planı durumları tek sözlüğe indirilir. v9: sözlük on duruma
@@ -2060,8 +2089,72 @@
     return sayi;
   }
 
+  /* A′ (2.28.0): kurum dışı uzman görevlendirmesi ve kurum dışı onay yetkilisi
+     yazılmaz. Arayüz aynı kuralı uygular; burada ikinci kez doğrulanır çünkü
+     içe aktarma, bulut eşitlemesi ve elle düzenleme bu kapıdan geçer.
+     - Tanınmayan hesap kimliği ATILMAZ: silinmiş hesap "geçersiz atama" olarak
+       görünür kalsın (yetki.js: isyeriAtamaBilgisi), sessiz veri kaybı olmasın.
+     - Kurumu bilinen ve işyerinin kurumundan farklı hesap atılmaz. */
+  function kurumIciAtamalar(isyeri, veri) {
+    var kurumId = String((isyeri && isyeri.kurumId) || '');
+    var hesaplar = {};
+    (veri.kullanicilar || []).forEach(function (kullanici) {
+      if (kullanici && kullanici.id) { hesaplar[String(kullanici.id)] = kullanici; }
+    });
+    var gorulen = {};
+    var atamalar = [];
+    (Array.isArray(isyeri.uzmanGorevlendirmeleri) ? isyeri.uzmanGorevlendirmeleri : [])
+      .forEach(function (atama) {
+        if (!atama || typeof atama !== 'object') { return; }
+        var kullaniciId = String(atama.kullaniciId || '').trim();
+        if (!kullaniciId || gorulen[kullaniciId]) { return; }
+        var hesap = hesaplar[kullaniciId];
+        if (hesap && kurumId) {
+          var hesapKurum = String(hesap.kurumId || '');
+          if (hesapKurum && hesapKurum !== kurumId) { return; }
+        }
+        gorulen[kullaniciId] = true;
+        atamalar.push({
+          kullaniciId: kullaniciId,
+          aktif: atama.aktif !== false,
+          gorevSinifi: String(atama.gorevSinifi || '').trim(),
+          baslangic: String(atama.baslangic || '').slice(0, 10)
+        });
+      });
+    return atamalar;
+  }
+
   ISG.depo.isyeriKaydet = function (kayit) {
     var veri = depo.al();
+    /* Alanı hiç göndermeyen çağrı (içe aktarma, test fikstürü) mevcut atamayı
+       SİLMEZ: kaydetListede kaydı bütünüyle değiştirdiği için eksik alan
+       gönderimi sessiz veri kaybına yol açardı. */
+    var mevcutKayit = (veri.isyerleri || []).filter(function (isyeri) {
+      return isyeri && kayit.id && isyeri.id === kayit.id;
+    })[0];
+    if (mevcutKayit) {
+      if (!Array.isArray(kayit.uzmanGorevlendirmeleri)) {
+        kayit.uzmanGorevlendirmeleri = mevcutKayit.uzmanGorevlendirmeleri;
+      }
+      if (kayit.onayYetkilisiId === undefined) {
+        kayit.onayYetkilisiId = mevcutKayit.onayYetkilisiId;
+      }
+    }
+    kayit.uzmanGorevlendirmeleri = kurumIciAtamalar(kayit, veri);
+    /* Atanan onay yetkilisi başka kurumun hesabıysa seçim düşürülür; tanınmayan
+       ya da pasif hesap seçimi korunur (arayüzde "geçersiz atama" olarak görünür). */
+    var yetkiliId = String(kayit.onayYetkilisiId || '').trim();
+    if (yetkiliId) {
+      var yetkiliHesap = (veri.kullanicilar || []).filter(function (kullanici) {
+        return kullanici && String(kullanici.id) === yetkiliId;
+      })[0];
+      var isyeriKurum = String(kayit.kurumId || '');
+      if (yetkiliHesap && isyeriKurum) {
+        var yetkiliKurum = String(yetkiliHesap.kurumId || '');
+        if (yetkiliKurum && yetkiliKurum !== isyeriKurum) { yetkiliId = ''; }
+      }
+    }
+    kayit.onayYetkilisiId = yetkiliId;
     var sonuc = kaydetListede(veri.isyerleri, kayit, 'iy');
     if (kayit.ana) {
       veri.isyerleri.forEach(function (isyeri) { if (isyeri.id !== sonuc.id) { isyeri.ana = false; } });
@@ -2959,6 +3052,9 @@
     kullanici.sifre = String(yeniSifre || '');
     kullanici.sifreDegisim = new Date().toISOString();
     kullanici.guncelleme = kullanici.sifreDegisim;
+    /* R0: şifre belirlenmiş hesap artık "ilk kurulum" değildir; bayrak
+       düşmezse giriş ekranı hesabı sürekli kurulum adımına yönlendirirdi. */
+    kullanici.ilkKurulum = !String(kullanici.sifre || '');
     if (!depo.kaydet()) {
       throw new Error('Şifre bu cihazın kayıtlarına yazılamadı; depolama alanı dolmuş olabilir.');
     }

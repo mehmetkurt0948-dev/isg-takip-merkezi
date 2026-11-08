@@ -256,9 +256,10 @@
        · Yönetici → yalnız açıkça atandığı işyerleri ve o işyerlerinin kurumları
        · diğer roller (OSGB Müdürü dahil) → yönetim yetkisi yok
 
-     Tek istisna `iceAktar`: bulut eşitlemesi aynı işlevi kullanır (bulut.js)
-     ve yedek geri yükleme bütün veri kümesini değiştirir. Bu açık risk
-     raporlanır; yönetim işlemlerinin geri kalanı kapsam denetiminden geçer. */
+     Tek istisna yoktur (2.28.0 / R1): `iceAktar` de kapsam denetiminden geçer —
+     aktarılan dosya yönetim kapsamı dışında işyeri/kurum içeriyorsa reddedilir
+     (bkz. iceAktarDenetle). Bulut eşitlemesi bu yolu kullanmaz; o `depo.birlestir`
+     taşıma katmanından geçer ve kullanıcı içe aktarma yetkisi istemez. */
   function yonetimKapsami() {
     var sonuc = {
       varMi: false, yonetir: false, tum: false, rolId: '',
@@ -686,8 +687,10 @@
     return (tablo[kod] || []).slice();
   }
 
-  /* İşyerine atanmış aktif uzmanlar; pasif hesap onay yetkilisi sayılmaz. */
-  function isyeriUzmanlari(isyeriId) {
+  /* Kullanıcının veri erişim kapsamından türetilen uzman listesi (eski davranış).
+     A′ modelinde işyeri kaydında AÇIK görevlendirme varsa bu liste kullanılmaz;
+     aşağıdaki `isyeriAtamaBilgisi` tek karar noktasıdır. */
+  function kapsamUzmanlari(isyeriId) {
     if (!isyeriId) { return []; }
     var gorulen = {};
     return (D.al().kullanicilar || []).filter(function (kullanici) {
@@ -701,39 +704,223 @@
     });
   }
 
+  function isyeriBul(isyeriId) {
+    return (D.al().isyerleri || []).filter(function (kayit) { return kayit.id === isyeriId; })[0] || null;
+  }
+
+  function atamaListesi(isyeri) {
+    var liste = (isyeri && Array.isArray(isyeri.uzmanGorevlendirmeleri))
+      ? isyeri.uzmanGorevlendirmeleri : [];
+    return liste.filter(function (atama) { return atama && atama.kullaniciId; });
+  }
+
+  /* Kurum sınırı: iki taraftan biri kurumsuzsa engellenmez (tek kurumlu
+     kurulumlar ve eski kayıtlar çalışmaya devam eder). */
+  function kurumUyusur(kullanici, isyeri) {
+    var kullaniciKurum = String((kullanici && kullanici.kurumId) || '');
+    var isyeriKurum = String((isyeri && isyeri.kurumId) || '');
+    if (!kullaniciKurum || !isyeriKurum) { return true; }
+    return kullaniciKurum === isyeriKurum;
+  }
+
+  /* A′ görevlendirme çözümlemesi — işyeri bazlı onay hesabının TEK kaynağı.
+     `mod`:
+       'atama'  → işyeri kaydında açık görevlendirme var (A′ yolu)
+       'kapsam' → görevlendirme yok; eski davranış (kullanıcı kapsamı) geçerli
+     Geçersiz atamalar sessizce yutulmaz: `gecersiz` listesine düşer ve
+     `onayDurumu` bunları uyarıya çevirir. Uygulama rolü ve veri erişimi
+     DEĞİŞMEZ; görevlendirme yalnız onay hesabını etkiler. */
+  function isyeriAtamaBilgisi(isyeriId) {
+    var isyeri = isyeriBul(isyeriId);
+    var atamalar = atamaListesi(isyeri);
+    if (!atamalar.length) {
+      return {
+        mod: 'kapsam', isyeriId: isyeriId, isyeri: isyeri, atamalar: [],
+        uzmanlar: kapsamUzmanlari(isyeriId), pasif: 0, gecersiz: []
+      };
+    }
+    var gorulen = {};
+    var uzmanlar = [];
+    var gecersiz = [];
+    var pasif = 0;
+    atamalar.forEach(function (atama) {
+      var kullaniciId = String(atama.kullaniciId);
+      if (gorulen[kullaniciId]) { return; }
+      gorulen[kullaniciId] = true;
+      /* Bilinçli pasife alma (ayrılan uzman) uyarı üretmez. */
+      if (atama.aktif === false) { pasif += 1; return; }
+      var kullanici = D.kullaniciBul(kullaniciId);
+      if (!kullanici) { gecersiz.push({ kullaniciId: kullaniciId, neden: 'kullanici-yok' }); return; }
+      if (kullanici.aktif === false) { gecersiz.push({ kullaniciId: kullaniciId, neden: 'hesap-pasif' }); return; }
+      if (rolCoz(kullanici.rol) !== 'yetkili') {
+        gecersiz.push({ kullaniciId: kullaniciId, neden: 'rol-uygun-degil' });
+        return;
+      }
+      if (!kurumUyusur(kullanici, isyeri)) {
+        gecersiz.push({ kullaniciId: kullaniciId, neden: 'kurum-farkli' });
+        return;
+      }
+      uzmanlar.push(kullanici);
+    });
+    return {
+      mod: 'atama', isyeriId: isyeriId, isyeri: isyeri, atamalar: atamalar,
+      uzmanlar: uzmanlar, pasif: pasif, gecersiz: gecersiz
+    };
+  }
+
+  /* İşyerinin onay hesabı: aktif, rolü uygun, kurumu uyumlu görevlendirilmiş
+     uzmanlar. Pasif/geçersiz atamalar listeye girmez. */
+  function isyeriUzmanlari(isyeriId) {
+    if (!isyeriId) { return []; }
+    return isyeriAtamaBilgisi(isyeriId).uzmanlar;
+  }
+
   function uzmanSinifKodu(uzman) {
     return typeof ISG.uzmanSinifiKodu === 'function'
       ? ISG.uzmanSinifiKodu(uzman && uzman.uzmanSinifi) : ((uzman && uzman.uzmanSinifi) || '');
   }
 
-  /* İşyerinin onay durumu. `mod`:
-       'tekUzman'  → tek aktif uzman var; doğrudan yazar (sınıf şartı yok)
-       'onayli'    → çok uzman var, en az biri eşiği karşılıyor
-       'eksik'     → çok uzman var ama hiçbiri tehlike sınıfı eşiğini karşılamıyor
-       'uzman-yok' → işyerine atanmış aktif uzman yok */
+  function uyari(kod, seviye, metin, ek) {
+    var kayit = { kod: kod, seviye: seviye, metin: metin };
+    if (ek) { Object.keys(ek).forEach(function (alan) { kayit[alan] = ek[alan]; }); }
+    return kayit;
+  }
+
+  var GECERSIZ_UYARI = {
+    'kullanici-yok': 'görevlendirilen hesap bulunamadı',
+    'hesap-pasif': 'hesap pasif durumda',
+    'rol-uygun-degil': 'hesabın rolü İSG uzmanı/yetkili değil',
+    'kurum-farkli': 'hesap farklı bir kurumda kayıtlı'
+  };
+
+  /* İşyerinin onay durumu — TÜM uyarıların tek kaynağı (A′).
+     `mod`:
+       'tekUzman'            → tek aktif uzman; sınıf eşiğini karşılıyorsa yazar
+       'tekUzmanSinifEksik'  → tek uzman var ama sınıf eşiği karşılanmıyor
+       'onayli'              → birden çok uzman; en az biri eşiği karşılıyor
+       'eksik'               → birden çok uzman; hiçbiri eşiği karşılamıyor
+       'uzman-yok'           → işyerine görevlendirilmiş aktif uzman yok
+     `onaylayanlar` fiilen onay verebilen hesaplardır; `onayYetkilisiId` doluysa
+     yalnız o hesap onaylar (ve aynı koşulları sağlamak zorundadır). */
   function onayDurumu(isyeriId) {
-    var isyeri = (D.al().isyerleri || []).filter(function (kayit) { return kayit.id === isyeriId; })[0] || null;
+    var atama = isyeriAtamaBilgisi(isyeriId);
+    var isyeri = atama.isyeri;
     var tehlikeSinifi = isyeri ? (isyeri.tehlikeSinifi || '') : '';
     var esik = onayEsigi(tehlikeSinifi);
-    var uzmanlar = isyeriUzmanlari(isyeriId);
+    var uzmanlar = atama.uzmanlar;
     var uygun = uzmanlar.filter(function (uzman) {
       var sinif = uzmanSinifKodu(uzman);
       return !!sinif && esik.indexOf(sinif) >= 0;
     });
+    var uyarilar = [];
+
+    atama.gecersiz.forEach(function (kayit) {
+      var hesap = D.kullaniciBul(kayit.kullaniciId);
+      var kim = hesap ? (hesap.adSoyad || hesap.eposta || kayit.kullaniciId) : kayit.kullaniciId;
+      uyarilar.push(uyari('atama-gecersiz', 'uyari',
+        'Görevlendirme geçersiz: ' + kim + ' — ' +
+        (GECERSIZ_UYARI[kayit.neden] || kayit.neden) + '. Atamayı güncelleyin.',
+        { kullaniciId: kayit.kullaniciId, neden: kayit.neden }));
+    });
+
+    if (!uzmanlar.length) {
+      uyarilar.push(uyari('uzman-yok', 'kritik',
+        'Bu işyerine görevlendirilmiş aktif uzman yok; kayıtlar onay kuyruğuna giremez. ' +
+        'İşyeri kartından uzman görevlendirmesi yapın.'));
+    } else if (!uygun.length) {
+      uyarilar.push(uyari('sinif-eksik', 'kritik',
+        'Görevlendirilmiş uzmanların hiçbiri bu tehlike sınıfı için gereken ' +
+        (esik.length ? esik.join(' / ') : '—') + ' uzman sınıfına sahip değil.',
+        { esik: esik }));
+    }
+
+    /* Atanmış onay yetkilisi varsa tek onay mercii odur; koşullar aynı kalır. */
+    var onaylayanlar = uygun;
+    var yetkiliId = String((isyeri && isyeri.onayYetkilisiId) || '');
+    var yetkili = yetkiliId ? D.kullaniciBul(yetkiliId) : null;
+    if (yetkiliId) {
+      var yetkiliGecerli = true;
+      if (!yetkili) {
+        yetkiliGecerli = false;
+        uyarilar.push(uyari('onayYetkilisi-yok', 'kritik',
+          'Atanan onay yetkilisi hesabı bulunamadı; seçimi yenileyin.', { kullaniciId: yetkiliId }));
+      } else {
+        if (yetkili.aktif === false) {
+          yetkiliGecerli = false;
+          uyarilar.push(uyari('onayYetkilisi-pasif', 'kritik',
+            (yetkili.adSoyad || yetkili.eposta) + ' hesabı pasif; onay talepleri bekleyecek.',
+            { kullaniciId: yetkiliId }));
+        }
+        var yetkiliSinif = uzmanSinifKodu(yetkili);
+        if (!yetkiliSinif || esik.indexOf(yetkiliSinif) < 0) {
+          yetkiliGecerli = false;
+          uyarilar.push(uyari('onayYetkilisi-sinif', 'kritik',
+            (yetkili.adSoyad || yetkili.eposta) + ' onay yetkilisi olarak atanmış ancak ' +
+            (yetkiliSinif ? ('sınıfı (' + yetkiliSinif + ') bu işyerinin eşiğini karşılamıyor')
+              : 'uzman sınıfı belirtilmemiş') + '.',
+            { kullaniciId: yetkiliId, esik: esik }));
+        }
+        if (uzmanlar.filter(function (uzman) { return uzman.id === yetkiliId; }).length === 0) {
+          yetkiliGecerli = false;
+          uyarilar.push(uyari('onayYetkilisi-atanmamis', 'uyari',
+            (yetkili.adSoyad || yetkili.eposta) + ' bu işyerine görevlendirilmemiş; ' +
+            'atanmış onay yetkilisi yetkisi yok sayıldı.', { kullaniciId: yetkiliId }));
+        }
+        if (yetkili.aktif !== false && yetkili.tumIsyerleri !== true &&
+          (yetkili.isyerleri || []).indexOf(String(isyeriId)) < 0) {
+          yetkiliGecerli = false;
+          uyarilar.push(uyari('onayYetkilisi-kapsam', 'uyari',
+            (yetkili.adSoyad || yetkili.eposta) + ' bu işyerini veri erişim kapsamında görmüyor; ' +
+            'talebi göremez, onay veremez.', { kullaniciId: yetkiliId }));
+        }
+      }
+      onaylayanlar = yetkiliGecerli ? [yetkili] : [];
+    }
+
     var mod = 'uzman-yok';
-    if (uzmanlar.length === 1) { mod = 'tekUzman'; }
-    else if (uzmanlar.length > 1) { mod = uygun.length ? 'onayli' : 'eksik'; }
+    if (uzmanlar.length) {
+      if (uzmanlar.length === 1) { mod = onaylayanlar.length ? 'tekUzman' : 'tekUzmanSinifEksik'; }
+      else { mod = onaylayanlar.length ? 'onayli' : 'eksik'; }
+    }
     return {
       mod: mod,
+      atamaModu: atama.mod,
       isyeriId: isyeriId,
       isyeriAd: isyeri ? (isyeri.ad || '') : '',
       tehlikeSinifi: tehlikeSinifi,
       esik: esik,
       uzmanSayisi: uzmanlar.length,
       uzmanlar: uzmanlar,
-      onaylayanlar: uygun,
-      onaylayanIdler: uygun.map(function (uzman) { return uzman.id; })
+      atamalar: atama.atamalar,
+      pasifAtama: atama.pasif,
+      gecersizAtamalar: atama.gecersiz,
+      onayYetkilisiId: yetkiliId,
+      onayYetkilisi: yetkili,
+      onaylayanlar: onaylayanlar,
+      onaylayanIdler: onaylayanlar.map(function (uzman) { return uzman.id; }),
+      uyarilar: uyarilar
     };
+  }
+
+  /* Arayüzün tek uyarı listesi: oturum sahibinin kapsamındaki işyerlerinin onay
+     uyarıları. Sistem Yöneticisi ekranı dahil hiçbir ekran kendi uyarı metnini
+     üretmez; hepsi buradan okur (bkz. uygulama.js). */
+  function onayUyarilari() {
+    var o = oturum();
+    if (!o) { return []; }
+    var rol = rolTanimi(o.rol);
+    if (!rol.yonetir && !rol.kurumKapsami) { return []; }
+    var idler = kapsam();
+    return (D.al().isyerleri || [])
+      .filter(function (isyeri) { return isyeri && idler.indexOf(isyeri.id) >= 0; })
+      .map(function (isyeri) { return onayDurumu(isyeri.id); })
+      .filter(function (durum) { return durum.uyarilar.length > 0; })
+      .map(function (durum) {
+        return {
+          isyeriId: durum.isyeriId, isyeriAd: durum.isyeriAd,
+          mod: durum.mod, uyarilar: durum.uyarilar
+        };
+      });
   }
 
   /* ---------- Yetki soruları ---------- */
@@ -749,6 +936,9 @@
       var yKapsam = yonetimKapsami();
       if (yKapsam.tum) { return true; }
       if (eylem === 'kurumKaydet' || eylem === 'kurumSil' || eylem === 'sifirla') { return false; }
+      /* R1: tam veri içe aktarma — kapsamı boş kurulum yöneticisi (felaket
+         kurtarma) ya da sistem geneli yetkili. Ayrıntı: iceAktarDenetle. */
+      if (eylem === 'iceAktar') { return yKapsam.isyerleri.length === 0; }
       if ((eylem === 'isyeriKaydet' || eylem === 'isyeriSil') && isyeriId) {
         return yKapsam.isyerleri.indexOf(isyeriId) >= 0;
       }
@@ -1012,7 +1202,8 @@
       durum.kurumId = isyeri.kurumId || '';
       return durum;
     }).filter(function (durum) {
-      return durum.mod === 'eksik' || durum.mod === 'uzman-yok';
+      return durum.mod === 'eksik' || durum.mod === 'uzman-yok' ||
+        durum.mod === 'tekUzmanSinifEksik';
     });
   }
 
@@ -1293,6 +1484,34 @@
     if (!id && !kurumId && !y.tum) {
       throw yonetimReddi('Yeni işyeri yalnızca yetkili olduğunuz bir kuruma bağlı olarak açılabilir.');
     }
+    /* A′ (2.28.0): uzman görevlendirmesi ve onay yetkilisi yalnızca kurum içinde
+       ve gerçek hesaplarla yapılabilir. Görevlendirme hesabın ROLÜNÜ ya da veri
+       erişimini değiştirmez; burada yalnız kayıt tutarlılığı denetlenir.
+       Tanınmayan (silinmiş) hesap kimliği REDDEDİLMEZ: depo katmanı onu
+       "geçersiz atama" olarak korur ve arayüz uyarı gösterir. Reddetmek, geçersiz
+       atama taşıyan işyerinin bir daha kaydedilememesine (kilitlenmeye) yol
+       açardı. Kurumu bilinen ve farklı olan hesap ise yazılmaz. */
+    var kurumSinir = kurumId || String((id ? ((D.al().isyerleri || [])
+      .filter(function (kayit) { return kayit.id === id; })[0] || {}).kurumId : '') || '');
+    (Array.isArray(girdi.uzmanGorevlendirmeleri) ? girdi.uzmanGorevlendirmeleri : [])
+      .forEach(function (atama) {
+        var kullaniciId = String((atama && atama.kullaniciId) || '');
+        if (!kullaniciId) { return; }
+        var hesap = D.kullaniciBul(kullaniciId);
+        if (!hesap) { return; }
+        var hesapKurum = String(hesap.kurumId || '');
+        if (kurumSinir && hesapKurum && hesapKurum !== kurumSinir) {
+          throw yonetimReddi('Görevlendirilen kullanıcı farklı bir kurumda kayıtlı.');
+        }
+      });
+    var onayYetkilisiId = String(girdi.onayYetkilisiId || '');
+    if (onayYetkilisiId) {
+      var onayHesabi = D.kullaniciBul(onayYetkilisiId);
+      var onayKurum = String((onayHesabi && onayHesabi.kurumId) || '');
+      if (onayHesabi && kurumSinir && onayKurum && onayKurum !== kurumSinir) {
+        throw yonetimReddi('Onay yetkilisi farklı bir kurumda kayıtlı.');
+      }
+    }
   }
 
   function isyeriSilDenetle(id) {
@@ -1312,6 +1531,53 @@
     var y = yonetimKapsami();
     if (!y.yonetir) { throw yonetimReddi(YONETIM_YOK); }
     if (!y.tum) { throw yonetimReddi('Tüm verileri silme yalnızca sistem geneli yetkili yöneticiye açıktır.'); }
+  }
+
+  /* R1 (2.28.0): tam veri içe aktarma bütün veri kümesini yerinde değiştirir.
+     Kural: içe aktarılan dosya, aktaranın yönetim kapsamı DIŞINDA tek bir işyeri
+     ya da kurum bile içeriyorsa işlem reddedilir. Böylece sınırlı yönetici
+     başka kurumun verisini yedekle ezemez; sistem geneli yetkili sınırsızdır.
+     İki meşru istisna korunur:
+       · Sistem geneli yetkili (tum) → sınırsız.
+       · Henüz işyeri ataması olmayan kurulum yöneticisi → kapsamı boş olduğu için
+         karşılaştırma anlamsızdır ve yeni cihazda yedek geri yükleme (olağan
+         felaket kurtarma yolu) kapanmamalıdır. Bu hesap zaten hiçbir veri
+         ekranında kayıt göremez; riski ayrıca raporlanır. */
+  function iceAktarDenetle(args) {
+    var y = yonetimKapsami();
+    if (!y.yonetir) { throw yonetimReddi(YONETIM_YOK); }
+    if (y.tum || y.isyerleri.length === 0) { return; }
+    var metin = args && typeof args[0] === 'string' ? args[0] : '';
+    if (!metin) { return; }
+    var veri = null;
+    try { veri = JSON.parse(metin); } catch (hata) { veri = null; }
+    if (!veri || typeof veri !== 'object') { return; }
+    var disarida = [];
+    var izinliKurumlar = {};
+    (y.kurumlar || []).forEach(function (kurumId) { izinliKurumlar[kurumId] = true; });
+    (Array.isArray(veri.isyerleri) ? veri.isyerleri : []).forEach(function (isyeri) {
+      if (isyeri && isyeri.id && y.isyerleri.indexOf(isyeri.id) < 0) {
+        disarida.push(String(isyeri.ad || isyeri.id));
+      }
+    });
+    (Array.isArray(veri.kurumlar) ? veri.kurumlar : []).forEach(function (kurum) {
+      if (kurum && kurum.id && !izinliKurumlar[kurum.id]) {
+        disarida.push(String(kurum.ad || kurum.id));
+      }
+    });
+    if (disarida.length) {
+      throw yonetimReddi('Bu yedek yönetim kapsamınız dışındaki kayıtları içeriyor (' +
+        disarida.slice(0, 3).join(', ') + (disarida.length > 3 ? '…' : '') +
+        '). Tüm veriyi içe aktarma yalnızca sistem geneli yetkili yöneticiye açıktır.');
+    }
+  }
+
+  /* Sistem geneli yönetim yetkisi (tüm kurum/işyerleri). Depo katmanındaki
+     tam veri değiştiren işlemler bu tek soruyu kullanır. */
+  function sistemGeneli() {
+    var o = oturum();
+    if (!o) { return false; }
+    return yonetimKapsami().tum === true;
   }
 
   function ayarYazmaDenetle(alanlar) {
@@ -1415,10 +1681,8 @@
     kurumKaydet: kurumYazmaDenetle,
     kurumSil: kurumYazmaDenetle,
     ayarKaydet: function (args) { ayarYazmaDenetle(args[0]); },
-    sifirla: sifirlaDenetle
-    /* iceAktar: bulut eşitlemesi aynı işlevi kullanır (bulut.js) ve yedek geri
-       yükleme bütün veri kümesini değiştirir; kapsam denetimi burada
-       uygulanmaz. Açık risk olarak raporlanır. */
+    sifirla: sifirlaDenetle,
+    iceAktar: iceAktarDenetle
   };
 
   ADMIN_KORUMA.forEach(function (ad) {
@@ -1596,10 +1860,15 @@
     onayModeli: onayModeli,
     onayEsigi: onayEsigi,
     onayDurumu: onayDurumu,
+    onayUyarilari: onayUyarilari,
+    isyeriAtamaBilgisi: isyeriAtamaBilgisi,
+    isyeriUzmanlari: isyeriUzmanlari,
+    kapsamUzmanlari: kapsamUzmanlari,
+    atamaListesi: atamaListesi,
+    sistemGeneli: sistemGeneli,
     onayYetkisi: onayYetkisi,
     onaylayiciMi: onaylayiciMi,
     yazmaModu: yazmaModu,
-    isyeriUzmanlari: isyeriUzmanlari,
     yetkiliEksikListe: yetkiliEksikListe,
     talepler: talepler,
     bekleyenSayisi: bekleyenSayisi,

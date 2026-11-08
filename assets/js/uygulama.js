@@ -392,6 +392,101 @@
 
   /* ---------- İşyeri / kurum ---------- */
 
+  /* A′ modeli: işyerine uzman görevlendirmesi ve onay yetkilisi seçimi.
+     Görevlendirme yalnız onay akışını belirler; uzmanın rolünü, işyeri
+     yetkisini veya veri erişimini DEĞİŞTİRMEZ (yetki.js: onayDurumu).
+     Liste, işyerinin kurumundaki aktif İSG uzmanı (yetkili) hesaplardır;
+     kurum dışı hesap atanamaz (depo katmanı da aynı kuralı uygular). */
+  function isyeriUzmanHesaplari(kurumId) {
+    var kullanicilar = (ISG.depo.al().kullanicilar || []);
+    return kullanicilar.filter(function (kullanici) {
+      if (!kullanici || kullanici.aktif === false) { return false; }
+      if (!ISG.yetki.rolCoz || ISG.yetki.rolCoz(kullanici.rol) !== 'yetkili') { return false; }
+      var hesapKurum = String(kullanici.kurumId || '');
+      if (kurumId && hesapKurum && hesapKurum !== String(kurumId)) { return false; }
+      return true;
+    }).sort(function (a, b) {
+      return String(a.adSoyad || a.eposta || '').localeCompare(String(b.adSoyad || b.eposta || ''), 'tr');
+    });
+  }
+
+  function isyeriUzmanKutulari(kurumId, seciliIdler) {
+    var liste = isyeriUzmanHesaplari(kurumId);
+    if (!liste.length) {
+      return '<p class="form-uyari" role="alert">Bu kurumda aktif İSG uzmanı hesabı yok. ' +
+        'Kullanıcılar ekranından rolü <strong>İSG uzmanı (yetkili)</strong> olan bir hesap ekleyin.</p>';
+    }
+    return liste.map(function (kullanici) {
+      var sinif = kullanici.uzmanSinifi ? (kullanici.uzmanSinifi + ' sınıfı') : 'uzman sınıfı belirtilmedi';
+      return '<label><input type="checkbox" class="isyeri-uzman" value="' + B.kacis(kullanici.id) + '"' +
+        (seciliIdler.indexOf(kullanici.id) >= 0 ? ' checked' : '') + '>' +
+        '<span><strong>' + B.kacis(kullanici.adSoyad || kullanici.eposta) + '</strong>' +
+        '<small>' + B.kacis(sinif) + '</small></span></label>';
+    }).join('');
+  }
+
+  function isyeriOnaySecenekleri(kurumId, seciliId) {
+    var liste = isyeriUzmanHesaplari(kurumId);
+    var secenekler = '<option value="">Görevlendirilmiş uzmanlar (otomatik)</option>';
+    var bulundu = false;
+    liste.forEach(function (kullanici) {
+      var seciliMi = String(kullanici.id) === String(seciliId);
+      if (seciliMi) { bulundu = true; }
+      secenekler += '<option value="' + B.kacis(kullanici.id) + '"' + (seciliMi ? ' selected' : '') + '>' +
+        B.kacis((kullanici.adSoyad || kullanici.eposta) +
+          (kullanici.uzmanSinifi ? ' (' + kullanici.uzmanSinifi + ')' : '')) + '</option>';
+    });
+    /* Seçili yetkili listede yoksa (ör. pasif hesap) seçim sessizce silinmesin. */
+    if (seciliId && !bulundu) {
+      var kayit = (ISG.depo.al().kullanicilar || []).filter(function (k) { return k.id === seciliId; })[0];
+      secenekler += '<option value="' + B.kacis(seciliId) + '" selected>' +
+        B.kacis((kayit ? (kayit.adSoyad || kayit.eposta) : seciliId) + ' — geçersiz atama') + '</option>';
+    }
+    return secenekler;
+  }
+
+  /* Formdaki işaretli uzmanları görevlendirme listesine çevirir. Var olan
+     atamaların kimliği korunur: işareti kaldırılan atama SİLİNMEZ, `aktif`
+     alanı false olur (denetim izi ve geçmiş kaybolmasın). */
+  function isyeriUzmanAtamalari(mevcutKayit) {
+    var seciliIdler = Array.prototype.map.call(
+      document.querySelectorAll('#isyeriUzmanListesi .isyeri-uzman'),
+      function (kutu) { return kutu.checked ? kutu.value : ''; }
+    ).filter(function (deger) { return !!deger; });
+    var atamalar = (mevcutKayit && Array.isArray(mevcutKayit.uzmanGorevlendirmeleri)
+      ? mevcutKayit.uzmanGorevlendirmeleri : []).filter(function (atama) {
+        return atama && atama.kullaniciId;
+      }).map(function (atama) {
+        var kopya = {};
+        Object.keys(atama).forEach(function (alan) { kopya[alan] = atama[alan]; });
+        kopya.aktif = seciliIdler.indexOf(String(atama.kullaniciId)) >= 0;
+        return kopya;
+      });
+    seciliIdler.forEach(function (kullaniciId) {
+      var varMi = atamalar.some(function (atama) { return String(atama.kullaniciId) === kullaniciId; });
+      if (!varMi) { atamalar.push({ kullaniciId: kullaniciId, aktif: true }); }
+    });
+    return atamalar;
+  }
+
+  /* Kurum değişince görevlendirme listesi yenilenir: kurum dışı hesap
+     görünmez, seçili olmayan atamalar düşer. */
+  function isyeriUzmanListesiniYenile() {
+    var kurumSecimi = el('isyeriKurum');
+    var kurumId = kurumSecimi ? String(kurumSecimi.value || '') : '';
+    var seciliIdler = Array.prototype.map.call(
+      document.querySelectorAll('#isyeriUzmanListesi .isyeri-uzman'),
+      function (kutu) { return kutu.checked ? kutu.value : ''; }
+    ).filter(function (deger) { return !!deger; });
+    if (el('isyeriUzmanListesi')) {
+      el('isyeriUzmanListesi').innerHTML = isyeriUzmanKutulari(kurumId, seciliIdler);
+    }
+    if (el('isyeriOnayYetkilisi')) {
+      var seciliYetkili = String(el('isyeriOnayYetkilisi').value || '');
+      el('isyeriOnayYetkilisi').innerHTML = isyeriOnaySecenekleri(kurumId, seciliYetkili);
+    }
+  }
+
   function isyeriAc(id, varsayilanIsyeri) {
     var form = el('isyeriForm');
     var kayit = id ? veri().isyerleri.filter(function (i) { return i.id === id; })[0] : null;
@@ -420,6 +515,16 @@
       form.elements.tehlikeSinifi.value = 'tehlikeli';
       form.elements.calisanSayisi.value = '0';
       if (varsayilanIsyeri) { form.elements.ana.checked = false; }
+    }
+    /* A′ atama alanları her açılışta tazelenir. */
+    if (el('isyeriUzmanListesi')) {
+      var seciliAtamalar = (kayit && Array.isArray(kayit.uzmanGorevlendirmeleri) ? kayit.uzmanGorevlendirmeleri : [])
+        .filter(function (atama) { return atama && atama.kullaniciId && atama.aktif !== false; })
+        .map(function (atama) { return String(atama.kullaniciId); });
+      el('isyeriUzmanListesi').innerHTML = isyeriUzmanKutulari(varsayilanKurum, seciliAtamalar);
+    }
+    if (el('isyeriOnayYetkilisi')) {
+      el('isyeriOnayYetkilisi').innerHTML = isyeriOnaySecenekleri(varsayilanKurum, String((kayit && kayit.onayYetkilisiId) || ''));
     }
     diyalogAc(el('isyeriDiyalog'), form.elements.ad);
   }
@@ -3719,11 +3824,17 @@
       ciz();
     });
 
+    /* Kurum değişince A′ görevlendirme listesi yenilenir. */
+    if (el('isyeriKurum')) {
+      el('isyeriKurum').addEventListener('change', isyeriUzmanListesiniYenile);
+    }
+
     formuBagla('isyeriForm', function (form) {
       var veriForm = formVerisi(form);
       if (!veriForm.ad) { uyariGoster('isyeriUyari', 'İşyeri adı zorunlu.'); return; }
       var calisan = Number(veriForm.calisanSayisi);
-      D.isyeriKaydet({
+      var mevcutKayit = veriForm.id ? (veri().isyerleri || []).filter(function (isyeri) { return isyeri.id === veriForm.id; })[0] : null;
+      var kaydedilen = D.isyeriKaydet({
         id: veriForm.id || '',
         ad: veriForm.ad,
         tehlikeSinifi: veriForm.tehlikeSinifi || 'tehlikeli',
@@ -3733,10 +3844,19 @@
         adres: veriForm.adres || '',
         sektor: veriForm.sektor || '',
         kurumId: veriForm.kurumId || '',
-        ana: form.elements.ana.checked
+        ana: form.elements.ana.checked,
+        uzmanGorevlendirmeleri: isyeriUzmanAtamalari(mevcutKayit),
+        onayYetkilisiId: veriForm.onayYetkilisiId || ''
       });
       diyalogKapat(el('isyeriDiyalog'));
-      B.bildir('İşyeri kaydedildi.', 'basari');
+      /* Kayıt sonrası onay uyarıları kullanıcıya görünür kalır: uyarı metni
+         tek kaynaktan (yetki.js: onayDurumu) okunur. */
+      var onayDurum = (kaydedilen && ISG.yetki.onayDurumu) ? ISG.yetki.onayDurumu(kaydedilen.id) : null;
+      if (onayDurum && onayDurum.uyarilar.length) {
+        B.bildir('İşyeri kaydedildi. Onay uyarısı: ' + onayDurum.uyarilar[0].metin, 'uyari');
+      } else {
+        B.bildir('İşyeri kaydedildi.', 'basari');
+      }
       ciz();
     });
 

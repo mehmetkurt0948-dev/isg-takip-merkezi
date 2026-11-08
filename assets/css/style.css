@@ -1419,6 +1419,15 @@ body.oturum-yok .kabuk { display: none; }
 }
 .giris-ipucu.uyari { color: var(--amber); }
 
+/* R0: ilk kurulum adımı başlığı (şifresiz doğan hesap) */
+.giris-alt-baslik {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -.2px;
+  color: var(--ink);
+}
+
 .sifirla-kod {
   display: grid;
   gap: 3px;

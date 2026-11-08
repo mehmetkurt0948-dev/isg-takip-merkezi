@@ -170,6 +170,53 @@
     return kurum ? (kurum.ad || '') : '';
   }
 
+  /* ---------- A′ onay yetkilisi görünümü ----------
+     Uyarı metinleri burada ÜRETİLMEZ: tek kaynak yetki.js onayDurumu /
+     onayUyarilari. Ekran yalnız biçimlendirir, böylece kural tek yerde kalır. */
+  var ONAY_MOD_ADI = {
+    onayli: 'Onay hazır',
+    tekUzman: 'Tek uzman onaylıyor',
+    tekUzmanSinifEksik: 'Tek uzman — sınıf eşiği eksik',
+    eksik: 'Onay yetkilisi yok',
+    'uzman-yok': 'Uzman görevlendirilmemiş'
+  };
+
+  function onayDurumSatiri(isyeri) {
+    if (!Y.onayDurumu || !Y.izin('isyeriKaydet')) { return ''; }
+    var durum = Y.onayDurumu(isyeri.id);
+    var sinif = durum.mod === 'onayli' || durum.mod === 'tekUzman' ? 'basari'
+      : (durum.mod === 'tekUzmanSinifEksik' || durum.mod === 'eksik' ? 'uyari' : 'tehlike');
+    var onaylayanlar = (durum.onaylayanlar || []).map(function (uzman) {
+      return uzman.adSoyad || uzman.eposta || uzman.id;
+    });
+    return '<div class="isyeri-satir"><span>Onay yetkilisi</span><b>' +
+        (onaylayanlar.length ? kacis(onaylayanlar.join(', ')) : B.rozet(ONAY_MOD_ADI[durum.mod] || durum.mod, sinif)) +
+      '</b></div>' +
+      (durum.uzmanSayisi ? '<div class="isyeri-satir"><span>Görevli uzman</span><b>' +
+        B.sayi(durum.uzmanSayisi) + ' uzman · eşik ' + kacis((durum.esik || []).join('/') || '—') + '</b></div>' : '');
+  }
+
+  function onayUyariKarti() {
+    if (!Y.onayUyarilari) { return ''; }
+    var liste = Y.onayUyarilari();
+    if (!liste.length) { return ''; }
+    var satirlar = liste.map(function (kayit) {
+      return '<div class="kullanici-satir">' +
+        '<strong>' + kacis(kayit.isyeriAd || kayit.isyeriId) + '</strong>' +
+        '<span class="muted">' + kacis(kayit.uyarilar.map(function (uyari) { return uyari.metin; }).join(' ')) + '</span>' +
+        '<span class="sag"><button type="button" class="dugme ince" data-islem="isyeri-duzenle" data-id="' +
+          kacis(kayit.isyeriId) + '">Düzenle</button></span>' +
+      '</div>';
+    }).join('');
+    return '<section class="kart onay-uyari-karti">' +
+      '<div class="kart-baslik"><div><span class="ustyazi">ONAY AKIŞI</span>' +
+        '<h2>Onay yetkilisi uyarıları (' + B.sayi(liste.length) + ')</h2>' +
+        '<p>Uyarılar işyeri kaydındaki uzman görevlendirmesinden üretilir; veri erişimini değiştirmez, ' +
+        'yalnız onay akışını etkiler.</p></div></div>' +
+      '<div class="kart-ic" style="padding:0">' + satirlar + '</div>' +
+    '</section>';
+  }
+
   function isyeriKarti(isyeri, hesap) {
     var sinif = ISG.RISK_SINIFLARI[isyeri.tehlikeSinifi] || { ad: isyeri.tehlikeSinifi };
     var dosyaSayisi = ISG.kapsamda(hesap, isyeri.id, 'dosyalar').length;
@@ -186,6 +233,7 @@
       (kurumAdi ? '<div class="isyeri-satir"><span>Bağlı kurum</span><b>' + kacis(kurumAdi) + '</b></div>' : '') +
       '<div class="isyeri-satir"><span>Kayıtlı personel</span><b>' + B.sayi(calisan) + ' / ' + B.sayi(isyeri.calisanSayisi) + ' çalışan</b></div>' +
       '<div class="isyeri-satir"><span>Kontrol maddesi</span><b>' + B.sayi(dosyaSayisi) + ' madde</b></div>' +
+      onayDurumSatiri(isyeri) +
       '<div class="isyeri-eylem">' +
         '<button type="button" class="dugme ince" data-islem="isyeri-duzenle" data-id="' + kacis(isyeri.id) + '">İşyerini düzenle</button>' +
         '<button type="button" class="dugme ince birincil" data-islem="dosya-yeni" data-isyeri="' + kacis(isyeri.id) + '">' + B.ikon('i-plus') + 'Dosya kontrolü ekle</button>' +
@@ -225,6 +273,7 @@
       '</div>' +
 
       kapsamSecici(hesap) +
+      onayUyariKarti() +
       (kartlar ? '<div class="isyeri-izgara">' + kartlar + '</div>' :
         bosKart('İşyeri bulunamadı', 'Yeni işyeri ekleyerek takip başlatın.', 'i-building'));
   };

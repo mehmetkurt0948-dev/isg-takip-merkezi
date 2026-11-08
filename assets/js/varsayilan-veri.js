@@ -33,8 +33,20 @@
 
   ISG.yilEkle = yilEkle;
 
+  /* Kurulum hesabı için asgari şifre uzunluğu. Tek kaynak: giriş ekranı,
+     şifre sıfırlama ve ilk kurulum adımı bu sabiti kullanır. */
+  ISG.SIFRE_MIN_UZUNLUK = 8;
+
   /* Tek gerçek hesap: site yöneticisi. Boş başlangıçta ve veri sıfırlandığında
      bu hesap korunur, böylece giriş anahtarı hiçbir cihazda kaybolmaz.
+
+     ŞİFRE YOKTUR (2.28.0 — R0): burada eskiden düz metin '1234' yazıyordu. Site
+     herkese açık yayınlandığı için bu, yayındaki her kurulumda BİLİNEN kimlik
+     bilgisi demekti: adresi bilen herkes yönetici olarak girebiliyordu. Artık
+     hesap şifresiz doğar ve `ilkKurulum: true` taşır; giriş ekranı bu hesapta
+     oturum açmaz, bunun yerine "ilk kurulum" adımında yeni şifre belirletir
+     (bkz. giris.js). Var olan cihazlarda kayıtlı şifre SİLİNMEZ: göç yalnızca
+     şifresi boş hesapları işaretler, kimse kilitlenmez.
 
      KAPSAM YOKTUR (2.26.0): yönetici rolü tek başına işyeri kapsamı sağlamaz ve
      bu hesaba kurulumda `tumIsyerleri` ya da işyeri ataması YAZILMAZ. İlk
@@ -44,9 +56,9 @@
      kadar veri ekranlarında "İşyeri atamanız bulunmuyor" uyarısı görünür. */
   ISG.YONETICI_HESAP = function () {
     return [{
-      id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmetkurt0948@gmail.com', sifre: '1234',
+      id: 'u1', adSoyad: 'Mehmet Kurt', eposta: 'mehmetkurt0948@gmail.com', sifre: '',
       rol: 'yonetici', gorev: 'İSG yöneticisi', isyerleri: [],
-      aktif: true, sonGiris: ''
+      aktif: true, sonGiris: '', ilkKurulum: true
     }];
   };
 
